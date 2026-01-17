@@ -15,35 +15,48 @@ import javax.swing.*
 object HytaleTheme {
 
     // ==================== COLORS ====================
+    // All colors use JBColor.namedColor() to respect IDE themes
 
     /** Background color for card components */
     val cardBackground: JBColor = JBColor.namedColor(
-        "ToolWindow.HeaderTab.selectedInactiveBackground",
-        JBColor(0xF7F8FA, 0x2B2D30)
+        "Panel.background",
+        JBColor.PanelBackground
     )
 
     /** Border color for card components */
     val cardBorder: JBColor = JBColor.namedColor(
         "Component.borderColor",
-        JBColor(0xD1D5DB, 0x43454A)
+        JBColor.border()
     )
 
-    /** Primary accent color (blue) */
-    val accentColor: JBColor = JBColor(0x3574F0, 0x4A8EE6)
+    /** Primary accent color (blue) - uses IDE link color */
+    val accentColor: JBColor = JBColor.namedColor(
+        "Link.activeForeground",
+        JBColor.namedColor("Link.pressedForeground", JBColor.blue)
+    )
 
     /** Success/positive state color (green) */
-    val successColor: JBColor = JBColor(0x59A869, 0x499C54)
+    val successColor: JBColor = JBColor.namedColor(
+        "Label.successForeground",
+        JBColor.namedColor("Objects.Green", JBColor(0x59A869, 0x499C54))
+    )
 
     /** Warning state color (yellow/amber) */
-    val warningColor: JBColor = JBColor(0xE5A50A, 0xD9A343)
+    val warningColor: JBColor = JBColor.namedColor(
+        "Label.warningForeground",
+        JBColor.namedColor("Objects.Yellow", JBColor(0xE5A50A, 0xD9A343))
+    )
 
     /** Error/negative state color (red) */
-    val errorColor: JBColor = JBColor(0xDB5860, 0xC75450)
+    val errorColor: JBColor = JBColor.namedColor(
+        "Label.errorForeground",
+        JBColor.namedColor("Objects.Red", JBColor(0xDB5860, 0xC75450))
+    )
 
     /** Muted/secondary text color */
     val mutedText: JBColor = JBColor.namedColor(
-        "Label.disabledForeground",
-        JBColor(0x6B7280, 0x9DA0A8)
+        "Label.infoForeground",
+        JBColor.namedColor("Label.disabledForeground", JBColor.gray)
     )
 
     /** Primary text color */
@@ -53,68 +66,64 @@ object HytaleTheme {
     )
 
     /** Purple accent color (used for code/template highlights) */
-    val purpleAccent: JBColor = JBColor(0xA855F7, 0xC084FC)
+    val purpleAccent: JBColor = JBColor.namedColor(
+        "Plugins.tagForeground",
+        JBColor.namedColor("Objects.Purple", JBColor(0xA855F7, 0xC084FC))
+    )
 
     // ==================== FACTORY METHODS ====================
 
     /**
-     * Creates a modern styled button with optional color.
+     * Creates a standard button with pointer cursor and hover effect.
      *
      * @param text Button label text
      * @param icon Optional icon to display
-     * @param buttonColor Optional background color (makes button filled/colored)
      * @return Configured JButton instance
      */
     @JvmStatic
     @JvmOverloads
-    fun createModernButton(
-        text: String,
-        icon: Icon? = null,
-        buttonColor: Color? = null
-    ): JButton {
-        return if (buttonColor != null) {
-            // Create a custom colored button that properly renders text
-            object : JButton(text, icon) {
-                init {
-                    isFocusPainted = false
-                    cursor = Cursor.getPredefinedCursor(Cursor.HAND_CURSOR)
-                    isOpaque = true
-                    isContentAreaFilled = false
-                    isBorderPainted = false
-                    border = JBUI.Borders.empty(6, 12)
-                }
+    fun createButton(text: String, icon: Icon? = null): JButton {
+        return object : JButton(text, icon) {
+            private var isHovered = false
 
-                override fun paintComponent(g: Graphics) {
-                    val g2 = g.create() as Graphics2D
-                    g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
-
-                    // Draw rounded background
-                    g2.color = if (model.isPressed) buttonColor.darker() else buttonColor
-                    g2.fillRoundRect(0, 0, width, height, 8, 8)
-
-                    // Draw icon if present
-                    var textX = JBUI.scale(12)
-                    if (icon != null) {
-                        val iconY = (height - icon.iconHeight) / 2
-                        icon.paintIcon(this, g2, JBUI.scale(12), iconY)
-                        textX = JBUI.scale(12) + icon.iconWidth + JBUI.scale(6)
-                    }
-
-                    // Draw text in white
-                    g2.color = Color.WHITE
-                    g2.font = font
-                    val fm = g2.fontMetrics
-                    val textY = (height + fm.ascent - fm.descent) / 2
-                    g2.drawString(text, textX, textY)
-
-                    g2.dispose()
-                }
-            }
-        } else {
-            JButton(text, icon).apply {
-                isFocusPainted = false
+            init {
                 cursor = Cursor.getPredefinedCursor(Cursor.HAND_CURSOR)
-                border = JBUI.Borders.empty(6, 12)
+                isOpaque = false
+                isFocusPainted = false
+                border = JBUI.Borders.empty(4, 10)
+
+                addMouseListener(object : java.awt.event.MouseAdapter() {
+                    override fun mouseEntered(e: java.awt.event.MouseEvent?) {
+                        isHovered = true
+                        repaint()
+                    }
+                    override fun mouseExited(e: java.awt.event.MouseEvent?) {
+                        isHovered = false
+                        repaint()
+                    }
+                })
+            }
+
+            override fun paintComponent(g: Graphics) {
+                val g2 = g.create() as Graphics2D
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
+
+                // Draw hover/pressed background
+                when {
+                    model.isPressed -> {
+                        g2.color = JBColor.namedColor("Button.pressedBackground",
+                            JBColor(Color(0, 0, 0, 40), Color(255, 255, 255, 40)))
+                        g2.fillRoundRect(0, 0, width, height, 6, 6)
+                    }
+                    isHovered -> {
+                        g2.color = JBColor.namedColor("Button.hoverBackground",
+                            JBColor(Color(0, 0, 0, 20), Color(255, 255, 255, 20)))
+                        g2.fillRoundRect(0, 0, width, height, 6, 6)
+                    }
+                }
+
+                g2.dispose()
+                super.paintComponent(g)
             }
         }
     }

@@ -92,8 +92,8 @@ class AIAssistantPanel(private val project: Project) : JBPanel<AIAssistantPanel>
     private val cacheLastRefreshLabel = JBLabel("")
     private val cacheProgressBar = JProgressBar(0, 100)
     private val cacheProgressLabel = JBLabel("")
-    private val refreshButton = HytaleTheme.createModernButton("Download from GitHub", AllIcons.Vcs.Vendors.Github, HytaleTheme.accentColor)
-    private val clearCacheButton = HytaleTheme.createModernButton("Clear Cache", AllIcons.Actions.GC, HytaleTheme.errorColor)
+    private val refreshButton = HytaleTheme.createButton("Download from GitHub", AllIcons.Vcs.Vendors.Github)
+    private val clearCacheButton = HytaleTheme.createButton("Clear Cache", AllIcons.Actions.GC)
 
     // MCP status components
     private val mcpStatusLabel = JBLabel("Checking...")
@@ -377,7 +377,7 @@ class AIAssistantPanel(private val project: Project) : JBPanel<AIAssistantPanel>
         serverInstallRow.isOpaque = false
         serverInstallRow.alignmentX = Component.LEFT_ALIGNMENT
 
-        val installServerButton = HytaleTheme.createModernButton("Install MCP Server (npm)", AllIcons.Actions.Download, HytaleTheme.warningColor)
+        val installServerButton = HytaleTheme.createButton("Install MCP Server (npm)", AllIcons.Actions.Download)
         installServerButton.addActionListener { installMcpServer() }
         serverInstallRow.add(installServerButton)
 
@@ -389,11 +389,11 @@ class AIAssistantPanel(private val project: Project) : JBPanel<AIAssistantPanel>
         installRow.isOpaque = false
         installRow.alignmentX = Component.LEFT_ALIGNMENT
 
-        val installClaudeCodeButton = HytaleTheme.createModernButton("Install for Claude Code", AllIcons.Actions.Install, HytaleTheme.successColor)
+        val installClaudeCodeButton = HytaleTheme.createButton("Install for Claude Code", AllIcons.Actions.Install)
         installClaudeCodeButton.addActionListener { installMcpForClaudeCode() }
         installRow.add(installClaudeCodeButton)
 
-        val installClaudeDesktopButton = HytaleTheme.createModernButton("Install for Claude Desktop", AllIcons.Actions.Install, HytaleTheme.accentColor)
+        val installClaudeDesktopButton = HytaleTheme.createButton("Install for Claude Desktop", AllIcons.Actions.Install)
         installClaudeDesktopButton.addActionListener { installMcpForClaudeDesktop() }
         installRow.add(installClaudeDesktopButton)
 
@@ -405,11 +405,11 @@ class AIAssistantPanel(private val project: Project) : JBPanel<AIAssistantPanel>
         buttonsRow.isOpaque = false
         buttonsRow.alignmentX = Component.LEFT_ALIGNMENT
 
-        val configureButton = HytaleTheme.createModernButton("Copy MCP Config", AllIcons.Actions.Copy)
+        val configureButton = HytaleTheme.createButton("Copy MCP Config", AllIcons.Actions.Copy)
         configureButton.addActionListener { copyMcpConfig() }
         buttonsRow.add(configureButton)
 
-        val openCacheDirButton = HytaleTheme.createModernButton("Open Cache Folder", AllIcons.Actions.MenuOpen)
+        val openCacheDirButton = HytaleTheme.createButton("Open Cache Folder", AllIcons.Actions.MenuOpen)
         openCacheDirButton.addActionListener { openCacheDirectory() }
         buttonsRow.add(openCacheDirButton)
 
@@ -654,11 +654,11 @@ class AIAssistantPanel(private val project: Project) : JBPanel<AIAssistantPanel>
         buttonsRow.isOpaque = false
         buttonsRow.alignmentX = Component.LEFT_ALIGNMENT
 
-        val claudeCodeButton = HytaleTheme.createModernButton("Open Claude Code", AllIcons.Actions.Execute, HytaleTheme.purpleAccent)
+        val claudeCodeButton = HytaleTheme.createButton("Open Claude Code", AllIcons.Actions.Execute)
         claudeCodeButton.addActionListener { openClaudeCode() }
         buttonsRow.add(claudeCodeButton)
 
-        val claudeDesktopButton = HytaleTheme.createModernButton("Claude Desktop", AllIcons.Nodes.Desktop, HytaleTheme.accentColor)
+        val claudeDesktopButton = HytaleTheme.createButton("Claude Desktop", AllIcons.Nodes.Desktop)
         claudeDesktopButton.addActionListener { openClaudeDesktop() }
         buttonsRow.add(claudeDesktopButton)
 

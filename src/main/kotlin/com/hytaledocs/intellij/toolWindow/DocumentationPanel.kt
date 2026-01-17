@@ -59,8 +59,10 @@ class DocumentationPanel(private val project: Project) : JBPanel<DocumentationPa
 
         // Main split pane
         val splitPane = JSplitPane(JSplitPane.HORIZONTAL_SPLIT)
-        splitPane.dividerLocation = JBUI.scale(220)
-        splitPane.dividerSize = JBUI.scale(4)
+        splitPane.dividerLocation = JBUI.scale(260)  // Wider sidebar for longer titles
+        splitPane.dividerSize = JBUI.scale(1)
+        splitPane.isContinuousLayout = true
+        splitPane.border = null
 
         // Left sidebar
         splitPane.leftComponent = createSidebar()
@@ -97,9 +99,10 @@ class DocumentationPanel(private val project: Project) : JBPanel<DocumentationPa
 
     private fun createSidebar(): JPanel {
         val sidebarPanel = JPanel(BorderLayout())
-        sidebarPanel.background = HytaleTheme.cardBackground
-        sidebarPanel.border = BorderFactory.createMatteBorder(0, 0, 0, 1, HytaleTheme.cardBorder)
-        sidebarPanel.minimumSize = Dimension(JBUI.scale(180), 0)
+        sidebarPanel.background = UIUtil.getPanelBackground()
+        sidebarPanel.border = null
+        sidebarPanel.minimumSize = Dimension(JBUI.scale(200), 0)
+        sidebarPanel.preferredSize = Dimension(JBUI.scale(260), 0)
 
         // Search header
         val searchPanel = JPanel(BorderLayout())
@@ -122,20 +125,27 @@ class DocumentationPanel(private val project: Project) : JBPanel<DocumentationPa
 
         sidebarPanel.add(searchPanel, BorderLayout.NORTH)
 
-        // Tree
+        // Tree configuration
         sidebarTree.isRootVisible = false
         sidebarTree.showsRootHandles = true
-        sidebarTree.background = HytaleTheme.cardBackground
-        sidebarTree.isOpaque = true
+        sidebarTree.background = UIUtil.getPanelBackground()
+        sidebarTree.isOpaque = false
         sidebarTree.cellRenderer = DocTreeCellRenderer()
+        sidebarTree.rowHeight = JBUI.scale(24)  // Better row height for readability
+
+        // Enable tooltips for the tree
+        ToolTipManager.sharedInstance().registerComponent(sidebarTree)
+
+        // Single click to load document
         sidebarTree.addMouseListener(object : MouseAdapter() {
             override fun mouseClicked(e: MouseEvent) {
-                if (e.clickCount == 2 || (e.clickCount == 1 && !sidebarTree.isCollapsed(sidebarTree.selectionPath))) {
-                    val node = sidebarTree.lastSelectedPathComponent as? DefaultMutableTreeNode
-                    val item = node?.userObject as? SidebarNodeData
-                    if (item?.href != null) {
-                        loadDoc(item.href)
-                    }
+                val path = sidebarTree.getPathForLocation(e.x, e.y) ?: return
+                val node = path.lastPathComponent as? DefaultMutableTreeNode ?: return
+                val item = node.userObject as? SidebarNodeData ?: return
+
+                if (item.href != null) {
+                    // Single click loads the document
+                    loadDoc(item.href)
                 }
             }
         })
@@ -147,7 +157,7 @@ class DocumentationPanel(private val project: Project) : JBPanel<DocumentationPa
         // Footer with offline toggle and external link
         val footerPanel = JPanel(BorderLayout())
         footerPanel.isOpaque = false
-        footerPanel.border = BorderFactory.createMatteBorder(1, 0, 0, 0, HytaleTheme.cardBorder)
+        footerPanel.border = JBUI.Borders.emptyTop(4)
 
         // Offline mode toggle
         val offlinePanel = JPanel(FlowLayout(FlowLayout.LEFT, JBUI.scale(4), JBUI.scale(4)))
@@ -253,7 +263,7 @@ class DocumentationPanel(private val project: Project) : JBPanel<DocumentationPa
     private fun createNavigationFooter(): JPanel {
         val navPanel = JPanel(FlowLayout(FlowLayout.CENTER, JBUI.scale(16), JBUI.scale(8)))
         navPanel.isOpaque = false
-        navPanel.border = BorderFactory.createMatteBorder(1, 0, 0, 0, HytaleTheme.cardBorder)
+        navPanel.border = null
 
         loadingLabel.foreground = HytaleTheme.mutedText
         loadingLabel.isVisible = false
@@ -262,18 +272,25 @@ class DocumentationPanel(private val project: Project) : JBPanel<DocumentationPa
         return navPanel
     }
 
+    private fun colorToHex(color: Color): String {
+        return String.format("#%02x%02x%02x", color.red, color.green, color.blue)
+    }
+
     private fun getCustomCss(): String {
+        // Get colors from IDE theme dynamically
+        val textColor = colorToHex(HytaleTheme.textPrimary)
+        val textMuted = colorToHex(HytaleTheme.mutedText)
+        val linkColor = colorToHex(HytaleTheme.accentColor)
+        val codeBorder = colorToHex(HytaleTheme.cardBorder)
+        val headingColor = colorToHex(HytaleTheme.textPrimary)
+        val blockquoteBorder = colorToHex(HytaleTheme.accentColor)
+
+        // These need slight variations based on theme
         val isDark = !JBColor.isBright()
-        val textColor = if (isDark) "#bcbec4" else "#1f1f1f"
-        val textMuted = if (isDark) "#8c8c8c" else "#6b7280"
-        val linkColor = if (isDark) "#589df6" else "#3574f0"
-        val codeBackground = if (isDark) "#1e1f22" else "#f6f8fa"
-        val codeBorder = if (isDark) "#393b40" else "#d0d7de"
-        val codeText = if (isDark) "#a9b7c6" else "#24292f"
-        val headingColor = if (isDark) "#dfe1e5" else "#1f2328"
-        val blockquoteBg = if (isDark) "#252629" else "#f0f4f8"
-        val blockquoteBorder = if (isDark) "#589df6" else "#3574f0"
-        val tableHeaderBg = if (isDark) "#1e1f22" else "#f6f8fa"
+        val codeBackground = colorToHex(JBColor.namedColor("EditorPane.background", UIUtil.getPanelBackground()))
+        val codeText = colorToHex(JBColor.namedColor("EditorPane.foreground", HytaleTheme.textPrimary))
+        val blockquoteBg = if (isDark) colorToHex(UIUtil.getPanelBackground().darker()) else colorToHex(UIUtil.getPanelBackground().brighter())
+        val tableHeaderBg = codeBackground
 
         // Java Swing HTML/CSS only supports a limited subset of CSS
         // Avoid: border-radius, line-height without unit, overflow, text-transform, letter-spacing, ::pseudo-elements
@@ -392,7 +409,6 @@ class DocumentationPanel(private val project: Project) : JBPanel<DocumentationPa
 
     private fun showWelcome() {
         val isDark = !JBColor.isBright()
-        val bgColor = if (isDark) "#1e1e1e" else "#ffffff"
 
         titleLabel.text = "Hytale Documentation"
         breadcrumbLabel.text = ""
@@ -400,7 +416,7 @@ class DocumentationPanel(private val project: Project) : JBPanel<DocumentationPa
         contentPane.text = """
             <html>
             <head><style>${getCustomCss()}</style></head>
-            <body style="background: $bgColor;">
+            <body >
                 <h1>Welcome to Hytale Docs</h1>
                 <p>Browse the documentation using the sidebar on the left, or search for specific topics.</p>
 
@@ -460,7 +476,15 @@ class DocumentationPanel(private val project: Project) : JBPanel<DocumentationPa
     private fun buildTreeFromOffline(docsByCategory: Map<String, List<OfflineDocsService.DocEntry>>) {
         val root = DefaultMutableTreeNode("Documentation")
 
-        for ((category, docs) in docsByCategory.toSortedMap()) {
+        // Sort categories with a custom order (common ones first)
+        val categoryOrder = listOf("api", "getting-started", "general", "modding", "servers", "guides", "tools", "community", "gameplay")
+        val sortedCategories = docsByCategory.keys.sortedWith(compareBy {
+            val index = categoryOrder.indexOf(it.lowercase())
+            if (index >= 0) index else categoryOrder.size + it.lowercase().hashCode()
+        })
+
+        for (category in sortedCategories) {
+            val docs = docsByCategory[category] ?: continue
             val categoryNode = DefaultMutableTreeNode(SidebarNodeData(category, null))
 
             // Group by subcategory (first path segment after category)
@@ -478,12 +502,11 @@ class DocumentationPanel(private val project: Project) : JBPanel<DocumentationPa
                         ))
                     }
                 } else {
-                    // Subcategory
-                    val subcatName = subcat.replaceFirstChar { it.uppercase() }.replace("-", " ")
-                    val subcatNode = DefaultMutableTreeNode(SidebarNodeData(subcatName, null))
+                    // Subcategory - the title formatting is handled by getDisplayTitle()
+                    val subcatNode = DefaultMutableTreeNode(SidebarNodeData(subcat, null))
 
                     for (doc in subdocs.sortedBy { it.title }) {
-                        subcatNode.add(DefaultMutableTreeNode(
+                        categoryNode.add(DefaultMutableTreeNode(
                             SidebarNodeData(doc.title, "/docs/${doc.slug}")
                         ))
                     }
@@ -501,8 +524,8 @@ class DocumentationPanel(private val project: Project) : JBPanel<DocumentationPa
 
         sidebarTree.model = DefaultTreeModel(root)
 
-        // Expand first level
-        for (i in 0 until sidebarTree.rowCount.coerceAtMost(5)) {
+        // Expand first level categories
+        for (i in 0 until sidebarTree.rowCount.coerceAtMost(8)) {
             sidebarTree.expandRow(i)
         }
     }
@@ -582,13 +605,10 @@ class DocumentationPanel(private val project: Project) : JBPanel<DocumentationPa
                         // Convert markdown to HTML
                         val htmlContent = markdownToHtml(doc.content)
 
-                        val isDark = !JBColor.isBright()
-                        val bgColor = if (isDark) "#1e1e1e" else "#ffffff"
-
                         contentPane.text = """
                             <html>
                             <head><style>${getCustomCss()}</style></head>
-                            <body style="background: $bgColor;">
+                            <body >
                             <h1>${doc.title}</h1>
                             ${if (doc.description != null) "<p class=\"description\">${doc.description}</p>" else ""}
                             $htmlContent
@@ -613,13 +633,10 @@ class DocumentationPanel(private val project: Project) : JBPanel<DocumentationPa
                             titleLabel.text = response.meta.title
                             breadcrumbLabel.text = response.slug.replace("/", " > ")
 
-                            val isDark = !JBColor.isBright()
-                            val bgColor = if (isDark) "#1e1e1e" else "#ffffff"
-
                             contentPane.text = """
                                 <html>
                                 <head><style>${getCustomCss()}</style></head>
-                                <body style="background: $bgColor;">
+                                <body >
                                 ${response.content}
                                 </body>
                                 </html>
@@ -828,12 +845,11 @@ class DocumentationPanel(private val project: Project) : JBPanel<DocumentationPa
         breadcrumbLabel.text = path
 
         val isDark = !JBColor.isBright()
-        val bgColor = if (isDark) "#1e1e1e" else "#ffffff"
 
         contentPane.text = """
             <html>
             <head><style>${getCustomCss()}</style></head>
-            <body style="background: $bgColor;">
+            <body >
                 <h1>Error</h1>
                 <p>$message</p>
                 <p>Path: $path</p>
@@ -880,18 +896,18 @@ class DocumentationPanel(private val project: Project) : JBPanel<DocumentationPa
     }
 
     private fun showOfflineSearchResults(query: String, results: List<OfflineDocsService.DocEntry>) {
-        val isDark = !JBColor.isBright()
-        val bgColor = if (isDark) "#1e1e1e" else "#ffffff"
+        val mutedColor = colorToHex(HytaleTheme.mutedText)
+        val cardBg = colorToHex(HytaleTheme.cardBackground)
 
         val resultsHtml = if (results.isEmpty()) {
             "<p>No results found for \"$query\"</p>"
         } else {
             results.joinToString("\n") { result ->
                 """
-                <div style="margin-bottom: 16px; padding: 12px; background: ${if (isDark) "#2d2d2d" else "#f5f5f5"}; border-radius: 6px;">
+                <div style="margin-bottom: 16px; padding: 12px; background: $cardBg;">
                     <a href="/docs/${result.slug}" style="font-weight: 600; font-size: 14px;">${result.title}</a>
-                    <span style="color: #888; margin-left: 8px;">${result.category}</span>
-                    ${if (result.description != null) "<p style=\"margin: 8px 0 0 0; color: #888;\">${result.description}</p>" else ""}
+                    <span style="color: $mutedColor; margin-left: 8px;">${result.category}</span>
+                    ${if (result.description != null) "<p style=\"margin: 8px 0 0 0; color: $mutedColor;\">${result.description}</p>" else ""}
                 </div>
                 """.trimIndent()
             }
@@ -900,7 +916,7 @@ class DocumentationPanel(private val project: Project) : JBPanel<DocumentationPa
         contentPane.text = """
             <html>
             <head><style>${getCustomCss()}</style></head>
-            <body style="background: $bgColor;">
+            <body>
                 <h1>Search Results (Offline)</h1>
                 <p>Found ${results.size} result(s) for "<b>$query</b>"</p>
                 <hr/>
@@ -911,18 +927,18 @@ class DocumentationPanel(private val project: Project) : JBPanel<DocumentationPa
     }
 
     private fun showSearchResults(query: String, results: List<DocumentationApiClient.SearchResult>) {
-        val isDark = !JBColor.isBright()
-        val bgColor = if (isDark) "#1e1e1e" else "#ffffff"
+        val mutedColor = colorToHex(HytaleTheme.mutedText)
+        val cardBg = colorToHex(HytaleTheme.cardBackground)
 
         val resultsHtml = if (results.isEmpty()) {
             "<p>No results found for \"$query\"</p>"
         } else {
             results.joinToString("\n") { result ->
                 """
-                <div style="margin-bottom: 16px; padding: 12px; background: ${if (isDark) "#2d2d2d" else "#f5f5f5"}; border-radius: 6px;">
+                <div style="margin-bottom: 16px; padding: 12px; background: $cardBg;">
                     <a href="${result.href}" style="font-weight: 600; font-size: 14px;">${result.title}</a>
-                    ${if (result.category != null) "<span style=\"color: #888; margin-left: 8px;\">${result.category}</span>" else ""}
-                    ${if (result.excerpt != null) "<p style=\"margin: 8px 0 0 0; color: #888;\">${result.excerpt}</p>" else ""}
+                    ${if (result.category != null) "<span style=\"color: $mutedColor; margin-left: 8px;\">${result.category}</span>" else ""}
+                    ${if (result.excerpt != null) "<p style=\"margin: 8px 0 0 0; color: $mutedColor;\">${result.excerpt}</p>" else ""}
                 </div>
                 """.trimIndent()
             }
@@ -931,7 +947,7 @@ class DocumentationPanel(private val project: Project) : JBPanel<DocumentationPa
         contentPane.text = """
             <html>
             <head><style>${getCustomCss()}</style></head>
-            <body style="background: $bgColor;">
+            <body>
                 <h1>Search Results</h1>
                 <p>Found ${results.size} result(s) for "<b>$query</b>"</p>
                 <hr/>
@@ -959,10 +975,32 @@ class DocumentationPanel(private val project: Project) : JBPanel<DocumentationPa
         val verified: Boolean = false
     ) {
         override fun toString(): String = title
+
+        /**
+         * Returns a formatted display title with proper capitalization.
+         */
+        fun getDisplayTitle(): String {
+            return title
+                .replace("-", " ")
+                .replace("_", " ")
+                .split(" ")
+                .joinToString(" ") { word ->
+                    if (word.all { it.isUpperCase() || it.isDigit() }) {
+                        word // Keep acronyms like API, ECS, UI as-is
+                    } else {
+                        word.replaceFirstChar { it.uppercaseChar() }
+                    }
+                }
+        }
     }
 
-    // Custom tree cell renderer - fixes background color issue
+    // Custom tree cell renderer with improved styling
     inner class DocTreeCellRenderer : DefaultTreeCellRenderer() {
+
+        private val docIcon = AllIcons.FileTypes.Text
+        private val folderIcon = AllIcons.Nodes.Folder
+        private val folderOpenIcon = AllIcons.Actions.ProjectDirectory
+        private val verifiedIcon = AllIcons.Actions.Checked
 
         init {
             // Make renderer transparent to fix color mismatch
@@ -970,6 +1008,9 @@ class DocumentationPanel(private val project: Project) : JBPanel<DocumentationPa
             backgroundNonSelectionColor = null
             backgroundSelectionColor = UIUtil.getTreeSelectionBackground(true)
             borderSelectionColor = null
+
+            // Improve spacing
+            iconTextGap = JBUI.scale(6)
         }
 
         override fun getTreeCellRendererComponent(
@@ -981,17 +1022,22 @@ class DocumentationPanel(private val project: Project) : JBPanel<DocumentationPa
             row: Int,
             hasFocus: Boolean
         ): Component {
-            // Don't call super to avoid default background behavior
             val node = value as? DefaultMutableTreeNode
             val data = node?.userObject as? SidebarNodeData
 
             if (data != null) {
-                text = data.title
+                val displayTitle = data.getDisplayTitle()
+                text = displayTitle
+
+                // Set tooltip for long titles
+                toolTipText = if (displayTitle.length > 25) displayTitle else null
+
+                // Better icons based on node type
                 icon = when {
-                    data.verified -> AllIcons.Actions.Checked
-                    data.href != null && leaf -> AllIcons.FileTypes.Any_type
-                    !leaf -> if (expanded) AllIcons.Nodes.Folder else AllIcons.Nodes.Folder
-                    else -> AllIcons.Nodes.Folder
+                    data.verified -> verifiedIcon
+                    data.href != null -> docIcon  // Has a link = document
+                    expanded -> folderOpenIcon    // Expanded folder
+                    else -> folderIcon            // Collapsed folder
                 }
 
                 // Set colors based on selection and link status
@@ -1000,16 +1046,28 @@ class DocumentationPanel(private val project: Project) : JBPanel<DocumentationPa
                     background = UIUtil.getTreeSelectionBackground(true)
                     isOpaque = true
                 } else {
-                    foreground = if (data.href != null) HytaleTheme.accentColor else HytaleTheme.textPrimary
+                    foreground = when {
+                        data.href != null -> HytaleTheme.accentColor  // Documents are clickable
+                        else -> HytaleTheme.textPrimary               // Folders are normal text
+                    }
                     background = null
                     isOpaque = false
                 }
+
+                // Bold for category folders (top-level)
+                val baseFont = tree?.font ?: UIUtil.getLabelFont()
+                font = if (data.href == null && node?.parent == tree?.model?.root) {
+                    baseFont.deriveFont(Font.BOLD)
+                } else {
+                    baseFont.deriveFont(Font.PLAIN)
+                }
             } else {
                 text = value?.toString() ?: ""
-                icon = AllIcons.Nodes.Folder
+                icon = folderIcon
                 foreground = HytaleTheme.textPrimary
                 background = null
                 isOpaque = false
+                toolTipText = null
             }
 
             return this

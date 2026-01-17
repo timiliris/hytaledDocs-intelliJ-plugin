@@ -1,5 +1,19 @@
 # HytaleDocs IntelliJ Plugin Changelog
 
+## [1.2.0] - 2026-01-17
+
+### Added
+- **Auto-Persistence for Authentication**: After successful OAuth authentication, the plugin automatically runs `/auth persistence Encrypted` to save credentials
+- Authentication tokens are now persisted across server restarts
+
+### Changed
+- **Smarter Auth Detection**: Plugin now only prompts for authentication when seeing the specific `[WARN] [HytaleServer] No server tokens configured` message
+- Removed false positive auth triggers from other server messages
+
+### Fixed
+- Fixed log format parsing for authentication detection (adapted to new timestamp format)
+- Auth success detection now only triggers when an auth session is active (prevents false positives from boot messages)
+
 ## [1.1.0] - 2026-01-17
 
 ### Changed

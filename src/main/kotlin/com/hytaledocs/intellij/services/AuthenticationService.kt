@@ -27,6 +27,9 @@ class AuthenticationService {
         // Debounce window: ignore duplicate codes within this period
         private const val DEBOUNCE_MS = 5000L
 
+        // Delay before triggering auth command (allow server to fully initialize)
+        private const val AUTH_TRIGGER_DELAY_MS = 1500L
+
         fun getInstance(): AuthenticationService {
             return ApplicationManager.getApplication().getService(AuthenticationService::class.java)
         }
@@ -118,28 +121,24 @@ class AuthenticationService {
      * Returns true if the line was auth-related.
      */
     fun parseServerLogLine(line: String, project: Project?): Boolean {
-        // Detect auth required - multiple patterns
-        val authRequiredPatterns = listOf(
-            "No server tokens configured",
-            "Use /auth login to authenticate",
-            "Server requires authentication",
-            "authentication required",
-            "not authenticated",
-            "please authenticate"
-        )
-
-        if (authRequiredPatterns.any { line.contains(it, ignoreCase = true) }) {
+        // Detect auth required - ONLY on the specific WARN message from HytaleServer (not ServerAuthManager INFO)
+        // Authentication can be persisted with /auth persistence Encrypted, so we only prompt once
+        // Log format: [2026/01/17 20:01:43   WARN]                   [HytaleServer] No server tokens configured...
+        if (line.contains("WARN") && line.contains("[HytaleServer]") && line.contains("No server tokens configured")) {
             LOG.info("[HDDT Auth] Auth required detected: $line")
 
             // Only start session and trigger auth if not already authenticating
             if (!isAuthenticating()) {
                 startSession(AuthSource.SERVER, project)
-                // Auto-trigger the auth command
+                // Auto-trigger the auth command with longer delay to ensure server is fully ready
                 if (project != null) {
-                    LOG.info("[HDDT Auth] Auto-triggering /auth login device")
+                    LOG.info("[HDDT Auth] Auto-triggering /auth login device (waiting ${AUTH_TRIGGER_DELAY_MS}ms)")
                     ApplicationManager.getApplication().executeOnPooledThread {
-                        Thread.sleep(500) // Small delay to ensure server is ready
-                        triggerServerAuth(project)
+                        Thread.sleep(AUTH_TRIGGER_DELAY_MS)
+                        if (isAuthenticating()) {
+                            LOG.info("[HDDT Auth] Sending /auth login device command")
+                            triggerServerAuth(project)
+                        }
                     }
                 }
             }
@@ -158,10 +157,13 @@ class AuthenticationService {
 
         // Detect device code from various formats
         val codePatterns = listOf(
-            Regex("""Enter code:\s*([A-Za-z0-9]+)"""),
-            Regex("""code[:\s]+([A-Za-z0-9]{6,})""", RegexOption.IGNORE_CASE),
-            Regex("""device code[:\s]+([A-Za-z0-9]+)""", RegexOption.IGNORE_CASE),
-            Regex("""verification code[:\s]+([A-Za-z0-9]+)""", RegexOption.IGNORE_CASE)
+            Regex("""Enter code:\s*([A-Za-z0-9-]+)"""),
+            Regex("""code[:\s]+([A-Za-z0-9-]{6,})""", RegexOption.IGNORE_CASE),
+            Regex("""device code[:\s]+([A-Za-z0-9-]+)""", RegexOption.IGNORE_CASE),
+            Regex("""verification code[:\s]+([A-Za-z0-9-]+)""", RegexOption.IGNORE_CASE),
+            Regex("""user_code[:\s=]+([A-Za-z0-9-]+)""", RegexOption.IGNORE_CASE),
+            Regex("""Your code is[:\s]+([A-Za-z0-9-]+)""", RegexOption.IGNORE_CASE),
+            Regex("""\bcode:\s*([A-Z0-9-]{6,12})\b""")
         )
 
         for (pattern in codePatterns) {
@@ -176,20 +178,28 @@ class AuthenticationService {
             }
         }
 
-        // Detect auth success
-        val successPatterns = listOf(
-            "Successfully authenticated",
-            "Authentication successful",
-            "Server authenticated",
-            "Authorization successful",
-            "Logged in as",
-            "authenticated successfully"
-        )
+        // Detect auth success - ONLY if we are currently authenticating (have shown a code)
+        // This prevents false positives from server boot messages
+        if (isAuthenticating()) {
+            val successPatterns = listOf(
+                "Authentication successful",
+                "Successfully authenticated",
+                "Server authenticated",
+                "Authorization successful",
+                "Logged in as",
+                "authenticated successfully",
+                "authentication complete",
+                "server is now authenticated",
+                "tokens configured",
+                "token saved",
+                "credentials saved"
+            )
 
-        if (successPatterns.any { line.contains(it, ignoreCase = true) }) {
-            LOG.info("[HDDT Auth] Auth success detected: $line")
-            handleAuthSuccess(AuthSource.SERVER, project)
-            return true
+            if (successPatterns.any { line.contains(it, ignoreCase = true) }) {
+                LOG.info("[HDDT Auth] Auth success detected: $line")
+                handleAuthSuccess(AuthSource.SERVER, project)
+                return true
+            }
         }
 
         // Detect auth failure
@@ -323,6 +333,18 @@ class AuthenticationService {
             "Server is now authenticated",
             NotificationType.INFORMATION
         )
+
+        // Persist authentication so we don't need to re-authenticate on next server start
+        if (source == AuthSource.SERVER && project != null) {
+            ApplicationManager.getApplication().executeOnPooledThread {
+                Thread.sleep(1000) // Wait a bit for auth to be fully processed
+                val launchService = ServerLaunchService.getInstance(project)
+                if (launchService.isServerRunning()) {
+                    LOG.info("[HDDT Auth] Persisting authentication with /auth persistence Encrypted")
+                    launchService.sendCommand("/auth persistence Encrypted")
+                }
+            }
+        }
 
         // Clear session after a delay
         ApplicationManager.getApplication().executeOnPooledThread {

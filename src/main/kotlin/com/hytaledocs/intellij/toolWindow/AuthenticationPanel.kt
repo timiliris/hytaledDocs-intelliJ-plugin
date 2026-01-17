@@ -21,8 +21,8 @@ import javax.swing.*
 class AuthenticationPanel : JBPanel<AuthenticationPanel>(BorderLayout()) {
 
     companion object {
-        // Panel-specific color for authentication code display (purple)
-        private val codeColor = JBColor(0x9333EA, 0xA855F7)
+        // Panel-specific color for authentication code display (purple) - uses IDE theme
+        private val codeColor = HytaleTheme.purpleAccent
     }
 
     private val titleLabel = JBLabel("Authentication Required")
@@ -81,7 +81,7 @@ class AuthenticationPanel : JBPanel<AuthenticationPanel>(BorderLayout()) {
         codePanel.maximumSize = Dimension(Int.MAX_VALUE, JBUI.scale(60))
 
         val codeBox = JPanel(FlowLayout(FlowLayout.CENTER, 0, 0))
-        codeBox.background = JBColor(0xF3E8FF, 0x3B2066)
+        codeBox.background = HytaleTheme.cardBackground
         codeBox.border = BorderFactory.createCompoundBorder(
             RoundedLineBorder(codeColor, 8, 2),
             JBUI.Borders.empty(12, 24)

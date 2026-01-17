@@ -71,11 +71,11 @@ class HytaleToolWindowPanel(
     // Stats update timer
     private var statsTimer: Timer? = null
 
-    // Buttons
-    private val installJavaButton = HytaleTheme.createModernButton("Install Java 25", AllIcons.Actions.Download, HytaleTheme.accentColor)
-    private val downloadServerButton = HytaleTheme.createModernButton("Download Server", AllIcons.Actions.Download, HytaleTheme.accentColor)
-    private val startServerButton = HytaleTheme.createModernButton("Start", AllIcons.Actions.Execute, HytaleTheme.successColor)
-    private val stopServerButton = HytaleTheme.createModernButton("Stop", AllIcons.Actions.Suspend, HytaleTheme.errorColor)
+    // Buttons - using standard IntelliJ buttons with hover
+    private val installJavaButton = HytaleTheme.createButton("Install Java 25", AllIcons.Actions.Download)
+    private val downloadServerButton = HytaleTheme.createButton("Download Server", AllIcons.Actions.Download)
+    private val startServerButton = HytaleTheme.createButton("Start", AllIcons.Actions.Execute)
+    private val stopServerButton = HytaleTheme.createButton("Stop", AllIcons.Actions.Suspend)
 
     // Console
     private var consolePane: JTextPane? = null
@@ -279,10 +279,13 @@ class HytaleToolWindowPanel(
 
         buttonsPanel.add(startServerButton)
         buttonsPanel.add(stopServerButton)
-        buttonsPanel.add(HytaleTheme.createModernButton("Refresh", AllIcons.Actions.Refresh).apply {
-            addActionListener { refreshStatus() }
+        buttonsPanel.add(HytaleTheme.createButton("Refresh", AllIcons.Actions.Refresh).apply {
+            addActionListener {
+                refreshStatus()
+                notify("Status refreshed", NotificationType.INFORMATION)
+            }
         })
-        buttonsPanel.add(HytaleTheme.createModernButton("Settings", AllIcons.General.Settings).apply {
+        buttonsPanel.add(HytaleTheme.createButton("Settings", AllIcons.General.Settings).apply {
             addActionListener {
                 com.intellij.openapi.options.ShowSettingsUtil.getInstance()
                     .showSettingsDialog(project, "Hytale Server")
@@ -404,10 +407,10 @@ class HytaleToolWindowPanel(
             BorderFactory.createMatteBorder(0, 0, 1, 0, HytaleTheme.cardBorder),
             JBUI.Borders.empty(4, 8)
         )
-        toolbar.add(HytaleTheme.createModernButton("Clear", AllIcons.Actions.GC).apply {
+        toolbar.add(HytaleTheme.createButton("Clear", AllIcons.Actions.GC).apply {
             addActionListener { consolePane?.text = "" }
         })
-        toolbar.add(HytaleTheme.createModernButton("Copy All", AllIcons.Actions.Copy).apply {
+        toolbar.add(HytaleTheme.createButton("Copy All", AllIcons.Actions.Copy).apply {
             addActionListener {
                 consolePane?.let {
                     it.selectAll()
@@ -450,7 +453,7 @@ class HytaleToolWindowPanel(
         commandField.emptyText.text = "Enter server command..."
         commandPanel.add(commandField, BorderLayout.CENTER)
 
-        val sendButton = HytaleTheme.createModernButton("Send", AllIcons.Actions.Execute, HytaleTheme.accentColor)
+        val sendButton = HytaleTheme.createButton("Send", AllIcons.Actions.Execute)
         sendButton.addActionListener { sendCommand() }
         commandPanel.add(sendButton, BorderLayout.EAST)
 
@@ -801,6 +804,8 @@ class HytaleToolWindowPanel(
         log("Auth mode: ${settings.authMode.displayName}", isSystemMessage = true)
         log("Memory: ${settings.minMemory} - ${settings.maxMemory}", isSystemMessage = true)
 
+        notify("Starting server...", NotificationType.INFORMATION)
+
         launchService.startServer(config,
             logCallback = { line ->
                 SwingUtilities.invokeLater {
@@ -819,6 +824,20 @@ class HytaleToolWindowPanel(
                     startServerButton.isEnabled = status == ServerLaunchService.ServerStatus.STOPPED
                     stopServerButton.isEnabled = status == ServerLaunchService.ServerStatus.RUNNING ||
                             status == ServerLaunchService.ServerStatus.STARTING
+
+                    // Show notifications for status changes
+                    when (status) {
+                        ServerLaunchService.ServerStatus.RUNNING -> {
+                            notify("Server is now running!", NotificationType.INFORMATION)
+                        }
+                        ServerLaunchService.ServerStatus.STOPPED -> {
+                            notify("Server stopped", NotificationType.INFORMATION)
+                        }
+                        ServerLaunchService.ServerStatus.ERROR -> {
+                            notify("Server error occurred", NotificationType.ERROR)
+                        }
+                        else -> {}
+                    }
                 }
             }
         )
@@ -827,6 +846,7 @@ class HytaleToolWindowPanel(
     private fun stopServer() {
         val launchService = ServerLaunchService.getInstance(project)
         log("Stopping server...", isSystemMessage = true)
+        notify("Stopping server...", NotificationType.INFORMATION)
         launchService.stopServer { line ->
             SwingUtilities.invokeLater { log(line, isSystemMessage = true) }
         }

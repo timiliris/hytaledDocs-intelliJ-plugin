@@ -35,7 +35,8 @@ class DocumentationBrowserPanel(
 
     companion object {
         private val textPrimary = JBColor.namedColor("Label.foreground", JBColor.foreground())
-        private val textSecondary = JBColor.namedColor("Label.disabledForeground", JBColor(0x6B7280, 0x9DA0A8))
+        private val textSecondary = JBColor.namedColor("Label.infoForeground",
+            JBColor.namedColor("Label.disabledForeground", JBColor.gray))
     }
 
     private var browser: JBCefBrowser? = null
