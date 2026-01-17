@@ -1,0 +1,118 @@
+<templateSet group="Hytale">
+    <template name="hyevent"
+              value="eventBus.register($EVENT$.class, event -&gt; {&#10;    $END$&#10;});"
+              description="Register a Hytale event listener"
+              toReformat="true"
+              toShortenFQNames="true">
+        <variable name="EVENT" expression="" defaultValue="PlayerConnectEvent" alwaysStopAt="true"/>
+        <context>
+            <option name="JAVA_CODE" value="true"/>
+        </context>
+    </template>
+
+    <template name="hycmd"
+              value="public class $NAME$ extends AbstractCommandCollection {&#10;    public $NAME$() {&#10;        super(&quot;$CMD$&quot;, &quot;$DESC$&quot;);&#10;    }&#10;}"
+              description="Create a Hytale command collection"
+              toReformat="true"
+              toShortenFQNames="true">
+        <variable name="NAME" expression="fileNameWithoutExtension()" defaultValue="MyCommand" alwaysStopAt="true"/>
+        <variable name="CMD" expression="" defaultValue="mycommand" alwaysStopAt="true"/>
+        <variable name="DESC" expression="" defaultValue="Command description" alwaysStopAt="true"/>
+        <context>
+            <option name="JAVA_DECLARATION" value="true"/>
+        </context>
+    </template>
+
+    <template name="hyecs"
+              value="public class $NAME$ extends EntityEventSystem&lt;EntityStore, $EVENT$&gt; {&#10;    @Override&#10;    public void handle(int index, ArchetypeChunk&lt;EntityStore&gt; chunk, Store&lt;EntityStore&gt; store, CommandBuffer&lt;EntityStore&gt; buffer, $EVENT$ event) {&#10;        $END$&#10;    }&#10;    @Override public Query&lt;EntityStore&gt; getQuery() { return Archetype.empty(); }&#10;}"
+              description="Create a Hytale ECS Event System"
+              toReformat="true"
+              toShortenFQNames="true">
+        <variable name="NAME" expression="fileNameWithoutExtension()" defaultValue="MySystem" alwaysStopAt="true"/>
+        <variable name="EVENT" expression="" defaultValue="BreakBlockEvent" alwaysStopAt="true"/>
+        <context>
+            <option name="JAVA_DECLARATION" value="true"/>
+        </context>
+    </template>
+
+    <template name="hyplugin"
+              value="public class $NAME$ extends JavaPlugin {&#10;    private static final Logger LOGGER = LoggerFactory.getLogger($NAME$.class);&#10;&#10;    @Override&#10;    public void setup(JavaPluginInit init) {&#10;        LOGGER.info(&quot;Setting up...&quot;);&#10;        EventRegistry eventBus = init.getEventRegistry();&#10;        $END$&#10;    }&#10;&#10;    @Override public void start() { LOGGER.info(&quot;Started!&quot;); }&#10;    @Override public void shutdown() { LOGGER.info(&quot;Stopped!&quot;); }&#10;}"
+              description="Create a Hytale plugin main class"
+              toReformat="true"
+              toShortenFQNames="true">
+        <variable name="NAME" expression="fileNameWithoutExtension()" defaultValue="MyPlugin" alwaysStopAt="true"/>
+        <context>
+            <option name="JAVA_DECLARATION" value="true"/>
+        </context>
+    </template>
+
+    <template name="hymsg"
+              value="context.sendMessage(Message.raw(&quot;$MSG$&quot;));"
+              description="Send a message"
+              toReformat="true">
+        <variable name="MSG" expression="" defaultValue="Message" alwaysStopAt="true"/>
+        <context>
+            <option name="JAVA_CODE" value="true"/>
+        </context>
+    </template>
+
+    <template name="hylogger"
+              value="private static final HytaleLogger LOGGER = HytaleLogger.forEnclosingClass();"
+              description="Declare a HytaleLogger for the current class"
+              toReformat="true"
+              toShortenFQNames="true">
+        <context>
+            <option name="JAVA_DECLARATION" value="true"/>
+        </context>
+    </template>
+
+    <template name="hypermission"
+              value="if (!context.hasPermission(&quot;$PERMISSION$&quot;)) {&#10;    context.sendMessage(Message.raw(&quot;$DENY_MSG$&quot;));&#10;    return;&#10;}&#10;$END$"
+              description="Permission check with denial message"
+              toReformat="true"
+              toShortenFQNames="true">
+        <variable name="PERMISSION" expression="" defaultValue="myplugin.command" alwaysStopAt="true"/>
+        <variable name="DENY_MSG" expression="" defaultValue="You do not have permission to use this command." alwaysStopAt="true"/>
+        <context>
+            <option name="JAVA_CODE" value="true"/>
+        </context>
+    </template>
+
+    <template name="hyquery"
+              value="Query&lt;EntityStore&gt; $NAME$ = Archetype.create(EntityStore.class)&#10;    .with($COMPONENTS$)&#10;    .build();"
+              description="Create an ECS Query for entity filtering"
+              toReformat="true"
+              toShortenFQNames="true">
+        <variable name="NAME" expression="" defaultValue="query" alwaysStopAt="true"/>
+        <variable name="COMPONENTS" expression="" defaultValue="PositionComponent.class, HealthComponent.class" alwaysStopAt="true"/>
+        <context>
+            <option name="JAVA_CODE" value="true"/>
+            <option name="JAVA_DECLARATION" value="true"/>
+        </context>
+    </template>
+
+    <template name="hysubcmd"
+              value="addSubCommand(&quot;$NAME$&quot;, &quot;$DESC$&quot;, (context, args) -&gt; {&#10;    $END$&#10;});"
+              description="Add a sub-command to a command collection"
+              toReformat="true"
+              toShortenFQNames="true">
+        <variable name="NAME" expression="" defaultValue="subcommand" alwaysStopAt="true"/>
+        <variable name="DESC" expression="" defaultValue="Sub-command description" alwaysStopAt="true"/>
+        <context>
+            <option name="JAVA_CODE" value="true"/>
+        </context>
+    </template>
+
+    <template name="hylistener"
+              value="eventBus.register($EVENT$.class, $PARAM$ -&gt; $BODY$);"
+              description="Quick event listener with lambda"
+              toReformat="true"
+              toShortenFQNames="true">
+        <variable name="EVENT" expression="" defaultValue="PlayerConnectEvent" alwaysStopAt="true"/>
+        <variable name="PARAM" expression="" defaultValue="event" alwaysStopAt="true"/>
+        <variable name="BODY" expression="" defaultValue="{ }" alwaysStopAt="true"/>
+        <context>
+            <option name="JAVA_CODE" value="true"/>
+        </context>
+    </template>
+</templateSet>

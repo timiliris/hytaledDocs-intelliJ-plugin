@@ -1,0 +1,27 @@
+package ${PACKAGE_NAME};
+
+import com.hypixel.hytale.server.core.command.system.CommandContext;
+import com.hypixel.hytale.server.core.command.system.basecommands.AbstractCommandCollection;
+import com.hypixel.hytale.server.core.command.system.basecommands.CommandBase;
+import com.hypixel.hytale.server.core.Message;
+
+import javax.annotation.Nonnull;
+
+public class ${NAME} extends AbstractCommandCollection {
+
+    public ${NAME}() {
+        super("${COMMAND_NAME}", "${COMMAND_DESCRIPTION}");
+        this.addSubCommand(new HelpSubCommand());
+    }
+
+    private static class HelpSubCommand extends CommandBase {
+        public HelpSubCommand() {
+            super("help", "Show help");
+        }
+
+        @Override
+        protected void executeSync(@Nonnull CommandContext context) {
+            context.sendMessage(Message.raw("=== Help ==="));
+        }
+    }
+}

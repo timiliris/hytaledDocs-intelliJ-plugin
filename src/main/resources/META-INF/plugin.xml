@@ -1,0 +1,120 @@
+<idea-plugin>
+    <id>com.hytaledocs.intellij.hytale</id>
+    <name>Hytale Docs Dev Tools</name>
+    <vendor email="contact@hytale-docs.com" url="https://hytale-docs.com">HytaleDocs</vendor>
+
+    <depends>com.intellij.modules.platform</depends>
+    <depends>com.intellij.modules.java</depends>
+
+    <resource-bundle>messages.HytaleBundle</resource-bundle>
+
+    <extensions defaultExtensionNs="com.intellij">
+        <!-- New Project Wizard - Appears in "New Project" section -->
+        <newProjectWizard.languageGenerator
+                implementation="com.hytaledocs.intellij.wizard.HytaleNewProjectWizard"/>
+
+        <!-- File Templates -->
+        <internalFileTemplate name="Hytale Mod"/>
+        <internalFileTemplate name="Hytale Listener"/>
+        <internalFileTemplate name="Hytale Command"/>
+        <internalFileTemplate name="Hytale ECS System"/>
+
+        <!-- Live Templates -->
+        <defaultLiveTemplates file="/liveTemplates/Hytale.xml"/>
+        <liveTemplateContext
+                contextId="HYTALE"
+                implementation="com.hytaledocs.intellij.templates.HytaleTemplateContext"/>
+
+        <!-- Tool Window -->
+        <toolWindow
+                factoryClass="com.hytaledocs.intellij.toolWindow.HytaleToolWindowFactory"
+                id="HDDT"
+                anchor="right"
+                icon="/icons/hytaledocs.png"/>
+
+        <!-- Notifications -->
+        <notificationGroup
+                id="Hytale Plugin"
+                displayType="BALLOON"/>
+
+        <!-- Settings -->
+        <projectConfigurable
+                parentId="tools"
+                instance="com.hytaledocs.intellij.settings.HytaleSettingsConfigurable"
+                id="com.hytaledocs.intellij.settings.HytaleSettings"
+                displayName="Hytale Server"
+                nonDefaultProject="true"/>
+
+        <!-- Services -->
+        <projectService
+                serviceImplementation="com.hytaledocs.intellij.settings.HytaleServerSettings"/>
+        <projectService
+                serviceImplementation="com.hytaledocs.intellij.services.ServerDownloadService"/>
+        <projectService
+                serviceImplementation="com.hytaledocs.intellij.services.ServerLaunchService"/>
+        <projectService
+                serviceImplementation="com.hytaledocs.intellij.services.HytaleProjectService"/>
+
+        <applicationService
+                serviceImplementation="com.hytaledocs.intellij.services.JavaInstallService"/>
+        <applicationService
+                serviceImplementation="com.hytaledocs.intellij.services.HytaleDownloaderService"/>
+        <applicationService
+                serviceImplementation="com.hytaledocs.intellij.services.AuthenticationService"/>
+        <applicationService
+                serviceImplementation="com.hytaledocs.intellij.services.DocumentationService"/>
+        <applicationService
+                serviceImplementation="com.hytaledocs.intellij.services.DocumentationApiClient"/>
+
+        <!-- Documentation Provider for F1 Help -->
+        <lang.documentationProvider
+                language="JAVA"
+                implementationClass="com.hytaledocs.intellij.documentation.HytaleDocumentationProvider"
+                order="first"/>
+    </extensions>
+
+    <actions>
+        <group id="HDDT.NewGroup" text="Hytale" description="Hytale mod development (HDDT)">
+            <add-to-group group-id="NewGroup" anchor="after" relative-to-action="NewGroup1"/>
+
+            <action id="HDDT.NewMod"
+                    class="com.hytaledocs.intellij.actions.NewPluginAction"
+                    text="Hytale Mod"
+                    description="Create a new Hytale mod class"
+                    icon="/icons/hytaledocs.png"/>
+
+            <action id="HDDT.NewListener"
+                    class="com.hytaledocs.intellij.actions.NewListenerAction"
+                    text="Hytale Listener"
+                    description="Create a new Hytale event listener"/>
+
+            <action id="HDDT.NewCommand"
+                    class="com.hytaledocs.intellij.actions.NewCommandAction"
+                    text="Hytale Command"
+                    description="Create a new Hytale command"/>
+        </group>
+
+        <group id="HDDT.ToolsMenu" text="HDDT Server" description="Hytale server management (HDDT)">
+            <add-to-group group-id="ToolsMenu" anchor="last"/>
+
+            <action id="HDDT.SetupServer"
+                    class="com.hytaledocs.intellij.actions.SetupServerAction"
+                    text="Setup Server..."
+                    description="Download Java 25 and server files for Hytale development"
+                    icon="/icons/hytaledocs.png"/>
+
+            <action id="HDDT.DownloadServerJar"
+                    class="com.hytaledocs.intellij.actions.DownloadServerJarAction"
+                    text="Download Server JAR"
+                    description="Download the latest HytaleServer.jar from CDN"/>
+
+            <separator/>
+
+            <action id="HDDT.QuickReloadPlugins"
+                    class="com.hytaledocs.intellij.actions.QuickReloadPluginsAction"
+                    text="Reload Plugins"
+                    description="Send /reload plugins command to the running Hytale server"
+                    icon="AllIcons.Actions.Refresh"/>
+        </group>
+    </actions>
+</idea-plugin>

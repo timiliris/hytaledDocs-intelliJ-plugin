@@ -1,0 +1,768 @@
+package com.hytaledocs.intellij.wizard
+
+import com.hytaledocs.intellij.HytaleIcons
+import com.intellij.ide.wizard.AbstractNewProjectWizardStep
+import com.intellij.ide.wizard.NewProjectWizardStep
+import com.intellij.ide.wizard.language.LanguageGeneratorNewProjectWizard
+import com.intellij.openapi.project.Project
+import com.intellij.ui.JBColor
+import com.intellij.ui.components.JBLabel
+import com.intellij.ui.components.JBScrollPane
+import com.intellij.ui.components.JBTextArea
+import com.intellij.ui.components.JBTextField
+import com.intellij.util.ui.JBUI
+import java.awt.*
+import javax.swing.*
+import javax.swing.event.DocumentEvent
+import javax.swing.event.DocumentListener
+
+/**
+ * Hytale Mod project wizard with multi-step design.
+ */
+class HytaleNewProjectWizard : LanguageGeneratorNewProjectWizard {
+    override val name: String = "Hytale Mod"
+    override val icon: Icon = HytaleIcons.HYTALE
+    override val ordinal: Int = 100
+
+    override fun createStep(parent: NewProjectWizardStep): NewProjectWizardStep {
+        return HytaleProjectWizardStep(parent)
+    }
+}
+
+class HytaleProjectWizardStep(parent: NewProjectWizardStep) : AbstractNewProjectWizardStep(parent) {
+
+    // Fields
+    private val modNameField = JBTextField("My Hytale Mod")
+    private val modIdField = JBTextField("my-hytale-mod")
+    private val packageNameField = JBTextField("com.example.myhytalemod")
+    private val commandNameField = JBTextField("mhm")
+    private val authorField = JBTextField(System.getProperty("user.name") ?: "Author")
+    private val descriptionArea = JBTextArea("A Hytale server mod", 3, 30)
+    private val versionField = JBTextField("1.0.0")
+
+    // Template selection
+    private var selectedTemplate = HytaleModuleBuilder.TemplateType.FULL
+
+    // Language and Build System
+    private var selectedLanguage = "Java"
+    private var selectedBuildSystem = "Gradle"
+    private lateinit var kotlinButton: JButton
+    private lateinit var javaButton: JButton
+    private lateinit var gradleButton: JButton
+    private lateinit var mavenButton: JButton
+
+    // Game detection
+    private val hytaleInstallation = HytaleModuleBuilder.detectHytaleInstallation()
+    private val copyFromGameCheckbox = JCheckBox("Copy server files automatically", hytaleInstallation != null)
+
+    // Track manual edits
+    private var modIdManuallyEdited = false
+    private var packageNameManuallyEdited = false
+    private var commandNameManuallyEdited = false
+
+    // Multi-step
+    private var currentStep = 0
+    private lateinit var cardLayout: CardLayout
+    private lateinit var cardPanel: JPanel
+    private lateinit var stepIndicators: List<JPanel>
+    private lateinit var stepLabels: List<JBLabel>
+    private lateinit var prevButton: JButton
+    private lateinit var nextButton: JButton
+
+    // Template cards
+    private lateinit var emptyCard: JPanel
+    private lateinit var fullCard: JPanel
+
+    private var mainPanel: JPanel? = null
+
+    init {
+        setupAutoCompletion()
+        copyFromGameCheckbox.isEnabled = hytaleInstallation != null
+    }
+
+    private fun setupAutoCompletion() {
+        modNameField.document.addDocumentListener(object : DocumentListener {
+            override fun insertUpdate(e: DocumentEvent) = updateDerivedFields()
+            override fun removeUpdate(e: DocumentEvent) = updateDerivedFields()
+            override fun changedUpdate(e: DocumentEvent) = updateDerivedFields()
+        })
+
+        modIdField.document.addDocumentListener(object : DocumentListener {
+            override fun insertUpdate(e: DocumentEvent) { modIdManuallyEdited = true }
+            override fun removeUpdate(e: DocumentEvent) { modIdManuallyEdited = true }
+            override fun changedUpdate(e: DocumentEvent) { modIdManuallyEdited = true }
+        })
+
+        packageNameField.document.addDocumentListener(object : DocumentListener {
+            override fun insertUpdate(e: DocumentEvent) { packageNameManuallyEdited = true }
+            override fun removeUpdate(e: DocumentEvent) { packageNameManuallyEdited = true }
+            override fun changedUpdate(e: DocumentEvent) { packageNameManuallyEdited = true }
+        })
+
+        commandNameField.document.addDocumentListener(object : DocumentListener {
+            override fun insertUpdate(e: DocumentEvent) { commandNameManuallyEdited = true }
+            override fun removeUpdate(e: DocumentEvent) { commandNameManuallyEdited = true }
+            override fun changedUpdate(e: DocumentEvent) { commandNameManuallyEdited = true }
+        })
+    }
+
+    private fun updateDerivedFields() {
+        val name = modNameField.text.trim()
+
+        if (!modIdManuallyEdited) {
+            modIdManuallyEdited = false
+            modIdField.text = name.lowercase().replace(Regex("[^a-z0-9]+"), "-").trim('-')
+            modIdManuallyEdited = false
+        }
+
+        if (!packageNameManuallyEdited) {
+            packageNameManuallyEdited = false
+            packageNameField.text = "com.example." + name.lowercase().replace(Regex("[^a-z0-9]"), "")
+            packageNameManuallyEdited = false
+        }
+
+        if (!commandNameManuallyEdited) {
+            val words = name.split(Regex("\\s+")).filter { it.isNotEmpty() }
+            val abbrev = if (words.size > 1) words.map { it.first().lowercaseChar() }.joinToString("")
+            else name.lowercase().replace(Regex("[^a-z]"), "").take(3)
+            commandNameManuallyEdited = false
+            commandNameField.text = abbrev
+            commandNameManuallyEdited = false
+        }
+    }
+
+    override fun setupUI(builder: com.intellij.ui.dsl.builder.Panel) {
+        if (mainPanel == null) {
+            mainPanel = createMainPanel()
+        }
+        builder.row {
+            cell(mainPanel!!).align(com.intellij.ui.dsl.builder.Align.FILL)
+        }.resizableRow()
+    }
+
+    private fun createMainPanel(): JPanel {
+        val panel = JPanel(BorderLayout())
+        panel.border = JBUI.Borders.empty(8)
+        panel.preferredSize = Dimension(500, 400)
+
+        // Header with step indicators
+        panel.add(createHeader(), BorderLayout.NORTH)
+
+        // Card panel for steps
+        cardLayout = CardLayout()
+        cardPanel = JPanel(cardLayout)
+        cardPanel.add(createStep1Panel(), "step1")
+        cardPanel.add(createStep2Panel(), "step2")
+        cardPanel.add(createStep3Panel(), "step3")
+        panel.add(cardPanel, BorderLayout.CENTER)
+
+        // Navigation buttons
+        panel.add(createNavigationPanel(), BorderLayout.SOUTH)
+
+        updateStepIndicators()
+        return panel
+    }
+
+    private fun createHeader(): JPanel {
+        val header = JPanel(BorderLayout())
+        header.border = JBUI.Borders.emptyBottom(16)
+        header.isOpaque = false
+
+        // Logo and title on left
+        val brandPanel = JPanel(FlowLayout(FlowLayout.LEFT, 0, 0))
+        brandPanel.isOpaque = false
+
+        val iconLabel = JBLabel(HytaleIcons.HYTALE_LARGE)
+        iconLabel.border = JBUI.Borders.emptyRight(12)
+        brandPanel.add(iconLabel)
+
+        val titlePanel = JPanel()
+        titlePanel.layout = BoxLayout(titlePanel, BoxLayout.Y_AXIS)
+        titlePanel.isOpaque = false
+
+        val brandRow = JPanel(FlowLayout(FlowLayout.LEFT, 0, 0))
+        brandRow.isOpaque = false
+        val hytaleLabel = JBLabel("Hytale")
+        hytaleLabel.font = hytaleLabel.font.deriveFont(Font.BOLD, 16f)
+        hytaleLabel.foreground = JBColor(Color(50, 50, 50), Color(220, 220, 220))
+        brandRow.add(hytaleLabel)
+        val docsLabel = JBLabel("Docs")
+        docsLabel.font = docsLabel.font.deriveFont(Font.BOLD, 16f)
+        docsLabel.foreground = JBColor(Color(255, 140, 0), Color(255, 165, 50))
+        brandRow.add(docsLabel)
+        titlePanel.add(brandRow)
+
+        val subtitleLabel = JBLabel("Dev Tools")
+        subtitleLabel.font = subtitleLabel.font.deriveFont(11f)
+        subtitleLabel.foreground = JBColor.GRAY
+        titlePanel.add(subtitleLabel)
+
+        brandPanel.add(titlePanel)
+        header.add(brandPanel, BorderLayout.WEST)
+
+        // Step indicators on right
+        val stepsPanel = JPanel(FlowLayout(FlowLayout.RIGHT, 8, 0))
+        stepsPanel.isOpaque = false
+
+        val stepNames = listOf("Template", "Info", "Finish")
+        stepIndicators = mutableListOf()
+        stepLabels = mutableListOf()
+
+        for (i in stepNames.indices) {
+            val stepPanel = JPanel(FlowLayout(FlowLayout.CENTER, 4, 0))
+            stepPanel.isOpaque = false
+
+            val circle = createStepCircle(i + 1)
+            stepPanel.add(circle)
+            (stepIndicators as MutableList).add(circle)
+
+            val label = JBLabel(stepNames[i])
+            label.font = label.font.deriveFont(11f)
+            stepPanel.add(label)
+            (stepLabels as MutableList).add(label)
+
+            stepsPanel.add(stepPanel)
+
+            if (i < stepNames.size - 1) {
+                val dash = JBLabel("—")
+                dash.foreground = JBColor(Color(180, 180, 180), Color(80, 80, 80))
+                stepsPanel.add(dash)
+            }
+        }
+
+        header.add(stepsPanel, BorderLayout.EAST)
+
+        return header
+    }
+
+    private fun createStepCircle(number: Int): JPanel {
+        return object : JPanel() {
+            override fun paintComponent(g: Graphics) {
+                super.paintComponent(g)
+                val g2 = g as Graphics2D
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
+
+                val isActive = (number - 1) <= currentStep
+                val isCurrent = (number - 1) == currentStep
+
+                // Circle
+                g2.color = when {
+                    isCurrent -> JBColor(Color(255, 140, 0), Color(255, 165, 50))
+                    isActive -> JBColor(Color(100, 180, 100), Color(80, 160, 80))
+                    else -> JBColor(Color(180, 180, 180), Color(80, 80, 80))
+                }
+                g2.fillOval(0, 0, 20, 20)
+
+                // Number
+                g2.color = Color.WHITE
+                g2.font = font.deriveFont(Font.BOLD, 11f)
+                val fm = g2.fontMetrics
+                val text = number.toString()
+                val x = (20 - fm.stringWidth(text)) / 2
+                val y = (20 + fm.ascent - fm.descent) / 2
+                g2.drawString(text, x, y)
+            }
+
+            init {
+                preferredSize = Dimension(20, 20)
+                isOpaque = false
+            }
+        }
+    }
+
+    private fun createStep1Panel(): JPanel {
+        val panel = JPanel(BorderLayout())
+        panel.isOpaque = false
+        panel.border = JBUI.Borders.empty(8, 0)
+
+        val content = JPanel()
+        content.layout = BoxLayout(content, BoxLayout.Y_AXIS)
+        content.isOpaque = false
+        content.alignmentX = Component.LEFT_ALIGNMENT
+
+        // Title
+        val titleLabel = JBLabel("Choose a Template")
+        titleLabel.font = titleLabel.font.deriveFont(Font.BOLD, 18f)
+        titleLabel.alignmentX = Component.LEFT_ALIGNMENT
+        titleLabel.border = JBUI.Borders.emptyBottom(4)
+        content.add(titleLabel)
+
+        val subtitleLabel = JBLabel("Select the starting point for your mod")
+        subtitleLabel.foreground = JBColor.GRAY
+        subtitleLabel.alignmentX = Component.LEFT_ALIGNMENT
+        subtitleLabel.border = JBUI.Borders.emptyBottom(20)
+        content.add(subtitleLabel)
+
+        // Template cards
+        val cardsPanel = JPanel(GridLayout(1, 2, 16, 0))
+        cardsPanel.isOpaque = false
+        cardsPanel.alignmentX = Component.LEFT_ALIGNMENT
+        cardsPanel.maximumSize = Dimension(500, 150)
+
+        emptyCard = createTemplateCard(
+            "Empty Mod",
+            "Start from scratch with minimal code",
+            listOf("Main class only", "Basic structure", "For experienced devs"),
+            HytaleModuleBuilder.TemplateType.EMPTY
+        )
+
+        fullCard = createTemplateCard(
+            "Full Template",
+            "Complete starter with examples",
+            listOf("Commands included", "Event listeners", "Custom UI example"),
+            HytaleModuleBuilder.TemplateType.FULL
+        )
+
+        cardsPanel.add(emptyCard)
+        cardsPanel.add(fullCard)
+        content.add(cardsPanel)
+
+        content.add(Box.createVerticalStrut(16))
+
+        // Tip
+        val tipPanel = JPanel(FlowLayout(FlowLayout.LEFT, 0, 0))
+        tipPanel.isOpaque = false
+        tipPanel.alignmentX = Component.LEFT_ALIGNMENT
+        val tipLabel = JBLabel("💡 Recommended: Full Template for beginners")
+        tipLabel.font = tipLabel.font.deriveFont(12f)
+        tipLabel.foreground = JBColor(Color(100, 140, 180), Color(120, 160, 200))
+        tipPanel.add(tipLabel)
+        content.add(tipPanel)
+
+        content.add(Box.createVerticalGlue())
+
+        panel.add(content, BorderLayout.NORTH)
+        updateTemplateSelection()
+        return panel
+    }
+
+    private fun createTemplateCard(title: String, subtitle: String, features: List<String>, type: HytaleModuleBuilder.TemplateType): JPanel {
+        val card = JPanel()
+        card.layout = BoxLayout(card, BoxLayout.Y_AXIS)
+        card.border = JBUI.Borders.empty(16)
+        card.background = JBColor(Color(250, 250, 252), Color(45, 48, 52))
+        card.cursor = Cursor.getPredefinedCursor(Cursor.HAND_CURSOR)
+
+        val titleLabel = JBLabel(title)
+        titleLabel.font = titleLabel.font.deriveFont(Font.BOLD, 14f)
+        titleLabel.foreground = JBColor(Color(40, 40, 40), Color(230, 230, 230))
+        titleLabel.alignmentX = Component.LEFT_ALIGNMENT
+        card.add(titleLabel)
+
+        card.add(Box.createVerticalStrut(4))
+
+        val subtitleLabel = JBLabel(subtitle)
+        subtitleLabel.font = subtitleLabel.font.deriveFont(11f)
+        subtitleLabel.foreground = JBColor.GRAY
+        subtitleLabel.alignmentX = Component.LEFT_ALIGNMENT
+        card.add(subtitleLabel)
+
+        card.add(Box.createVerticalStrut(12))
+
+        for (feature in features) {
+            val featureLabel = JBLabel("✓ $feature")
+            featureLabel.font = featureLabel.font.deriveFont(11f)
+            featureLabel.foreground = JBColor(Color(80, 80, 80), Color(160, 160, 160))
+            featureLabel.alignmentX = Component.LEFT_ALIGNMENT
+            card.add(featureLabel)
+            card.add(Box.createVerticalStrut(2))
+        }
+
+        card.addMouseListener(object : java.awt.event.MouseAdapter() {
+            override fun mouseClicked(e: java.awt.event.MouseEvent) {
+                selectedTemplate = type
+                updateTemplateSelection()
+            }
+            override fun mouseEntered(e: java.awt.event.MouseEvent) {
+                if (selectedTemplate != type) {
+                    card.background = JBColor(Color(245, 245, 250), Color(50, 53, 58))
+                }
+            }
+            override fun mouseExited(e: java.awt.event.MouseEvent) {
+                updateCardStyle(card, type)
+            }
+        })
+
+        return card
+    }
+
+    private fun updateTemplateSelection() {
+        updateCardStyle(emptyCard, HytaleModuleBuilder.TemplateType.EMPTY)
+        updateCardStyle(fullCard, HytaleModuleBuilder.TemplateType.FULL)
+    }
+
+    private fun updateCardStyle(card: JPanel, type: HytaleModuleBuilder.TemplateType) {
+        val isSelected = selectedTemplate == type
+        card.background = if (isSelected) {
+            JBColor(Color(255, 250, 240), Color(55, 50, 45))
+        } else {
+            JBColor(Color(250, 250, 252), Color(45, 48, 52))
+        }
+        card.border = if (isSelected) {
+            BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(JBColor(Color(255, 140, 0), Color(255, 165, 50)), 2),
+                JBUI.Borders.empty(14)
+            )
+        } else {
+            BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(JBColor(Color(200, 200, 200), Color(60, 60, 60)), 1),
+                JBUI.Borders.empty(15)
+            )
+        }
+    }
+
+    private fun createStep2Panel(): JPanel {
+        val panel = JPanel(BorderLayout())
+        panel.isOpaque = false
+        panel.border = JBUI.Borders.empty(8, 0)
+
+        val content = JPanel()
+        content.layout = BoxLayout(content, BoxLayout.Y_AXIS)
+        content.isOpaque = false
+
+        // Title
+        val titleLabel = JBLabel("Mod Information")
+        titleLabel.font = titleLabel.font.deriveFont(Font.BOLD, 18f)
+        titleLabel.alignmentX = Component.LEFT_ALIGNMENT
+        titleLabel.border = JBUI.Borders.emptyBottom(4)
+        content.add(titleLabel)
+
+        val subtitleLabel = JBLabel("Configure your mod's identity and build settings")
+        subtitleLabel.foreground = JBColor.GRAY
+        subtitleLabel.alignmentX = Component.LEFT_ALIGNMENT
+        subtitleLabel.border = JBUI.Borders.emptyBottom(20)
+        content.add(subtitleLabel)
+
+        // Form
+        val formPanel = JPanel(GridBagLayout())
+        formPanel.isOpaque = false
+        formPanel.alignmentX = Component.LEFT_ALIGNMENT
+        val gbc = GridBagConstraints()
+        gbc.insets = JBUI.insets(6, 0, 6, 12)
+        gbc.anchor = GridBagConstraints.WEST
+
+        var row = 0
+        addFormField(formPanel, gbc, row++, "Mod Name", modNameField, "The display name of your mod")
+        addFormField(formPanel, gbc, row++, "Package", packageNameField, "Java package name")
+
+        // Language selection
+        gbc.gridx = 0; gbc.gridy = row; gbc.weightx = 0.0; gbc.fill = GridBagConstraints.NONE
+        formPanel.add(JBLabel("Language:").apply { preferredSize = Dimension(90, 28) }, gbc)
+        gbc.gridx = 1; gbc.weightx = 1.0; gbc.fill = GridBagConstraints.NONE
+        formPanel.add(createLanguageButtons(), gbc)
+        row++
+
+        // Build System selection
+        gbc.gridx = 0; gbc.gridy = row; gbc.weightx = 0.0; gbc.fill = GridBagConstraints.NONE
+        formPanel.add(JBLabel("Build System:").apply { preferredSize = Dimension(90, 28) }, gbc)
+        gbc.gridx = 1; gbc.weightx = 1.0; gbc.fill = GridBagConstraints.NONE
+        formPanel.add(createBuildSystemButtons(), gbc)
+        row++
+
+        // Spacer
+        gbc.gridx = 0; gbc.gridy = row; gbc.gridwidth = 2
+        formPanel.add(Box.createVerticalStrut(8), gbc)
+        gbc.gridwidth = 1
+        row++
+
+        addFormField(formPanel, gbc, row++, "Version", versionField, "Semantic version (e.g., 1.0.0)")
+        addFormField(formPanel, gbc, row++, "Command", commandNameField, "In-game command shortcut")
+
+        content.add(formPanel)
+        content.add(Box.createVerticalGlue())
+
+        panel.add(content, BorderLayout.NORTH)
+        return panel
+    }
+
+    private fun createLanguageButtons(): JPanel {
+        val panel = JPanel(FlowLayout(FlowLayout.LEFT, 0, 0))
+        panel.isOpaque = false
+
+        kotlinButton = createToggleButton("Kotlin", selectedLanguage == "Kotlin") {
+            selectedLanguage = "Kotlin"
+            updateLanguageButtons()
+        }
+
+        javaButton = createToggleButton("Java", selectedLanguage == "Java") {
+            selectedLanguage = "Java"
+            updateLanguageButtons()
+        }
+
+        panel.add(kotlinButton)
+        panel.add(Box.createHorizontalStrut(8))
+        panel.add(javaButton)
+
+        return panel
+    }
+
+    private fun createBuildSystemButtons(): JPanel {
+        val panel = JPanel(FlowLayout(FlowLayout.LEFT, 0, 0))
+        panel.isOpaque = false
+
+        gradleButton = createToggleButton("Gradle", selectedBuildSystem == "Gradle") {
+            selectedBuildSystem = "Gradle"
+            updateBuildSystemButtons()
+        }
+
+        mavenButton = createToggleButton("Maven", selectedBuildSystem == "Maven") {
+            selectedBuildSystem = "Maven"
+            updateBuildSystemButtons()
+        }
+
+        panel.add(gradleButton)
+        panel.add(Box.createHorizontalStrut(8))
+        panel.add(mavenButton)
+
+        return panel
+    }
+
+    private fun createToggleButton(text: String, selected: Boolean, onClick: () -> Unit): JButton {
+        val button = JButton(text)
+        button.preferredSize = Dimension(80, 28)
+        button.isFocusPainted = false
+        button.cursor = Cursor.getPredefinedCursor(Cursor.HAND_CURSOR)
+
+        updateToggleButtonStyle(button, selected)
+
+        button.addActionListener {
+            onClick()
+        }
+
+        return button
+    }
+
+    private fun updateToggleButtonStyle(button: JButton, selected: Boolean) {
+        if (selected) {
+            button.background = JBColor(Color(255, 140, 0), Color(255, 165, 50))
+            button.foreground = Color.WHITE
+            button.border = BorderFactory.createLineBorder(JBColor(Color(255, 140, 0), Color(255, 165, 50)), 1)
+        } else {
+            button.background = JBColor(Color(60, 63, 65), Color(60, 63, 65))
+            button.foreground = JBColor(Color(200, 200, 200), Color(180, 180, 180))
+            button.border = BorderFactory.createLineBorder(JBColor(Color(80, 80, 80), Color(80, 80, 80)), 1)
+        }
+    }
+
+    private fun updateLanguageButtons() {
+        updateToggleButtonStyle(kotlinButton, selectedLanguage == "Kotlin")
+        updateToggleButtonStyle(javaButton, selectedLanguage == "Java")
+    }
+
+    private fun updateBuildSystemButtons() {
+        updateToggleButtonStyle(gradleButton, selectedBuildSystem == "Gradle")
+        updateToggleButtonStyle(mavenButton, selectedBuildSystem == "Maven")
+    }
+
+    private fun addFormField(panel: JPanel, gbc: GridBagConstraints, row: Int, label: String, field: JTextField, hint: String) {
+        gbc.gridx = 0
+        gbc.gridy = row
+        gbc.weightx = 0.0
+        gbc.fill = GridBagConstraints.NONE
+
+        val labelComp = JBLabel("$label:")
+        labelComp.preferredSize = Dimension(90, 28)
+        panel.add(labelComp, gbc)
+
+        gbc.gridx = 1
+        gbc.weightx = 1.0
+        gbc.fill = GridBagConstraints.HORIZONTAL
+
+        field.preferredSize = Dimension(300, 28)
+        field.toolTipText = hint
+        panel.add(field, gbc)
+    }
+
+    private fun createStep3Panel(): JPanel {
+        val panel = JPanel(BorderLayout())
+        panel.isOpaque = false
+        panel.border = JBUI.Borders.empty(8, 0)
+
+        val content = JPanel()
+        content.layout = BoxLayout(content, BoxLayout.Y_AXIS)
+        content.isOpaque = false
+
+        // Title
+        val titleLabel = JBLabel("Finish Setup")
+        titleLabel.font = titleLabel.font.deriveFont(Font.BOLD, 18f)
+        titleLabel.alignmentX = Component.LEFT_ALIGNMENT
+        titleLabel.border = JBUI.Borders.emptyBottom(4)
+        content.add(titleLabel)
+
+        val subtitleLabel = JBLabel("Add metadata and configure server files")
+        subtitleLabel.foreground = JBColor.GRAY
+        subtitleLabel.alignmentX = Component.LEFT_ALIGNMENT
+        subtitleLabel.border = JBUI.Borders.emptyBottom(20)
+        content.add(subtitleLabel)
+
+        // Form
+        val formPanel = JPanel(GridBagLayout())
+        formPanel.isOpaque = false
+        formPanel.alignmentX = Component.LEFT_ALIGNMENT
+        val gbc = GridBagConstraints()
+        gbc.insets = JBUI.insets(6, 0, 6, 12)
+        gbc.anchor = GridBagConstraints.NORTHWEST
+
+        // Author
+        gbc.gridx = 0; gbc.gridy = 0; gbc.weightx = 0.0; gbc.fill = GridBagConstraints.NONE
+        formPanel.add(JBLabel("Author:").apply { preferredSize = Dimension(90, 28) }, gbc)
+        gbc.gridx = 1; gbc.weightx = 1.0; gbc.fill = GridBagConstraints.HORIZONTAL
+        authorField.preferredSize = Dimension(300, 28)
+        formPanel.add(authorField, gbc)
+
+        // Description
+        gbc.gridx = 0; gbc.gridy = 1; gbc.weightx = 0.0; gbc.fill = GridBagConstraints.NONE
+        formPanel.add(JBLabel("Description:").apply { preferredSize = Dimension(90, 28) }, gbc)
+        gbc.gridx = 1; gbc.weightx = 1.0; gbc.fill = GridBagConstraints.HORIZONTAL
+        descriptionArea.lineWrap = true
+        descriptionArea.wrapStyleWord = true
+        val scrollPane = JBScrollPane(descriptionArea)
+        scrollPane.preferredSize = Dimension(300, 70)
+        formPanel.add(scrollPane, gbc)
+
+        content.add(formPanel)
+        content.add(Box.createVerticalStrut(20))
+
+        // Server detection
+        content.add(createServerPanel())
+
+        content.add(Box.createVerticalGlue())
+
+        panel.add(content, BorderLayout.NORTH)
+        return panel
+    }
+
+    private fun createServerPanel(): JPanel {
+        val panel = JPanel(BorderLayout())
+        panel.alignmentX = Component.LEFT_ALIGNMENT
+        panel.maximumSize = Dimension(420, 80)
+        panel.border = JBUI.Borders.empty(12)
+
+        val detected = hytaleInstallation != null
+        panel.background = if (detected) {
+            JBColor(Color(240, 255, 245), Color(35, 55, 45))
+        } else {
+            JBColor(Color(255, 252, 240), Color(55, 50, 40))
+        }
+
+        val contentPanel = JPanel()
+        contentPanel.layout = BoxLayout(contentPanel, BoxLayout.Y_AXIS)
+        contentPanel.isOpaque = false
+
+        val statusRow = JPanel(FlowLayout(FlowLayout.LEFT, 0, 0))
+        statusRow.isOpaque = false
+        statusRow.alignmentX = Component.LEFT_ALIGNMENT
+
+        val statusIcon = if (detected) "✓" else "○"
+        val iconLabel = JBLabel(statusIcon)
+        iconLabel.font = iconLabel.font.deriveFont(Font.BOLD, 16f)
+        iconLabel.foreground = if (detected) {
+            JBColor(Color(40, 160, 80), Color(80, 200, 120))
+        } else {
+            JBColor(Color(180, 140, 60), Color(200, 160, 80))
+        }
+        statusRow.add(iconLabel)
+        statusRow.add(Box.createHorizontalStrut(10))
+
+        val statusText = if (detected) {
+            val hasJar = hytaleInstallation!!.hasServerJar()
+            val hasAssets = hytaleInstallation.hasAssets()
+            buildString {
+                append("Hytale detected")
+                if (hasJar && hasAssets) append(" • Server + Assets")
+                else if (hasJar) append(" • Server only")
+                else if (hasAssets) append(" • Assets only")
+            }
+        } else "Hytale installation not found"
+
+        val textLabel = JBLabel(statusText)
+        textLabel.font = textLabel.font.deriveFont(Font.BOLD, 13f)
+        statusRow.add(textLabel)
+
+        contentPanel.add(statusRow)
+        contentPanel.add(Box.createVerticalStrut(8))
+
+        copyFromGameCheckbox.isOpaque = false
+        copyFromGameCheckbox.alignmentX = Component.LEFT_ALIGNMENT
+        contentPanel.add(copyFromGameCheckbox)
+
+        panel.add(contentPanel, BorderLayout.CENTER)
+        return panel
+    }
+
+    private fun createNavigationPanel(): JPanel {
+        val panel = JPanel(BorderLayout())
+        panel.isOpaque = false
+        panel.border = JBUI.Borders.emptyTop(16)
+
+        val buttonPanel = JPanel(FlowLayout(FlowLayout.LEFT, 8, 0))
+        buttonPanel.isOpaque = false
+
+        prevButton = JButton("← Previous")
+        prevButton.addActionListener { goToPreviousStep() }
+        buttonPanel.add(prevButton)
+
+        nextButton = JButton("Next →")
+        nextButton.addActionListener { goToNextStep() }
+        buttonPanel.add(nextButton)
+
+        panel.add(buttonPanel, BorderLayout.WEST)
+
+        updateNavigationButtons()
+        return panel
+    }
+
+    private fun goToNextStep() {
+        if (currentStep < 2) {
+            currentStep++
+            cardLayout.show(cardPanel, "step${currentStep + 1}")
+            updateStepIndicators()
+            updateNavigationButtons()
+        }
+    }
+
+    private fun goToPreviousStep() {
+        if (currentStep > 0) {
+            currentStep--
+            cardLayout.show(cardPanel, "step${currentStep + 1}")
+            updateStepIndicators()
+            updateNavigationButtons()
+        }
+    }
+
+    private fun updateStepIndicators() {
+        for (i in stepIndicators.indices) {
+            stepIndicators[i].repaint()
+            stepLabels[i].foreground = when {
+                i == currentStep -> JBColor(Color(255, 140, 0), Color(255, 165, 50))
+                i < currentStep -> JBColor(Color(100, 180, 100), Color(80, 160, 80))
+                else -> JBColor.GRAY
+            }
+        }
+    }
+
+    private fun updateNavigationButtons() {
+        prevButton.isEnabled = currentStep > 0
+        nextButton.text = if (currentStep == 2) "Ready!" else "Next →"
+        nextButton.isEnabled = currentStep < 2
+    }
+
+    override fun setupProject(project: Project) {
+        val builder = HytaleModuleBuilder()
+        builder.modName = modNameField.text.trim()
+        builder.modId = modIdField.text.trim()
+        builder.packageName = packageNameField.text.trim()
+        builder.commandName = commandNameField.text.trim().lowercase()
+        builder.author = authorField.text.trim()
+        builder.modDescription = descriptionArea.text.trim()
+        builder.version = versionField.text.trim()
+        builder.templateType = selectedTemplate
+        builder.language = selectedLanguage
+        builder.buildSystem = selectedBuildSystem
+        builder.copyFromGame = copyFromGameCheckbox.isSelected
+        builder.hytaleInstallation = hytaleInstallation
+
+        val projectPath = context.projectDirectory?.toString() ?: return
+        builder.createProjectAtPath(projectPath)
+    }
+}

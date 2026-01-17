@@ -1,0 +1,32 @@
+package ${PACKAGE_NAME};
+
+import com.hypixel.hytale.component.Archetype;
+import com.hypixel.hytale.component.ArchetypeChunk;
+import com.hypixel.hytale.component.CommandBuffer;
+import com.hypixel.hytale.component.Query;
+import com.hypixel.hytale.component.Store;
+import com.hypixel.hytale.component.system.EntityEventSystem;
+import com.hypixel.hytale.server.core.entity.EntityStore;
+import com.hypixel.hytale.server.core.event.events.ecs.BreakBlockEvent;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import javax.annotation.Nullable;
+
+public class ${NAME} extends EntityEventSystem<EntityStore, BreakBlockEvent> {
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(${NAME}.class);
+
+    @Override
+    public void handle(int index, ArchetypeChunk<EntityStore> archetypeChunk,
+                       Store<EntityStore> store, CommandBuffer<EntityStore> commandBuffer,
+                       BreakBlockEvent event) {
+        LOGGER.debug("Block broken at: {}", event.getBlockPos());
+    }
+
+    @Nullable
+    @Override
+    public Query<EntityStore> getQuery() {
+        return Archetype.empty();
+    }
+}
