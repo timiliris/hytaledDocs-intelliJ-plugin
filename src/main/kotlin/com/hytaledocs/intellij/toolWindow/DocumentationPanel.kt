@@ -208,7 +208,12 @@ class DocumentationPanel(private val project: Project) : JBPanel<DocumentationPa
         contentPanel.add(headerPanel, BorderLayout.NORTH)
 
         // Content pane - HTML rendering
-        contentPane.contentType = "text/html"
+        // Set up HTMLEditorKit with custom stylesheet BEFORE setting contentType
+        val editorKit = javax.swing.text.html.HTMLEditorKit()
+        val styleSheet = javax.swing.text.html.StyleSheet()
+        styleSheet.addRule(getCustomCss())
+        editorKit.styleSheet = styleSheet
+        contentPane.editorKit = editorKit
         contentPane.isEditable = false
         contentPane.background = UIUtil.getPanelBackground()
         contentPane.border = JBUI.Borders.empty(0, 16, 16, 16)
@@ -230,10 +235,6 @@ class DocumentationPanel(private val project: Project) : JBPanel<DocumentationPa
                 }
             }
         }
-
-        // Apply custom styles
-        val styleSheet = (contentPane.document as? javax.swing.text.html.HTMLDocument)?.styleSheet
-        styleSheet?.addRule(getCustomCss())
 
         val contentScroll = JBScrollPane(contentPane)
         contentScroll.border = null
@@ -635,67 +636,191 @@ class DocumentationPanel(private val project: Project) : JBPanel<DocumentationPa
     }
 
     /**
-     * Simple markdown to HTML converter
+     * Simple markdown to HTML converter.
+     * Note: Java Swing's JEditorPane only supports HTML 3.2 and limited CSS.
      */
     private fun markdownToHtml(markdown: String): String {
-        // Simple regex-based conversion for basic markdown
-        var html = markdown
+        val lines = markdown.lines()
+        val result = StringBuilder()
+        var inCodeBlock = false
+        var codeBlockContent = StringBuilder()
+        var listType: String? = null  // "ul" or "ol" or null
+        var inBlockquote = false
 
-        // Code blocks (must be before inline code)
-        html = html.replace(Regex("```(\\w*)\\n([\\s\\S]*?)```")) { match ->
-            val lang = match.groupValues[1]
-            val code = match.groupValues[2].trim()
+        fun closeList() {
+            if (listType != null) {
+                result.append("</$listType>\n")
+                listType = null
+            }
+        }
+
+        fun closeBlockquote() {
+            if (inBlockquote) {
+                result.append("</blockquote>\n")
+                inBlockquote = false
+            }
+        }
+
+        for (line in lines) {
+            // Handle code blocks
+            if (line.startsWith("```")) {
+                if (inCodeBlock) {
+                    // End code block
+                    val code = codeBlockContent.toString()
+                        .replace("&", "&amp;")
+                        .replace("<", "&lt;")
+                        .replace(">", "&gt;")
+                    result.append("<pre><code>$code</code></pre>\n")
+                    inCodeBlock = false
+                    codeBlockContent = StringBuilder()
+                } else {
+                    // Start code block - close any open blocks first
+                    closeList()
+                    closeBlockquote()
+                    inCodeBlock = true
+                }
+                continue
+            }
+
+            if (inCodeBlock) {
+                codeBlockContent.append(line).append("\n")
+                continue
+            }
+
+            var processedLine = line
+
+            // Inline code (before other processing)
+            processedLine = processedLine.replace(Regex("`([^`]+)`")) { match ->
+                val code = match.groupValues[1]
+                    .replace("&", "&amp;")
+                    .replace("<", "&lt;")
+                    .replace(">", "&gt;")
+                "<code>$code</code>"
+            }
+
+            // Bold and italic (order matters: *** before ** before *)
+            processedLine = processedLine.replace(Regex("\\*\\*\\*(.+?)\\*\\*\\*")) {
+                "<b><i>${it.groupValues[1]}</i></b>"
+            }
+            processedLine = processedLine.replace(Regex("\\*\\*(.+?)\\*\\*")) {
+                "<b>${it.groupValues[1]}</b>"
+            }
+            processedLine = processedLine.replace(Regex("(?<!\\*)\\*([^*]+)\\*(?!\\*)")) {
+                "<i>${it.groupValues[1]}</i>"
+            }
+
+            // Links
+            processedLine = processedLine.replace(Regex("\\[([^\\]]+)\\]\\(([^)]+)\\)")) { match ->
+                val text = match.groupValues[1]
+                val url = match.groupValues[2]
+                "<a href=\"$url\">$text</a>"
+            }
+
+            // Check line type
+            val trimmedLine = processedLine.trim()
+
+            // Headers
+            when {
+                trimmedLine.startsWith("######") -> {
+                    closeList()
+                    closeBlockquote()
+                    result.append("<h6>${trimmedLine.removePrefix("######").trim()}</h6>\n")
+                }
+                trimmedLine.startsWith("#####") -> {
+                    closeList()
+                    closeBlockquote()
+                    result.append("<h5>${trimmedLine.removePrefix("#####").trim()}</h5>\n")
+                }
+                trimmedLine.startsWith("####") -> {
+                    closeList()
+                    closeBlockquote()
+                    result.append("<h4>${trimmedLine.removePrefix("####").trim()}</h4>\n")
+                }
+                trimmedLine.startsWith("###") -> {
+                    closeList()
+                    closeBlockquote()
+                    result.append("<h3>${trimmedLine.removePrefix("###").trim()}</h3>\n")
+                }
+                trimmedLine.startsWith("##") -> {
+                    closeList()
+                    closeBlockquote()
+                    result.append("<h2>${trimmedLine.removePrefix("##").trim()}</h2>\n")
+                }
+                trimmedLine.startsWith("#") -> {
+                    closeList()
+                    closeBlockquote()
+                    result.append("<h1>${trimmedLine.removePrefix("#").trim()}</h1>\n")
+                }
+                // Unordered list items
+                trimmedLine.matches(Regex("^[-*+]\\s+.*")) -> {
+                    closeBlockquote()
+                    // If switching from ordered to unordered, close the ordered list
+                    if (listType == "ol") {
+                        closeList()
+                    }
+                    if (listType == null) {
+                        result.append("<ul>\n")
+                        listType = "ul"
+                    }
+                    val content = trimmedLine.replaceFirst(Regex("^[-*+]\\s+"), "")
+                    result.append("<li>$content</li>\n")
+                }
+                // Ordered list items
+                trimmedLine.matches(Regex("^\\d+\\.\\s+.*")) -> {
+                    closeBlockquote()
+                    // If switching from unordered to ordered, close the unordered list
+                    if (listType == "ul") {
+                        closeList()
+                    }
+                    if (listType == null) {
+                        result.append("<ol>\n")
+                        listType = "ol"
+                    }
+                    val content = trimmedLine.replaceFirst(Regex("^\\d+\\.\\s+"), "")
+                    result.append("<li>$content</li>\n")
+                }
+                // Blockquotes
+                trimmedLine.startsWith(">") -> {
+                    closeList()
+                    if (!inBlockquote) {
+                        result.append("<blockquote>\n")
+                        inBlockquote = true
+                    }
+                    val content = trimmedLine.removePrefix(">").trim()
+                    result.append("$content ")
+                }
+                // Horizontal rule
+                trimmedLine.matches(Regex("^[-*_]{3,}$")) -> {
+                    closeList()
+                    closeBlockquote()
+                    result.append("<hr>\n")
+                }
+                // Empty line
+                trimmedLine.isEmpty() -> {
+                    closeList()
+                    closeBlockquote()
+                }
+                // Regular paragraph text
+                else -> {
+                    closeList()
+                    closeBlockquote()
+                    result.append("<p>$processedLine</p>\n")
+                }
+            }
+        }
+
+        // Close any remaining open blocks
+        closeList()
+        closeBlockquote()
+        if (inCodeBlock) {
+            val code = codeBlockContent.toString()
                 .replace("&", "&amp;")
                 .replace("<", "&lt;")
                 .replace(">", "&gt;")
-            "<pre><code class=\"language-$lang\">$code</code></pre>"
+            result.append("<pre><code>$code</code></pre>\n")
         }
 
-        // Inline code
-        html = html.replace(Regex("`([^`]+)`")) { match ->
-            "<code>${match.groupValues[1]}</code>"
-        }
-
-        // Headers
-        html = html.replace(Regex("(?m)^######\\s+(.*)$")) { "<h6>${it.groupValues[1]}</h6>" }
-        html = html.replace(Regex("(?m)^#####\\s+(.*)$")) { "<h5>${it.groupValues[1]}</h5>" }
-        html = html.replace(Regex("(?m)^####\\s+(.*)$")) { "<h4>${it.groupValues[1]}</h4>" }
-        html = html.replace(Regex("(?m)^###\\s+(.*)$")) { "<h3>${it.groupValues[1]}</h3>" }
-        html = html.replace(Regex("(?m)^##\\s+(.*)$")) { "<h2>${it.groupValues[1]}</h2>" }
-        html = html.replace(Regex("(?m)^#\\s+(.*)$")) { "<h1>${it.groupValues[1]}</h1>" }
-
-        // Bold and italic
-        html = html.replace(Regex("\\*\\*\\*(.+?)\\*\\*\\*")) { "<strong><em>${it.groupValues[1]}</em></strong>" }
-        html = html.replace(Regex("\\*\\*(.+?)\\*\\*")) { "<strong>${it.groupValues[1]}</strong>" }
-        html = html.replace(Regex("\\*(.+?)\\*")) { "<em>${it.groupValues[1]}</em>" }
-
-        // Links
-        html = html.replace(Regex("\\[([^\\]]+)\\]\\(([^)]+)\\)")) { match ->
-            val text = match.groupValues[1]
-            val url = match.groupValues[2]
-            "<a href=\"$url\">$text</a>"
-        }
-
-        // Unordered lists
-        html = html.replace(Regex("(?m)^[*-]\\s+(.*)$")) { "<li>${it.groupValues[1]}</li>" }
-
-        // Blockquotes
-        html = html.replace(Regex("(?m)^>\\s*(.*)$")) { "<blockquote>${it.groupValues[1]}</blockquote>" }
-
-        // Paragraphs (double newlines)
-        html = html.replace(Regex("\n\n+")) { "</p><p>" }
-        html = "<p>$html</p>"
-
-        // Clean up empty paragraphs
-        html = html.replace(Regex("<p>\\s*</p>"), "")
-        html = html.replace(Regex("<p>\\s*(<h[1-6]>)")) { it.groupValues[1] }
-        html = html.replace(Regex("(</h[1-6]>)\\s*</p>")) { it.groupValues[1] }
-        html = html.replace(Regex("<p>\\s*(<pre>)")) { it.groupValues[1] }
-        html = html.replace(Regex("(</pre>)\\s*</p>")) { it.groupValues[1] }
-        html = html.replace(Regex("<p>\\s*(<li>)")) { "<ul>${it.groupValues[1]}" }
-        html = html.replace(Regex("(</li>)\\s*</p>")) { "${it.groupValues[1]}</ul>" }
-
-        return html
+        return result.toString()
     }
 
     private fun showError(message: String, path: String) {

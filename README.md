@@ -1,6 +1,19 @@
 # HytaleDocs IntelliJ Plugin
 
+<!-- Plugin description -->
 A comprehensive toolkit for developing Hytale server plugins in IntelliJ IDEA.
+
+**Features:**
+- Project Wizard for new Hytale plugin projects
+- Live Templates: `hyevent`, `hycmd`, `hyecs`, `hyplugin`, `hymsg`, `hyconfig`, `hyscheduler`, `hycustom`
+- Tool Window with Home, Docs, and AI tabs
+- Integrated documentation browser with offline mode
+- MCP Server integration for Claude Code AI assistance
+- Server management (Start/Stop/Restart)
+- File templates for Plugin, Listener, Command, ECS System
+
+**Requirements:** IntelliJ IDEA 2025.3+, Java 25
+<!-- Plugin description end -->
 
 ## Features
 
@@ -63,7 +76,7 @@ The plugin ZIP will be in `build/distributions/`
 
 ## Requirements
 
-- IntelliJ IDEA 2024.3+
+- IntelliJ IDEA 2025.3+
 - Java 25 (for Hytale server development)
 - Gradle 8.11+
 

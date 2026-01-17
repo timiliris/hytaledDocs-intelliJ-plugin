@@ -1,5 +1,17 @@
 # HytaleDocs IntelliJ Plugin Changelog
 
+## [1.1.0] - 2026-01-17
+
+### Changed
+- **IntelliJ 2025.3 Support**: Updated minimum version to IntelliJ IDEA 2025.3+
+- **Fixed Documentation Rendering**: Rewrote markdown-to-HTML converter for proper list and content display
+- **Improved CSS Compatibility**: Simplified CSS for better Java Swing HTML renderer support
+
+### Fixed
+- Documentation panel now properly renders markdown content
+- Lists (ordered and unordered) are correctly wrapped in `<ul>` and `<ol>` tags
+- StyleSheet is now properly applied to the HTML editor
+
 ## [1.0.0] - 2026-01-17
 
 ### Added
