@@ -5,7 +5,8 @@
       "Bash(./gradlew compileKotlin:*)",
       "Bash(./gradlew clean buildPlugin:*)",
       "Bash(git add:*)",
-      "Bash(git commit:*)"
+      "Bash(git commit:*)",
+      "Bash(git push)"
     ]
   }
 }

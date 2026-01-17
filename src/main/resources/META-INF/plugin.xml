@@ -1,5 +1,5 @@
 <idea-plugin>
-    <id>com.hytaledocs.intellij.hytale</id>
+    <id>com.hytaledocs.hytale</id>
     <name>Hytale Docs Dev Tools</name>
     <vendor email="contact@hytale-docs.com" url="https://hytale-docs.com">HytaleDocs</vendor>
 
