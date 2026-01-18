@@ -1,0 +1,549 @@
+{
+  "analysisDate": "2026-01-14T00:00:00.000Z",
+  "domain": "commands",
+  "commandBaseClass": {
+    "className": "AbstractCommand",
+    "fullName": "com.hypixel.hytale.server.core.command.system.AbstractCommand",
+    "sourceFile": "com/hypixel/hytale/server/core/command/system/AbstractCommand.java",
+    "lineNumber": 39,
+    "codeSnippet": "public abstract class AbstractCommand {\n   @Nonnull\n   public static final HytaleLogger LOGGER = HytaleLogger.forEnclosingClass();\n   public static final String[] EMPTY_STRING_ARRAY = new String[0];\n   @Nullable\n   private final String name;\n   @Nonnull\n   private final Set<String> aliases = new HashSet<>();\n   private final String description;\n   @Nonnull\n   private final List<RequiredArg<?>> requiredArguments = new ObjectArrayList<>();\n   @Nonnull\n   private final Map<String, AbstractOptionalArg<?, ?>> optionalArguments = new Object2ObjectOpenHashMap<>();",
+    "isAbstract": true,
+    "verified": true,
+    "description": "The base abstract class for all commands in Hytale's command system. Contains logic for argument registration, subcommands, permissions, and execution."
+  },
+  "commandInterfaces": {
+    "commandSender": {
+      "className": "CommandSender",
+      "fullName": "com.hypixel.hytale.server.core.command.system.CommandSender",
+      "sourceFile": "com/hypixel/hytale/server/core/command/system/CommandSender.java",
+      "lineNumber": 7,
+      "codeSnippet": "public interface CommandSender extends IMessageReceiver, PermissionHolder {\n   String getDisplayName();\n\n   UUID getUuid();\n}",
+      "methods": [
+        {
+          "name": "getDisplayName",
+          "signature": "String getDisplayName()",
+          "lineNumber": 8,
+          "description": "Returns the display name of the command sender"
+        },
+        {
+          "name": "getUuid",
+          "signature": "UUID getUuid()",
+          "lineNumber": 10,
+          "description": "Returns the UUID of the command sender"
+        }
+      ],
+      "verified": true
+    },
+    "commandOwner": {
+      "className": "CommandOwner",
+      "fullName": "com.hypixel.hytale.server.core.command.system.CommandOwner",
+      "sourceFile": "com/hypixel/hytale/server/core/command/system/CommandOwner.java",
+      "lineNumber": 3,
+      "codeSnippet": "public interface CommandOwner {\n   String getName();\n}",
+      "methods": [
+        {
+          "name": "getName",
+          "signature": "String getName()",
+          "lineNumber": 4,
+          "description": "Returns the name of the command owner (plugin or server)"
+        }
+      ],
+      "verified": true
+    },
+    "suggestionProvider": {
+      "className": "SuggestionProvider",
+      "fullName": "com.hypixel.hytale.server.core.command.system.suggestion.SuggestionProvider",
+      "sourceFile": "com/hypixel/hytale/server/core/command/system/suggestion/SuggestionProvider.java",
+      "lineNumber": 7,
+      "codeSnippet": "@FunctionalInterface\npublic interface SuggestionProvider {\n   void suggest(@Nonnull CommandSender var1, @Nonnull String var2, int var3, @Nonnull SuggestionResult var4);\n}",
+      "methods": [
+        {
+          "name": "suggest",
+          "signature": "void suggest(CommandSender sender, String textAlreadyEntered, int numParametersTyped, SuggestionResult result)",
+          "lineNumber": 8,
+          "description": "Provides suggestions for tab completion"
+        }
+      ],
+      "verified": true
+    }
+  },
+  "annotations": [],
+  "annotationNote": "Hytale does NOT use annotations for command registration. Commands are defined by extending AbstractCommand or its subclasses (CommandBase, AbstractPlayerCommand, etc.) and registered programmatically via CommandManager.registerSystemCommand() or CommandRegistry.registerCommand().",
+  "argumentSystem": {
+    "baseClass": {
+      "name": "Argument",
+      "fullName": "com.hypixel.hytale.server.core.command.system.arguments.system.Argument",
+      "sourceFile": "com/hypixel/hytale/server/core/command/system/arguments/system/Argument.java",
+      "lineNumber": 20,
+      "codeSnippet": "public abstract class Argument<Arg extends Argument<Arg, DataType>, DataType> {\n   @Nonnull\n   private final String name;\n   @Nullable\n   private final String description;\n   private final ArgumentType<DataType> argumentType;\n   @Nullable\n   private SuggestionProvider suggestionProvider;\n   @Nullable\n   private List<Validator<DataType>> validators;",
+      "verified": true
+    },
+    "argumentTypeClass": {
+      "name": "ArgumentType",
+      "fullName": "com.hypixel.hytale.server.core.command.system.arguments.types.ArgumentType",
+      "sourceFile": "com/hypixel/hytale/server/core/command/system/arguments/types/ArgumentType.java",
+      "lineNumber": 14,
+      "codeSnippet": "public abstract class ArgumentType<DataType> implements SuggestionProvider {\n   @Nonnull\n   public static final String[] EMPTY_EXAMPLES = new String[0];\n   private final Message name;\n   @Nonnull\n   private final Message argumentUsage;\n   @Nonnull\n   protected final String[] examples;\n   protected int numberOfParameters;",
+      "methods": [
+        {
+          "name": "parse",
+          "signature": "DataType parse(String[] input, ParseResult parseResult)",
+          "lineNumber": 53,
+          "description": "Parses the string input into the data type"
+        },
+        {
+          "name": "suggest",
+          "signature": "void suggest(CommandSender sender, String textAlreadyEntered, int numParametersTyped, SuggestionResult result)",
+          "lineNumber": 49,
+          "description": "Provides tab completion suggestions"
+        },
+        {
+          "name": "getNumberOfParameters",
+          "signature": "int getNumberOfParameters()",
+          "lineNumber": 60,
+          "description": "Returns the number of string parameters this type consumes"
+        }
+      ],
+      "verified": true
+    },
+    "argumentTypes": [
+      {
+        "name": "RequiredArg",
+        "fullName": "com.hypixel.hytale.server.core.command.system.arguments.system.RequiredArg",
+        "sourceFile": "com/hypixel/hytale/server/core/command/system/arguments/system/RequiredArg.java",
+        "lineNumber": 8,
+        "codeSnippet": "public class RequiredArg<DataType> extends Argument<RequiredArg<DataType>, DataType> {\n   public RequiredArg(\n      @Nonnull AbstractCommand commandRegisteredTo, @Nonnull String name, @Nonnull String description, @Nonnull ArgumentType<DataType> argumentType\n   )",
+        "description": "A required positional argument that must be provided",
+        "verified": true
+      },
+      {
+        "name": "OptionalArg",
+        "fullName": "com.hypixel.hytale.server.core.command.system.arguments.system.OptionalArg",
+        "sourceFile": "com/hypixel/hytale/server/core/command/system/arguments/system/OptionalArg.java",
+        "lineNumber": 8,
+        "codeSnippet": "public class OptionalArg<DataType> extends AbstractOptionalArg<OptionalArg<DataType>, DataType> {\n   public OptionalArg(\n      @Nonnull AbstractCommand commandRegisteredTo, @Nonnull String name, @Nonnull String description, @Nonnull ArgumentType<DataType> argumentType\n   )",
+        "description": "An optional named argument specified with --name=value syntax",
+        "verified": true
+      },
+      {
+        "name": "DefaultArg",
+        "fullName": "com.hypixel.hytale.server.core.command.system.arguments.system.DefaultArg",
+        "sourceFile": "com/hypixel/hytale/server/core/command/system/arguments/system/DefaultArg.java",
+        "lineNumber": 9,
+        "codeSnippet": "public class DefaultArg<DataType> extends AbstractOptionalArg<DefaultArg<DataType>, DataType> implements AbstractOptionalArg.DefaultValueArgument<DataType> {\n   @Nonnull\n   private final DataType defaultValue;\n   @Nonnull\n   private final String defaultValueDescription;",
+        "description": "An optional argument with a default value if not provided",
+        "verified": true
+      },
+      {
+        "name": "FlagArg",
+        "fullName": "com.hypixel.hytale.server.core.command.system.arguments.system.FlagArg",
+        "sourceFile": "com/hypixel/hytale/server/core/command/system/arguments/system/FlagArg.java",
+        "lineNumber": 8,
+        "codeSnippet": "public class FlagArg extends AbstractOptionalArg<FlagArg, Boolean> implements AbstractOptionalArg.DefaultValueArgument<Boolean> {\n   @Nonnull\n   private static final BooleanFlagArgumentType BOOLEAN_FLAG_ARGUMENT_TYPE = new BooleanFlagArgumentType();\n\n   public FlagArg(@Nonnull AbstractCommand commandRegisteredTo, @Nonnull String name, @Nonnull String description)",
+        "description": "A boolean flag argument (--flag syntax, defaults to false)",
+        "verified": true
+      },
+      {
+        "name": "SingleArgumentType",
+        "fullName": "com.hypixel.hytale.server.core.command.system.arguments.types.SingleArgumentType",
+        "sourceFile": "com/hypixel/hytale/server/core/command/system/arguments/types/SingleArgumentType.java",
+        "lineNumber": 8,
+        "codeSnippet": "public abstract class SingleArgumentType<DataType> extends ArgumentType<DataType> {\n   protected SingleArgumentType(Message name, @Nonnull String argumentUsage, @Nullable String... examples)",
+        "description": "Base class for argument types that consume a single parameter",
+        "verified": true
+      },
+      {
+        "name": "MultiArgumentType",
+        "fullName": "com.hypixel.hytale.server.core.command.system.arguments.types.MultiArgumentType",
+        "sourceFile": "com/hypixel/hytale/server/core/command/system/arguments/types/MultiArgumentType.java",
+        "lineNumber": 1,
+        "description": "Base class for argument types that consume multiple parameters",
+        "verified": true
+      },
+      {
+        "name": "ListArgumentType",
+        "fullName": "com.hypixel.hytale.server.core.command.system.arguments.types.ListArgumentType",
+        "sourceFile": "com/hypixel/hytale/server/core/command/system/arguments/types/ListArgumentType.java",
+        "lineNumber": 1,
+        "description": "Wraps another argument type to accept lists via [item1,item2,...] syntax",
+        "verified": true
+      },
+      {
+        "name": "EnumArgumentType",
+        "fullName": "com.hypixel.hytale.server.core.command.system.arguments.types.EnumArgumentType",
+        "sourceFile": "com/hypixel/hytale/server/core/command/system/arguments/types/EnumArgumentType.java",
+        "lineNumber": 1,
+        "description": "Argument type for Java enum values with auto-completion",
+        "verified": true
+      },
+      {
+        "name": "AssetArgumentType",
+        "fullName": "com.hypixel.hytale.server.core.command.system.arguments.types.AssetArgumentType",
+        "sourceFile": "com/hypixel/hytale/server/core/command/system/arguments/types/AssetArgumentType.java",
+        "lineNumber": 1,
+        "description": "Argument type for Hytale asset references (items, entities, etc.)",
+        "verified": true
+      },
+      {
+        "name": "GameModeArgumentType",
+        "fullName": "com.hypixel.hytale.server.core.command.system.arguments.types.GameModeArgumentType",
+        "sourceFile": "com/hypixel/hytale/server/core/command/system/arguments/types/GameModeArgumentType.java",
+        "lineNumber": 1,
+        "description": "Argument type for Hytale GameMode enum values",
+        "verified": true
+      }
+    ],
+    "relativeTypes": [
+      {
+        "name": "RelativeInteger",
+        "sourceFile": "com/hypixel/hytale/server/core/command/system/arguments/types/RelativeInteger.java",
+        "description": "Supports relative coordinates with ~ prefix (e.g., ~10)",
+        "verified": true
+      },
+      {
+        "name": "RelativeVector3i",
+        "sourceFile": "com/hypixel/hytale/server/core/command/system/arguments/types/RelativeVector3i.java",
+        "description": "3D integer vector with relative coordinate support",
+        "verified": true
+      },
+      {
+        "name": "RelativeDoublePosition",
+        "sourceFile": "com/hypixel/hytale/server/core/command/system/arguments/types/RelativeDoublePosition.java",
+        "description": "3D double position with relative coordinate support",
+        "verified": true
+      }
+    ],
+    "commonArgTypes": "ArgTypes static class provides common argument types: STRING, INTEGER, FLOAT, DOUBLE, BOOLEAN, PLAYER_REF, ITEM_ASSET, GAME_MODE, and more (ArgTypes.java failed to decompile due to complexity)"
+  },
+  "registration": {
+    "managerClass": {
+      "name": "CommandManager",
+      "fullName": "com.hypixel.hytale.server.core.command.system.CommandManager",
+      "sourceFile": "com/hypixel/hytale/server/core/command/system/CommandManager.java",
+      "lineNumber": 84,
+      "codeSnippet": "public class CommandManager implements CommandOwner {\n   private static final HytaleLogger LOGGER = HytaleLogger.forEnclosingClass();\n   private static CommandManager instance;\n   private final Map<String, AbstractCommand> commandRegistration = new Object2ObjectOpenHashMap<>();\n   private final Map<String, String> aliases = new Object2ObjectOpenHashMap<>();",
+      "verified": true
+    },
+    "registerMethods": [
+      {
+        "name": "registerSystemCommand",
+        "signature": "public void registerSystemCommand(@Nonnull AbstractCommand command)",
+        "lineNumber": 178,
+        "codeSnippet": "public void registerSystemCommand(@Nonnull AbstractCommand command) {\n   command.setOwner(this);\n   this.register(command);\n}",
+        "description": "Registers a system command owned by the server"
+      },
+      {
+        "name": "register",
+        "signature": "public CommandRegistration register(@Nonnull AbstractCommand command)",
+        "lineNumber": 184,
+        "codeSnippet": "public CommandRegistration register(@Nonnull AbstractCommand command) {\n   String name = command.getName();\n   if (name != null && !name.isEmpty()) {\n      this.commandRegistration.put(command.getName(), command);\n      ...\n   }",
+        "description": "Core registration method that adds command to registry and processes aliases"
+      }
+    ],
+    "pluginRegistration": {
+      "name": "CommandRegistry",
+      "fullName": "com.hypixel.hytale.server.core.command.system.CommandRegistry",
+      "sourceFile": "com/hypixel/hytale/server/core/command/system/CommandRegistry.java",
+      "lineNumber": 10,
+      "codeSnippet": "public class CommandRegistry extends Registry<CommandRegistration> {\n   private final PluginBase plugin;\n\n   public CommandRegistration registerCommand(@Nonnull AbstractCommand command) {\n      this.checkPrecondition();\n      if (this.plugin != null) {\n         command.setOwner(this.plugin);\n      }\n      return this.register(CommandManager.get().register(command));\n   }",
+      "description": "Plugin-specific command registry that assigns plugin ownership to commands"
+    },
+    "verified": true
+  },
+  "commandExecution": {
+    "handleCommand": {
+      "signature": "public CompletableFuture<Void> handleCommand(@Nonnull CommandSender commandSender, @Nonnull String commandString)",
+      "sourceFile": "com/hypixel/hytale/server/core/command/system/CommandManager.java",
+      "lineNumber": 237,
+      "codeSnippet": "public CompletableFuture<Void> handleCommand(@Nonnull CommandSender commandSender, @Nonnull String commandString) {\n   Objects.requireNonNull(commandSender, \"Command sender must not be null!\");\n   Objects.requireNonNull(commandString, \"Command must not be null!\");\n   CompletableFuture<Void> future = new CompletableFuture<>();\n   ForkJoinPool.commonPool().execute(() -> {...});",
+      "description": "Handles command execution asynchronously via ForkJoinPool"
+    },
+    "executeMethod": {
+      "signature": "protected abstract CompletableFuture<Void> execute(@Nonnull CommandContext context)",
+      "sourceFile": "com/hypixel/hytale/server/core/command/system/AbstractCommand.java",
+      "lineNumber": 603,
+      "description": "Abstract method that subclasses implement to execute the command logic"
+    },
+    "commandContext": {
+      "name": "CommandContext",
+      "fullName": "com.hypixel.hytale.server.core.command.system.CommandContext",
+      "sourceFile": "com/hypixel/hytale/server/core/command/system/CommandContext.java",
+      "lineNumber": 16,
+      "codeSnippet": "public final class CommandContext {\n   @Nonnull\n   private final AbstractCommand calledCommand;\n   @Nonnull\n   private final String inputString;\n   @Nonnull\n   private final CommandSender sender;\n   @Nonnull\n   private final Map<Argument<?, ?>, Object> argValues;\n   @Nonnull\n   private final Map<Argument<?, ?>, String[]> argInput;",
+      "description": "Contains the execution context: sender, parsed arguments, and input string"
+    }
+  },
+  "tabCompletion": {
+    "mechanism": "Tab completion is provided through the SuggestionProvider interface. ArgumentType extends SuggestionProvider and can override suggest(). Individual arguments can also have custom SuggestionProviders attached via the suggest() method. SuggestionResult collects suggestions and supports fuzzy matching.",
+    "suggestionProviderInterface": {
+      "sourceFile": "com/hypixel/hytale/server/core/command/system/suggestion/SuggestionProvider.java",
+      "lineNumber": 7,
+      "codeSnippet": "@FunctionalInterface\npublic interface SuggestionProvider {\n   void suggest(@Nonnull CommandSender var1, @Nonnull String var2, int var3, @Nonnull SuggestionResult var4);\n}"
+    },
+    "suggestionResult": {
+      "sourceFile": "com/hypixel/hytale/server/core/command/system/suggestion/SuggestionResult.java",
+      "lineNumber": 13,
+      "codeSnippet": "public class SuggestionResult {\n   private static final int FUZZY_SUGGESTION_MAX_RESULTS = 5;\n   private final List<String> suggestions = new ObjectArrayList<>();\n\n   public SuggestionResult suggest(@Nonnull String suggestion) {...}\n   public <DataType> SuggestionResult fuzzySuggest(@Nonnull String input, @Nonnull Collection<DataType> items, @Nonnull Function<DataType, String> toStringFunction)",
+      "description": "Collects suggestions with support for fuzzy matching up to 5 results"
+    },
+    "verified": true
+  },
+  "tokenization": {
+    "tokenizerClass": {
+      "name": "Tokenizer",
+      "sourceFile": "com/hypixel/hytale/server/core/command/system/Tokenizer.java",
+      "lineNumber": 10,
+      "codeSnippet": "public class Tokenizer {\n   public static final char MULTI_ARG_SEPARATOR_CHAR = ',';\n   public static final char MULTI_ARG_BEGIN_CHAR = '[';\n   public static final char MULTI_ARG_END_CHAR = ']';",
+      "description": "Parses command input into tokens. Supports quoted strings (single/double), list arguments ([a,b,c]), and escape sequences (\\, \\', \\\", \\[, \\], \\,)"
+    },
+    "verified": true
+  },
+  "commandHierarchy": [
+    {
+      "name": "AbstractCommand",
+      "description": "Base abstract class with all command logic",
+      "sourceFile": "com/hypixel/hytale/server/core/command/system/AbstractCommand.java",
+      "lineNumber": 39
+    },
+    {
+      "name": "AbstractAsyncCommand",
+      "extends": "AbstractCommand",
+      "description": "Base for async commands with error handling",
+      "sourceFile": "com/hypixel/hytale/server/core/command/system/basecommands/AbstractAsyncCommand.java",
+      "lineNumber": 12
+    },
+    {
+      "name": "CommandBase",
+      "extends": "AbstractCommand",
+      "description": "Simple synchronous command execution",
+      "sourceFile": "com/hypixel/hytale/server/core/command/system/basecommands/CommandBase.java",
+      "lineNumber": 9
+    },
+    {
+      "name": "AbstractPlayerCommand",
+      "extends": "AbstractAsyncCommand",
+      "description": "Commands that require the sender to be a player",
+      "sourceFile": "com/hypixel/hytale/server/core/command/system/basecommands/AbstractPlayerCommand.java",
+      "lineNumber": 13
+    },
+    {
+      "name": "AbstractWorldCommand",
+      "extends": "AbstractAsyncCommand",
+      "description": "Commands that operate on a world context",
+      "sourceFile": "com/hypixel/hytale/server/core/command/system/basecommands/AbstractWorldCommand.java",
+      "lineNumber": 13
+    },
+    {
+      "name": "AbstractCommandCollection",
+      "extends": "AbstractAsyncCommand",
+      "description": "Container for related subcommands (like /entity)",
+      "sourceFile": "com/hypixel/hytale/server/core/command/system/basecommands/AbstractCommandCollection.java",
+      "lineNumber": 9
+    },
+    {
+      "name": "AbstractTargetPlayerCommand",
+      "extends": "AbstractAsyncCommand",
+      "description": "Commands that target another player",
+      "sourceFile": "com/hypixel/hytale/server/core/command/system/basecommands/AbstractTargetPlayerCommand.java",
+      "lineNumber": 18
+    },
+    {
+      "name": "AbstractTargetEntityCommand",
+      "extends": "AbstractAsyncCommand",
+      "description": "Commands that target an entity",
+      "sourceFile": "com/hypixel/hytale/server/core/command/system/basecommands/AbstractTargetEntityCommand.java",
+      "lineNumber": 25
+    }
+  ],
+  "builtinCommands": [
+    {
+      "name": "give",
+      "className": "GiveCommand",
+      "sourceFile": "com/hypixel/hytale/server/core/command/commands/player/inventory/GiveCommand.java",
+      "lineNumber": 24,
+      "usage": "/give <item:Asset> [--quantity=1] [--metadata=?]",
+      "permission": "hytale.command.give.self",
+      "description": "Gives items to the executing player. Has a variant for giving to other players.",
+      "codeSnippet": "public class GiveCommand extends AbstractPlayerCommand {\n   private final RequiredArg<Item> itemArg = this.withRequiredArg(\"item\", \"server.commands.give.item.desc\", ArgTypes.ITEM_ASSET);\n   private final DefaultArg<Integer> quantityArg = this.withDefaultArg(\"quantity\", \"server.commands.give.quantity.desc\", ArgTypes.INTEGER, Integer.valueOf(1), \"1\");\n   private final OptionalArg<String> metadataArg = this.withOptionalArg(\"metadata\", \"server.commands.give.metadata.desc\", ArgTypes.STRING);",
+      "verified": true
+    },
+    {
+      "name": "gamemode",
+      "className": "GameModeCommand",
+      "sourceFile": "com/hypixel/hytale/server/core/command/commands/player/GameModeCommand.java",
+      "lineNumber": 19,
+      "usage": "/gamemode <gamemode:GameMode>",
+      "permission": "hytale.command.gamemode.self",
+      "aliases": [
+        "gm"
+      ],
+      "description": "Changes the player's game mode (Adventure, Creative, etc.)",
+      "codeSnippet": "public class GameModeCommand extends AbstractPlayerCommand {\n   private final RequiredArg<GameMode> gameModeArg = this.withRequiredArg(\"gamemode\", \"server.commands.gamemode.gamemode.desc\", ArgTypes.GAME_MODE);\n\n   public GameModeCommand() {\n      super(\"gamemode\", \"server.commands.gamemode.desc\");\n      this.addAliases(new String[]{\"gm\"});",
+      "verified": true
+    },
+    {
+      "name": "kill",
+      "className": "KillCommand",
+      "sourceFile": "com/hypixel/hytale/server/core/command/commands/player/KillCommand.java",
+      "lineNumber": 21,
+      "usage": "/kill",
+      "permission": "hytale.command.kill.self",
+      "description": "Kills the executing player. Has a variant for killing other players.",
+      "codeSnippet": "public class KillCommand extends AbstractPlayerCommand {\n   public KillCommand() {\n      super(\"kill\", \"server.commands.kill.desc\");\n      this.requirePermission(HytalePermissions.fromCommand(\"kill.self\"));\n      this.addUsageVariant(new KillCommand.KillOtherCommand());\n   }",
+      "verified": true
+    },
+    {
+      "name": "kick",
+      "className": "KickCommand",
+      "sourceFile": "com/hypixel/hytale/server/core/command/commands/server/KickCommand.java",
+      "lineNumber": 11,
+      "usage": "/kick <player:PlayerRef>",
+      "permission": "auto-generated",
+      "description": "Kicks a player from the server",
+      "codeSnippet": "public class KickCommand extends CommandBase {\n   private final RequiredArg<PlayerRef> playerArg = this.withRequiredArg(\"player\", \"server.commands.kick.desc\", ArgTypes.PLAYER_REF);\n\n   public KickCommand() {\n      super(\"kick\", \"server.commands.kick.desc\");\n   }",
+      "verified": true
+    },
+    {
+      "name": "stop",
+      "className": "StopCommand",
+      "sourceFile": "com/hypixel/hytale/server/core/command/commands/server/StopCommand.java",
+      "lineNumber": 11,
+      "usage": "/stop [--crash]",
+      "permission": "auto-generated",
+      "aliases": [
+        "shutdown"
+      ],
+      "description": "Stops the server. Optional --crash flag forces crash shutdown.",
+      "codeSnippet": "public class StopCommand extends CommandBase {\n   private final FlagArg crashFlag = this.withFlagArg(\"crash\", \"server.commands.stop.crash.desc\");\n\n   public StopCommand() {\n      super(\"stop\", \"server.commands.stop.desc\");\n      this.addAliases(new String[]{\"shutdown\"});\n   }",
+      "verified": true
+    },
+    {
+      "name": "help",
+      "className": "HelpCommand",
+      "sourceFile": "com/hypixel/hytale/server/core/command/commands/utility/help/HelpCommand.java",
+      "lineNumber": 25,
+      "usage": "/help [command:String]",
+      "permission": "auto-generated (Adventure mode group)",
+      "aliases": [
+        "?"
+      ],
+      "description": "Opens help UI for commands. Can specify a specific command to view.",
+      "codeSnippet": "public class HelpCommand extends AbstractAsyncCommand {\n   public HelpCommand() {\n      super(\"help\", \"server.commands.help.desc\");\n      this.addAliases(new String[]{\"?\"});\n      this.setPermissionGroup(GameMode.Adventure);\n      this.addUsageVariant(new HelpCommand.HelpCommandVariant());\n   }",
+      "verified": true
+    },
+    {
+      "name": "sudo",
+      "className": "SudoCommand",
+      "sourceFile": "com/hypixel/hytale/server/core/command/commands/player/SudoCommand.java",
+      "lineNumber": 22,
+      "usage": "/sudo <player:String> <command...>",
+      "permission": "auto-generated",
+      "aliases": [
+        "su"
+      ],
+      "description": "Executes a command as another player. Supports * for all players.",
+      "codeSnippet": "public class SudoCommand extends CommandBase {\n   private final RequiredArg<String> playerArg = this.withRequiredArg(\"player\", \"server.commands.sudo.player.desc\", ArgTypes.STRING);\n\n   public SudoCommand() {\n      super(\"sudo\", \"server.commands.sudo.desc\");\n      this.addAliases(new String[]{\"su\"});\n      this.setAllowsExtraArguments(true);\n   }",
+      "verified": true
+    },
+    {
+      "name": "whereami",
+      "className": "WhereAmICommand",
+      "sourceFile": "com/hypixel/hytale/server/core/command/commands/player/WhereAmICommand.java",
+      "lineNumber": 29,
+      "usage": "/whereami",
+      "permission": "hytale.command.whereami.self",
+      "description": "Shows player's location info: world, chunk, position, rotation, direction",
+      "codeSnippet": "public class WhereAmICommand extends AbstractPlayerCommand {\n   public WhereAmICommand() {\n      super(\"whereami\", \"server.commands.whereami.desc\");\n      this.setPermissionGroup(GameMode.Creative);\n      this.requirePermission(HytalePermissions.fromCommand(\"whereami.self\"));",
+      "verified": true
+    },
+    {
+      "name": "entity",
+      "className": "EntityCommand",
+      "sourceFile": "com/hypixel/hytale/server/core/command/commands/world/entity/EntityCommand.java",
+      "lineNumber": 7,
+      "usage": "/entity <subcommand>",
+      "permission": "auto-generated",
+      "aliases": [
+        "entities"
+      ],
+      "description": "Command collection for entity management (clone, remove, dump, etc.)",
+      "subcommands": [
+        "clone",
+        "remove",
+        "dump",
+        "clean",
+        "lod",
+        "tracker",
+        "resend",
+        "nameplate",
+        "stats",
+        "snapshot",
+        "effect",
+        "makeinteractable",
+        "intangible",
+        "invulnerable",
+        "hidefromadventureplayers",
+        "count"
+      ],
+      "codeSnippet": "public class EntityCommand extends AbstractCommandCollection {\n   public EntityCommand() {\n      super(\"entity\", \"server.commands.entity.desc\");\n      this.addAliases(new String[]{\"entities\"});\n      this.addSubCommand(new EntityCloneCommand());\n      ...",
+      "verified": true
+    },
+    {
+      "name": "worldmap",
+      "className": "WorldMapCommand",
+      "sourceFile": "com/hypixel/hytale/server/core/command/commands/utility/worldmap/WorldMapCommand.java",
+      "lineNumber": 1,
+      "usage": "/worldmap <subcommand>",
+      "permission": "auto-generated",
+      "description": "Command collection for world map operations (discover, undiscover, markers, view radius)",
+      "verified": true
+    }
+  ],
+  "permissionSystem": {
+    "howPermissionsWork": "Permissions are string-based following the format 'namespace.category.action'. Commands auto-generate permissions based on their hierarchy (e.g., 'hytale.command.give.self'). Permissions can be set explicitly via requirePermission() or generated from parent command's permission. The CommandSender interface extends PermissionHolder which provides hasPermission() checks.",
+    "permissionHolderInterface": {
+      "sourceFile": "com/hypixel/hytale/server/core/permissions/PermissionHolder.java",
+      "lineNumber": 5,
+      "codeSnippet": "public interface PermissionHolder {\n   boolean hasPermission(@Nonnull String var1);\n\n   boolean hasPermission(@Nonnull String var1, boolean var2);\n}"
+    },
+    "hytalePermissions": {
+      "sourceFile": "com/hypixel/hytale/server/core/permissions/HytalePermissions.java",
+      "lineNumber": 5,
+      "codeSnippet": "public class HytalePermissions {\n   public static final String NAMESPACE = \"hytale\";\n   public static final String COMMAND_BASE = \"hytale.command\";\n   ...\n   public static String fromCommand(@Nonnull String name) {\n      return \"hytale.command.\" + name;\n   }",
+      "description": "Static helper class for creating Hytale-namespaced permissions"
+    },
+    "permissionGroups": "Commands can be assigned to permission groups via setPermissionGroup(GameMode). This creates virtual permission groups (e.g., Adventure, Creative) that bundle related permissions.",
+    "verified": true
+  },
+  "commandFeatures": {
+    "subcommands": {
+      "description": "Commands can have subcommands added via addSubCommand(). Subcommands inherit the parent's permission prefix.",
+      "example": "EntityCommand adds 16 subcommands like EntityCloneCommand, EntityRemoveCommand",
+      "verified": true
+    },
+    "usageVariants": {
+      "description": "Commands can have usage variants via addUsageVariant() for different argument counts (e.g., /kill vs /kill <player>). Variants must have different numbers of required parameters.",
+      "example": "KillCommand has a variant KillOtherCommand that takes a player argument",
+      "verified": true
+    },
+    "aliases": {
+      "description": "Commands can have aliases via addAliases(). Aliases are case-insensitive.",
+      "example": "stop has alias 'shutdown', gamemode has alias 'gm', help has alias '?'",
+      "verified": true
+    },
+    "confirmation": {
+      "description": "Commands can require --confirm flag via the requiresConfirmation constructor parameter. This adds a FlagArg automatically.",
+      "verified": true
+    },
+    "extraArguments": {
+      "description": "Commands can allow extra arguments beyond defined ones via setAllowsExtraArguments(true). Used by sudo command.",
+      "verified": true
+    },
+    "argumentDependencies": {
+      "description": "Optional arguments can have dependencies: requiredIf(), requiredIfAbsent(), availableOnlyIfAll(), availableOnlyIfAllAbsent()",
+      "sourceFile": "com/hypixel/hytale/server/core/command/system/arguments/system/AbstractOptionalArg.java",
+      "verified": true
+    }
+  },
+  "unverifiedClaims": []
+}

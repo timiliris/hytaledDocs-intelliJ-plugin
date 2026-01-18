@@ -1,0 +1,2110 @@
+{
+  "analysisDate": "2026-01-14T00:00:00Z",
+  "domain": "events",
+  "baseEventClass": {
+    "className": "IBaseEvent",
+    "fullName": "com.hypixel.hytale.event.IBaseEvent",
+    "sourceFile": "decompiled/com/hypixel/hytale/event/IBaseEvent.java",
+    "lineNumber": 3,
+    "codeSnippet": "public interface IBaseEvent<KeyType> {\n}",
+    "methods": [],
+    "verified": true,
+    "description": "Root interface for all events in the Hytale event system. Generic KeyType parameter allows events to be keyed for selective dispatch."
+  },
+  "coreInterfaces": [
+    {
+      "className": "IEvent",
+      "fullName": "com.hypixel.hytale.event.IEvent",
+      "sourceFile": "decompiled/com/hypixel/hytale/event/IEvent.java",
+      "lineNumber": 3,
+      "codeSnippet": "public interface IEvent<KeyType> extends IBaseEvent<KeyType> {\n}",
+      "parent": "IBaseEvent",
+      "description": "Interface for synchronous events",
+      "verified": true
+    },
+    {
+      "className": "IAsyncEvent",
+      "fullName": "com.hypixel.hytale.event.IAsyncEvent",
+      "sourceFile": "decompiled/com/hypixel/hytale/event/IAsyncEvent.java",
+      "lineNumber": 3,
+      "codeSnippet": "public interface IAsyncEvent<KeyType> extends IBaseEvent<KeyType> {\n}",
+      "parent": "IBaseEvent",
+      "description": "Interface for asynchronous events that return CompletableFuture",
+      "verified": true
+    },
+    {
+      "className": "ICancellable",
+      "fullName": "com.hypixel.hytale.event.ICancellable",
+      "sourceFile": "decompiled/com/hypixel/hytale/event/ICancellable.java",
+      "lineNumber": 3,
+      "codeSnippet": "public interface ICancellable {\n   boolean isCancelled();\n\n   void setCancelled(boolean var1);\n}",
+      "methods": [
+        {
+          "name": "isCancelled",
+          "signature": "boolean isCancelled()",
+          "lineNumber": 4,
+          "description": "Returns whether the event has been cancelled"
+        },
+        {
+          "name": "setCancelled",
+          "signature": "void setCancelled(boolean var1)",
+          "lineNumber": 6,
+          "description": "Sets the cancelled state of the event"
+        }
+      ],
+      "description": "Interface for cancellable events",
+      "verified": true
+    },
+    {
+      "className": "IProcessedEvent",
+      "fullName": "com.hypixel.hytale.event.IProcessedEvent",
+      "sourceFile": "decompiled/com/hypixel/hytale/event/IProcessedEvent.java",
+      "lineNumber": 5,
+      "codeSnippet": "public interface IProcessedEvent {\n   void processEvent(@Nonnull String var1);\n}",
+      "methods": [
+        {
+          "name": "processEvent",
+          "signature": "void processEvent(@Nonnull String var1)",
+          "lineNumber": 6,
+          "description": "Called after each event handler processes the event, with the handler name"
+        }
+      ],
+      "description": "Interface for events that need post-processing tracking",
+      "verified": true
+    }
+  ],
+  "eventPriority": {
+    "className": "EventPriority",
+    "fullName": "com.hypixel.hytale.event.EventPriority",
+    "sourceFile": "decompiled/com/hypixel/hytale/event/EventPriority.java",
+    "lineNumber": 3,
+    "codeSnippet": "public enum EventPriority {\n   FIRST((short)-21844),\n   EARLY((short)-10922),\n   NORMAL((short)0),\n   LATE((short)10922),\n   LAST((short)21844);",
+    "values": [
+      {
+        "name": "FIRST",
+        "value": -21844,
+        "description": "Highest priority, runs first"
+      },
+      {
+        "name": "EARLY",
+        "value": -10922,
+        "description": "High priority"
+      },
+      {
+        "name": "NORMAL",
+        "value": 0,
+        "description": "Default priority"
+      },
+      {
+        "name": "LATE",
+        "value": 10922,
+        "description": "Low priority"
+      },
+      {
+        "name": "LAST",
+        "value": 21844,
+        "description": "Lowest priority, runs last"
+      }
+    ],
+    "verified": true
+  },
+  "ecsEventSystem": {
+    "baseClass": {
+      "className": "EcsEvent",
+      "fullName": "com.hypixel.hytale.component.system.EcsEvent",
+      "sourceFile": "decompiled/com/hypixel/hytale/component/system/EcsEvent.java",
+      "lineNumber": 3,
+      "codeSnippet": "public abstract class EcsEvent {\n   public EcsEvent() {\n   }\n}",
+      "description": "Base class for Entity Component System events (separate from IEvent hierarchy)",
+      "verified": true
+    },
+    "cancellableBase": {
+      "className": "CancellableEcsEvent",
+      "fullName": "com.hypixel.hytale.component.system.CancellableEcsEvent",
+      "sourceFile": "decompiled/com/hypixel/hytale/component/system/CancellableEcsEvent.java",
+      "lineNumber": 3,
+      "codeSnippet": "public abstract class CancellableEcsEvent extends EcsEvent implements ICancellableEcsEvent {\n   private boolean cancelled = false;",
+      "parent": "EcsEvent",
+      "implements": [
+        "ICancellableEcsEvent"
+      ],
+      "verified": true
+    },
+    "cancellableInterface": {
+      "className": "ICancellableEcsEvent",
+      "fullName": "com.hypixel.hytale.component.system.ICancellableEcsEvent",
+      "sourceFile": "decompiled/com/hypixel/hytale/component/system/ICancellableEcsEvent.java",
+      "lineNumber": 3,
+      "codeSnippet": "public interface ICancellableEcsEvent {\n   boolean isCancelled();\n\n   void setCancelled(boolean var1);\n}",
+      "verified": true
+    }
+  },
+  "events": [
+    {
+      "name": "PlayerEvent",
+      "fullName": "com.hypixel.hytale.server.core.event.events.player.PlayerEvent",
+      "sourceFile": "decompiled/com/hypixel/hytale/server/core/event/events/player/PlayerEvent.java",
+      "lineNumber": 9,
+      "codeSnippet": "public abstract class PlayerEvent<KeyType> implements IEvent<KeyType> {\n   @Nonnull\n   private final Ref<EntityStore> playerRef;\n   @Nonnull\n   private final Player player;",
+      "parent": "IEvent",
+      "cancellable": false,
+      "isAbstract": true,
+      "fields": [
+        {
+          "name": "playerRef",
+          "type": "Ref<EntityStore>",
+          "lineNumber": 11,
+          "accessor": "getPlayerRef()"
+        },
+        {
+          "name": "player",
+          "type": "Player",
+          "lineNumber": 13,
+          "accessor": "getPlayer()"
+        }
+      ],
+      "methods": [
+        {
+          "name": "getPlayerRef",
+          "signature": "public Ref<EntityStore> getPlayerRef()",
+          "lineNumber": 21
+        },
+        {
+          "name": "getPlayer",
+          "signature": "public Player getPlayer()",
+          "lineNumber": 26
+        }
+      ],
+      "annotations": [],
+      "verified": true
+    },
+    {
+      "name": "PlayerRefEvent",
+      "fullName": "com.hypixel.hytale.server.core.event.events.player.PlayerRefEvent",
+      "sourceFile": "decompiled/com/hypixel/hytale/server/core/event/events/player/PlayerRefEvent.java",
+      "lineNumber": 7,
+      "codeSnippet": "public abstract class PlayerRefEvent<KeyType> implements IEvent<KeyType> {\n   @Nonnull\n   final PlayerRef playerRef;",
+      "parent": "IEvent",
+      "cancellable": false,
+      "isAbstract": true,
+      "fields": [
+        {
+          "name": "playerRef",
+          "type": "PlayerRef",
+          "lineNumber": 9,
+          "accessor": "getPlayerRef()"
+        }
+      ],
+      "methods": [
+        {
+          "name": "getPlayerRef",
+          "signature": "public PlayerRef getPlayerRef()",
+          "lineNumber": 16
+        }
+      ],
+      "annotations": [],
+      "verified": true
+    },
+    {
+      "name": "PlayerConnectEvent",
+      "fullName": "com.hypixel.hytale.server.core.event.events.player.PlayerConnectEvent",
+      "sourceFile": "decompiled/com/hypixel/hytale/server/core/event/events/player/PlayerConnectEvent.java",
+      "lineNumber": 12,
+      "codeSnippet": "public class PlayerConnectEvent implements IEvent<Void> {\n   private final Holder<EntityStore> holder;\n   private final PlayerRef playerRef;\n   @Nullable\n   private World world;",
+      "parent": "IEvent",
+      "cancellable": false,
+      "fields": [
+        {
+          "name": "holder",
+          "type": "Holder<EntityStore>",
+          "lineNumber": 13,
+          "accessor": "getHolder()"
+        },
+        {
+          "name": "playerRef",
+          "type": "PlayerRef",
+          "lineNumber": 14,
+          "accessor": "getPlayerRef()"
+        },
+        {
+          "name": "world",
+          "type": "World",
+          "lineNumber": 16,
+          "accessor": "getWorld()"
+        }
+      ],
+      "methods": [
+        {
+          "name": "getHolder",
+          "signature": "public Holder<EntityStore> getHolder()",
+          "lineNumber": 24
+        },
+        {
+          "name": "getPlayerRef",
+          "signature": "public PlayerRef getPlayerRef()",
+          "lineNumber": 28
+        },
+        {
+          "name": "getPlayer",
+          "signature": "public Player getPlayer()",
+          "lineNumber": 34,
+          "deprecated": true
+        },
+        {
+          "name": "getWorld",
+          "signature": "public World getWorld()",
+          "lineNumber": 39
+        },
+        {
+          "name": "setWorld",
+          "signature": "public void setWorld(@Nullable World world)",
+          "lineNumber": 43
+        }
+      ],
+      "annotations": [],
+      "verified": true
+    },
+    {
+      "name": "PlayerDisconnectEvent",
+      "fullName": "com.hypixel.hytale.server.core.event.events.player.PlayerDisconnectEvent",
+      "sourceFile": "decompiled/com/hypixel/hytale/server/core/event/events/player/PlayerDisconnectEvent.java",
+      "lineNumber": 7,
+      "codeSnippet": "public class PlayerDisconnectEvent extends PlayerRefEvent<Void> {\n   public PlayerDisconnectEvent(@Nonnull PlayerRef playerRef) {\n      super(playerRef);\n   }",
+      "parent": "PlayerRefEvent",
+      "cancellable": false,
+      "fields": [],
+      "methods": [
+        {
+          "name": "getDisconnectReason",
+          "signature": "public PacketHandler.DisconnectReason getDisconnectReason()",
+          "lineNumber": 13
+        }
+      ],
+      "annotations": [],
+      "verified": true
+    },
+    {
+      "name": "PlayerChatEvent",
+      "fullName": "com.hypixel.hytale.server.core.event.events.player.PlayerChatEvent",
+      "sourceFile": "decompiled/com/hypixel/hytale/server/core/event/events/player/PlayerChatEvent.java",
+      "lineNumber": 10,
+      "codeSnippet": "public class PlayerChatEvent implements IAsyncEvent<String>, ICancellable {\n   @Nonnull\n   public static final PlayerChatEvent.Formatter DEFAULT_FORMATTER = ...",
+      "parent": "IAsyncEvent",
+      "cancellable": true,
+      "cancellableEvidence": "implements ICancellable, has boolean cancelled field and isCancelled()/setCancelled() methods at lines 69-76",
+      "isAsync": true,
+      "fields": [
+        {
+          "name": "sender",
+          "type": "PlayerRef",
+          "lineNumber": 16,
+          "accessor": "getSender()"
+        },
+        {
+          "name": "targets",
+          "type": "List<PlayerRef>",
+          "lineNumber": 18,
+          "accessor": "getTargets()"
+        },
+        {
+          "name": "content",
+          "type": "String",
+          "lineNumber": 20,
+          "accessor": "getContent()"
+        },
+        {
+          "name": "formatter",
+          "type": "PlayerChatEvent.Formatter",
+          "lineNumber": 21,
+          "accessor": "getFormatter()"
+        },
+        {
+          "name": "cancelled",
+          "type": "boolean",
+          "lineNumber": 22,
+          "accessor": "isCancelled()"
+        }
+      ],
+      "methods": [
+        {
+          "name": "getSender",
+          "signature": "public PlayerRef getSender()",
+          "lineNumber": 33
+        },
+        {
+          "name": "setSender",
+          "signature": "public void setSender(@Nonnull PlayerRef sender)",
+          "lineNumber": 37
+        },
+        {
+          "name": "getTargets",
+          "signature": "public List<PlayerRef> getTargets()",
+          "lineNumber": 42
+        },
+        {
+          "name": "setTargets",
+          "signature": "public void setTargets(@Nonnull List<PlayerRef> targets)",
+          "lineNumber": 46
+        },
+        {
+          "name": "getContent",
+          "signature": "public String getContent()",
+          "lineNumber": 51
+        },
+        {
+          "name": "setContent",
+          "signature": "public void setContent(@Nonnull String content)",
+          "lineNumber": 55
+        },
+        {
+          "name": "getFormatter",
+          "signature": "public PlayerChatEvent.Formatter getFormatter()",
+          "lineNumber": 60
+        },
+        {
+          "name": "setFormatter",
+          "signature": "public void setFormatter(@Nonnull PlayerChatEvent.Formatter formatter)",
+          "lineNumber": 64
+        },
+        {
+          "name": "isCancelled",
+          "signature": "public boolean isCancelled()",
+          "lineNumber": 69
+        },
+        {
+          "name": "setCancelled",
+          "signature": "public void setCancelled(boolean cancelled)",
+          "lineNumber": 74
+        }
+      ],
+      "innerClasses": [
+        {
+          "name": "Formatter",
+          "type": "interface",
+          "lineNumber": 93
+        }
+      ],
+      "annotations": [],
+      "verified": true
+    },
+    {
+      "name": "PlayerInteractEvent",
+      "fullName": "com.hypixel.hytale.server.core.event.events.player.PlayerInteractEvent",
+      "sourceFile": "decompiled/com/hypixel/hytale/server/core/event/events/player/PlayerInteractEvent.java",
+      "lineNumber": 14,
+      "codeSnippet": "@Deprecated\npublic class PlayerInteractEvent extends PlayerEvent<String> implements ICancellable {",
+      "parent": "PlayerEvent",
+      "cancellable": true,
+      "cancellableEvidence": "implements ICancellable, has boolean cancelled field and isCancelled()/setCancelled() methods at lines 43-50",
+      "fields": [
+        {
+          "name": "actionType",
+          "type": "InteractionType",
+          "lineNumber": 15,
+          "accessor": "getActionType()"
+        },
+        {
+          "name": "clientUseTime",
+          "type": "long",
+          "lineNumber": 16,
+          "accessor": "getClientUseTime()"
+        },
+        {
+          "name": "itemInHand",
+          "type": "ItemStack",
+          "lineNumber": 17,
+          "accessor": "getItemInHand()"
+        },
+        {
+          "name": "targetBlock",
+          "type": "Vector3i",
+          "lineNumber": 18,
+          "accessor": "getTargetBlock()"
+        },
+        {
+          "name": "targetRef",
+          "type": "Ref<EntityStore>",
+          "lineNumber": 19,
+          "accessor": "getTargetRef()"
+        },
+        {
+          "name": "targetEntity",
+          "type": "Entity",
+          "lineNumber": 20,
+          "accessor": "getTargetEntity()"
+        },
+        {
+          "name": "cancelled",
+          "type": "boolean",
+          "lineNumber": 21,
+          "accessor": "isCancelled()"
+        }
+      ],
+      "annotations": [
+        "@Deprecated"
+      ],
+      "verified": true
+    },
+    {
+      "name": "PlayerMouseButtonEvent",
+      "fullName": "com.hypixel.hytale.server.core.event.events.player.PlayerMouseButtonEvent",
+      "sourceFile": "decompiled/com/hypixel/hytale/server/core/event/events/player/PlayerMouseButtonEvent.java",
+      "lineNumber": 15,
+      "codeSnippet": "public class PlayerMouseButtonEvent extends PlayerEvent<Void> implements ICancellable {",
+      "parent": "PlayerEvent",
+      "cancellable": true,
+      "cancellableEvidence": "implements ICancellable, has boolean cancelled field and isCancelled()/setCancelled() at lines 52-59",
+      "fields": [
+        {
+          "name": "playerRef",
+          "type": "PlayerRef",
+          "lineNumber": 17,
+          "accessor": "getPlayerRefComponent()"
+        },
+        {
+          "name": "clientUseTime",
+          "type": "long",
+          "lineNumber": 18,
+          "accessor": "getClientUseTime()"
+        },
+        {
+          "name": "itemInHand",
+          "type": "Item",
+          "lineNumber": 19,
+          "accessor": "getItemInHand()"
+        },
+        {
+          "name": "targetBlock",
+          "type": "Vector3i",
+          "lineNumber": 20,
+          "accessor": "getTargetBlock()"
+        },
+        {
+          "name": "targetEntity",
+          "type": "Entity",
+          "lineNumber": 21,
+          "accessor": "getTargetEntity()"
+        },
+        {
+          "name": "screenPoint",
+          "type": "Vector2f",
+          "lineNumber": 22,
+          "accessor": "getScreenPoint()"
+        },
+        {
+          "name": "mouseButton",
+          "type": "MouseButtonEvent",
+          "lineNumber": 23,
+          "accessor": "getMouseButton()"
+        },
+        {
+          "name": "cancelled",
+          "type": "boolean",
+          "lineNumber": 24,
+          "accessor": "isCancelled()"
+        }
+      ],
+      "annotations": [],
+      "verified": true
+    },
+    {
+      "name": "PlayerMouseMotionEvent",
+      "fullName": "com.hypixel.hytale.server.core.event.events.player.PlayerMouseMotionEvent",
+      "sourceFile": "decompiled/com/hypixel/hytale/server/core/event/events/player/PlayerMouseMotionEvent.java",
+      "lineNumber": 14,
+      "codeSnippet": "public class PlayerMouseMotionEvent extends PlayerEvent<Void> implements ICancellable {",
+      "parent": "PlayerEvent",
+      "cancellable": true,
+      "cancellableEvidence": "implements ICancellable at line 14",
+      "fields": [
+        {
+          "name": "clientUseTime",
+          "type": "long",
+          "lineNumber": 15,
+          "accessor": "getClientUseTime()"
+        },
+        {
+          "name": "itemInHand",
+          "type": "Item",
+          "lineNumber": 16,
+          "accessor": "getItemInHand()"
+        },
+        {
+          "name": "targetBlock",
+          "type": "Vector3i",
+          "lineNumber": 17,
+          "accessor": "getTargetBlock()"
+        },
+        {
+          "name": "targetEntity",
+          "type": "Entity",
+          "lineNumber": 18,
+          "accessor": "getTargetEntity()"
+        },
+        {
+          "name": "screenPoint",
+          "type": "Vector2f",
+          "lineNumber": 19,
+          "accessor": "getScreenPoint()"
+        },
+        {
+          "name": "mouseMotion",
+          "type": "MouseMotionEvent",
+          "lineNumber": 20,
+          "accessor": "getMouseMotion()"
+        },
+        {
+          "name": "cancelled",
+          "type": "boolean",
+          "lineNumber": 21,
+          "accessor": "isCancelled()"
+        }
+      ],
+      "annotations": [],
+      "verified": true
+    },
+    {
+      "name": "PlayerSetupConnectEvent",
+      "fullName": "com.hypixel.hytale.server.core.event.events.player.PlayerSetupConnectEvent",
+      "sourceFile": "decompiled/com/hypixel/hytale/server/core/event/events/player/PlayerSetupConnectEvent.java",
+      "lineNumber": 16,
+      "codeSnippet": "public class PlayerSetupConnectEvent implements IEvent<Void>, ICancellable {\n   public static final String DEFAULT_REASON = \"You have been disconnected from the server!\";",
+      "parent": "IEvent",
+      "cancellable": true,
+      "cancellableEvidence": "implements ICancellable, has isCancelled()/setCancelled() at lines 114-121",
+      "fields": [
+        {
+          "name": "packetHandler",
+          "type": "PacketHandler",
+          "lineNumber": 18,
+          "accessor": "getPacketHandler()"
+        },
+        {
+          "name": "username",
+          "type": "String",
+          "lineNumber": 19,
+          "accessor": "getUsername()"
+        },
+        {
+          "name": "uuid",
+          "type": "UUID",
+          "lineNumber": 20,
+          "accessor": "getUuid()"
+        },
+        {
+          "name": "auth",
+          "type": "PlayerAuthentication",
+          "lineNumber": 21,
+          "accessor": "getAuth()"
+        },
+        {
+          "name": "referralData",
+          "type": "byte[]",
+          "lineNumber": 22,
+          "accessor": "getReferralData()"
+        },
+        {
+          "name": "referralSource",
+          "type": "HostAddress",
+          "lineNumber": 23,
+          "accessor": "getReferralSource()"
+        },
+        {
+          "name": "cancelled",
+          "type": "boolean",
+          "lineNumber": 24,
+          "accessor": "isCancelled()"
+        },
+        {
+          "name": "reason",
+          "type": "String",
+          "lineNumber": 25,
+          "accessor": "getReason()"
+        },
+        {
+          "name": "clientReferral",
+          "type": "ClientReferral",
+          "lineNumber": 26,
+          "accessor": "getClientReferral()"
+        }
+      ],
+      "methods": [
+        {
+          "name": "referToServer",
+          "signature": "public void referToServer(@Nonnull String host, int port)",
+          "lineNumber": 76
+        },
+        {
+          "name": "referToServer",
+          "signature": "public void referToServer(@Nonnull String host, int port, @Nullable byte[] data)",
+          "lineNumber": 80
+        },
+        {
+          "name": "isReferralConnection",
+          "signature": "public boolean isReferralConnection()",
+          "lineNumber": 62
+        },
+        {
+          "name": "setReason",
+          "signature": "public void setReason(String reason)",
+          "lineNumber": 108
+        }
+      ],
+      "annotations": [],
+      "verified": true
+    },
+    {
+      "name": "PlayerSetupDisconnectEvent",
+      "fullName": "com.hypixel.hytale.server.core.event.events.player.PlayerSetupDisconnectEvent",
+      "sourceFile": "decompiled/com/hypixel/hytale/server/core/event/events/player/PlayerSetupDisconnectEvent.java",
+      "lineNumber": 9,
+      "codeSnippet": "public class PlayerSetupDisconnectEvent implements IEvent<Void> {",
+      "parent": "IEvent",
+      "cancellable": false,
+      "fields": [
+        {
+          "name": "username",
+          "type": "String",
+          "lineNumber": 10,
+          "accessor": "getUsername()"
+        },
+        {
+          "name": "uuid",
+          "type": "UUID",
+          "lineNumber": 11,
+          "accessor": "getUuid()"
+        },
+        {
+          "name": "auth",
+          "type": "PlayerAuthentication",
+          "lineNumber": 12,
+          "accessor": "getAuth()"
+        },
+        {
+          "name": "disconnectReason",
+          "type": "PacketHandler.DisconnectReason",
+          "lineNumber": 13,
+          "accessor": "getDisconnectReason()"
+        }
+      ],
+      "annotations": [],
+      "verified": true
+    },
+    {
+      "name": "PlayerReadyEvent",
+      "fullName": "com.hypixel.hytale.server.core.event.events.player.PlayerReadyEvent",
+      "sourceFile": "decompiled/com/hypixel/hytale/server/core/event/events/player/PlayerReadyEvent.java",
+      "lineNumber": 8,
+      "codeSnippet": "public class PlayerReadyEvent extends PlayerEvent<String> {",
+      "parent": "PlayerEvent",
+      "cancellable": false,
+      "fields": [
+        {
+          "name": "readyId",
+          "type": "int",
+          "lineNumber": 9,
+          "accessor": "getReadyId()"
+        }
+      ],
+      "annotations": [],
+      "verified": true
+    },
+    {
+      "name": "PlayerCraftEvent",
+      "fullName": "com.hypixel.hytale.server.core.event.events.player.PlayerCraftEvent",
+      "sourceFile": "decompiled/com/hypixel/hytale/server/core/event/events/player/PlayerCraftEvent.java",
+      "lineNumber": 12,
+      "codeSnippet": "@Deprecated(\n   forRemoval = true\n)\npublic class PlayerCraftEvent extends PlayerEvent<String> {",
+      "parent": "PlayerEvent",
+      "cancellable": false,
+      "fields": [
+        {
+          "name": "craftedRecipe",
+          "type": "CraftingRecipe",
+          "lineNumber": 13,
+          "accessor": "getCraftedRecipe()"
+        },
+        {
+          "name": "quantity",
+          "type": "int",
+          "lineNumber": 14,
+          "accessor": "getQuantity()"
+        }
+      ],
+      "annotations": [
+        "@Deprecated(forRemoval = true)"
+      ],
+      "verified": true
+    },
+    {
+      "name": "AddPlayerToWorldEvent",
+      "fullName": "com.hypixel.hytale.server.core.event.events.player.AddPlayerToWorldEvent",
+      "sourceFile": "decompiled/com/hypixel/hytale/server/core/event/events/player/AddPlayerToWorldEvent.java",
+      "lineNumber": 9,
+      "codeSnippet": "public class AddPlayerToWorldEvent implements IEvent<String> {",
+      "parent": "IEvent",
+      "cancellable": false,
+      "fields": [
+        {
+          "name": "holder",
+          "type": "Holder<EntityStore>",
+          "lineNumber": 11,
+          "accessor": "getHolder()"
+        },
+        {
+          "name": "world",
+          "type": "World",
+          "lineNumber": 13,
+          "accessor": "getWorld()"
+        },
+        {
+          "name": "broadcastJoinMessage",
+          "type": "boolean",
+          "lineNumber": 14,
+          "accessor": "shouldBroadcastJoinMessage()"
+        }
+      ],
+      "methods": [
+        {
+          "name": "setBroadcastJoinMessage",
+          "signature": "public void setBroadcastJoinMessage(boolean broadcastJoinMessage)",
+          "lineNumber": 35
+        }
+      ],
+      "annotations": [],
+      "verified": true
+    },
+    {
+      "name": "DrainPlayerFromWorldEvent",
+      "fullName": "com.hypixel.hytale.server.core.event.events.player.DrainPlayerFromWorldEvent",
+      "sourceFile": "decompiled/com/hypixel/hytale/server/core/event/events/player/DrainPlayerFromWorldEvent.java",
+      "lineNumber": 10,
+      "codeSnippet": "public class DrainPlayerFromWorldEvent implements IEvent<String> {",
+      "parent": "IEvent",
+      "cancellable": false,
+      "fields": [
+        {
+          "name": "holder",
+          "type": "Holder<EntityStore>",
+          "lineNumber": 11,
+          "accessor": "getHolder()"
+        },
+        {
+          "name": "world",
+          "type": "World",
+          "lineNumber": 12,
+          "accessor": "getWorld()"
+        },
+        {
+          "name": "transform",
+          "type": "Transform",
+          "lineNumber": 13,
+          "accessor": "getTransform()"
+        }
+      ],
+      "methods": [
+        {
+          "name": "setWorld",
+          "signature": "public void setWorld(World world)",
+          "lineNumber": 29
+        },
+        {
+          "name": "setTransform",
+          "signature": "public void setTransform(Transform transform)",
+          "lineNumber": 37
+        }
+      ],
+      "annotations": [],
+      "verified": true
+    },
+    {
+      "name": "EntityEvent",
+      "fullName": "com.hypixel.hytale.server.core.event.events.entity.EntityEvent",
+      "sourceFile": "decompiled/com/hypixel/hytale/server/core/event/events/entity/EntityEvent.java",
+      "lineNumber": 7,
+      "codeSnippet": "public abstract class EntityEvent<EntityType extends Entity, KeyType> implements IEvent<KeyType> {",
+      "parent": "IEvent",
+      "cancellable": false,
+      "isAbstract": true,
+      "fields": [
+        {
+          "name": "entity",
+          "type": "EntityType",
+          "lineNumber": 8,
+          "accessor": "getEntity()"
+        }
+      ],
+      "annotations": [],
+      "verified": true
+    },
+    {
+      "name": "EntityRemoveEvent",
+      "fullName": "com.hypixel.hytale.server.core.event.events.entity.EntityRemoveEvent",
+      "sourceFile": "decompiled/com/hypixel/hytale/server/core/event/events/entity/EntityRemoveEvent.java",
+      "lineNumber": 6,
+      "codeSnippet": "public class EntityRemoveEvent extends EntityEvent<Entity, String> {",
+      "parent": "EntityEvent",
+      "cancellable": false,
+      "fields": [],
+      "annotations": [],
+      "verified": true
+    },
+    {
+      "name": "LivingEntityInventoryChangeEvent",
+      "fullName": "com.hypixel.hytale.server.core.event.events.entity.LivingEntityInventoryChangeEvent",
+      "sourceFile": "decompiled/com/hypixel/hytale/server/core/event/events/entity/LivingEntityInventoryChangeEvent.java",
+      "lineNumber": 8,
+      "codeSnippet": "public class LivingEntityInventoryChangeEvent extends EntityEvent<LivingEntity, String> {",
+      "parent": "EntityEvent",
+      "cancellable": false,
+      "fields": [
+        {
+          "name": "itemContainer",
+          "type": "ItemContainer",
+          "lineNumber": 9,
+          "accessor": "getItemContainer()"
+        },
+        {
+          "name": "transaction",
+          "type": "Transaction",
+          "lineNumber": 10,
+          "accessor": "getTransaction()"
+        }
+      ],
+      "annotations": [],
+      "verified": true
+    },
+    {
+      "name": "LivingEntityUseBlockEvent",
+      "fullName": "com.hypixel.hytale.server.core.event.events.entity.LivingEntityUseBlockEvent",
+      "sourceFile": "decompiled/com/hypixel/hytale/server/core/event/events/entity/LivingEntityUseBlockEvent.java",
+      "lineNumber": 11,
+      "codeSnippet": "@Deprecated(\n   forRemoval = true\n)\npublic class LivingEntityUseBlockEvent implements IEvent<String> {",
+      "parent": "IEvent",
+      "cancellable": false,
+      "fields": [
+        {
+          "name": "ref",
+          "type": "Ref<EntityStore>",
+          "lineNumber": 12,
+          "accessor": "getRef()"
+        },
+        {
+          "name": "blockType",
+          "type": "String",
+          "lineNumber": 13,
+          "accessor": "getBlockType()"
+        }
+      ],
+      "annotations": [
+        "@Deprecated(forRemoval = true)"
+      ],
+      "verified": true
+    },
+    {
+      "name": "BreakBlockEvent",
+      "fullName": "com.hypixel.hytale.server.core.event.events.ecs.BreakBlockEvent",
+      "sourceFile": "decompiled/com/hypixel/hytale/server/core/event/events/ecs/BreakBlockEvent.java",
+      "lineNumber": 10,
+      "codeSnippet": "public class BreakBlockEvent extends CancellableEcsEvent {",
+      "parent": "CancellableEcsEvent",
+      "cancellable": true,
+      "cancellableEvidence": "Extends CancellableEcsEvent which implements ICancellableEcsEvent",
+      "fields": [
+        {
+          "name": "itemInHand",
+          "type": "ItemStack",
+          "lineNumber": 12,
+          "accessor": "getItemInHand()"
+        },
+        {
+          "name": "targetBlock",
+          "type": "Vector3i",
+          "lineNumber": 14,
+          "accessor": "getTargetBlock()"
+        },
+        {
+          "name": "blockType",
+          "type": "BlockType",
+          "lineNumber": 16,
+          "accessor": "getBlockType()"
+        }
+      ],
+      "methods": [
+        {
+          "name": "setTargetBlock",
+          "signature": "public void setTargetBlock(@Nonnull Vector3i targetBlock)",
+          "lineNumber": 39
+        }
+      ],
+      "annotations": [],
+      "verified": true
+    },
+    {
+      "name": "PlaceBlockEvent",
+      "fullName": "com.hypixel.hytale.server.core.event.events.ecs.PlaceBlockEvent",
+      "sourceFile": "decompiled/com/hypixel/hytale/server/core/event/events/ecs/PlaceBlockEvent.java",
+      "lineNumber": 11,
+      "codeSnippet": "public class PlaceBlockEvent extends CancellableEcsEvent {",
+      "parent": "CancellableEcsEvent",
+      "cancellable": true,
+      "cancellableEvidence": "Extends CancellableEcsEvent",
+      "fields": [
+        {
+          "name": "itemInHand",
+          "type": "ItemStack",
+          "lineNumber": 13,
+          "accessor": "getItemInHand()"
+        },
+        {
+          "name": "targetBlock",
+          "type": "Vector3i",
+          "lineNumber": 15,
+          "accessor": "getTargetBlock()"
+        },
+        {
+          "name": "rotation",
+          "type": "RotationTuple",
+          "lineNumber": 17,
+          "accessor": "getRotation()"
+        }
+      ],
+      "methods": [
+        {
+          "name": "setTargetBlock",
+          "signature": "public void setTargetBlock(@Nonnull Vector3i targetBlock)",
+          "lineNumber": 35
+        },
+        {
+          "name": "setRotation",
+          "signature": "public void setRotation(@Nonnull RotationTuple rotation)",
+          "lineNumber": 45
+        }
+      ],
+      "annotations": [],
+      "verified": true
+    },
+    {
+      "name": "DamageBlockEvent",
+      "fullName": "com.hypixel.hytale.server.core.event.events.ecs.DamageBlockEvent",
+      "sourceFile": "decompiled/com/hypixel/hytale/server/core/event/events/ecs/DamageBlockEvent.java",
+      "lineNumber": 10,
+      "codeSnippet": "public class DamageBlockEvent extends CancellableEcsEvent {",
+      "parent": "CancellableEcsEvent",
+      "cancellable": true,
+      "cancellableEvidence": "Extends CancellableEcsEvent",
+      "fields": [
+        {
+          "name": "itemInHand",
+          "type": "ItemStack",
+          "lineNumber": 12,
+          "accessor": "getItemInHand()"
+        },
+        {
+          "name": "targetBlock",
+          "type": "Vector3i",
+          "lineNumber": 14,
+          "accessor": "getTargetBlock()"
+        },
+        {
+          "name": "blockType",
+          "type": "BlockType",
+          "lineNumber": 16,
+          "accessor": "getBlockType()"
+        },
+        {
+          "name": "currentDamage",
+          "type": "float",
+          "lineNumber": 17,
+          "accessor": "getCurrentDamage()"
+        },
+        {
+          "name": "damage",
+          "type": "float",
+          "lineNumber": 18,
+          "accessor": "getDamage()"
+        }
+      ],
+      "methods": [
+        {
+          "name": "setTargetBlock",
+          "signature": "public void setTargetBlock(@Nonnull Vector3i targetBlock)",
+          "lineNumber": 38
+        },
+        {
+          "name": "setDamage",
+          "signature": "public void setDamage(float damage)",
+          "lineNumber": 55
+        }
+      ],
+      "annotations": [],
+      "verified": true
+    },
+    {
+      "name": "UseBlockEvent",
+      "fullName": "com.hypixel.hytale.server.core.event.events.ecs.UseBlockEvent",
+      "sourceFile": "decompiled/com/hypixel/hytale/server/core/event/events/ecs/UseBlockEvent.java",
+      "lineNumber": 11,
+      "codeSnippet": "public abstract class UseBlockEvent extends EcsEvent {",
+      "parent": "EcsEvent",
+      "cancellable": false,
+      "isAbstract": true,
+      "fields": [
+        {
+          "name": "interactionType",
+          "type": "InteractionType",
+          "lineNumber": 13,
+          "accessor": "getInteractionType()"
+        },
+        {
+          "name": "context",
+          "type": "InteractionContext",
+          "lineNumber": 15,
+          "accessor": "getContext()"
+        },
+        {
+          "name": "targetBlock",
+          "type": "Vector3i",
+          "lineNumber": 17,
+          "accessor": "getTargetBlock()"
+        },
+        {
+          "name": "blockType",
+          "type": "BlockType",
+          "lineNumber": 19,
+          "accessor": "getBlockType()"
+        }
+      ],
+      "innerClasses": [
+        {
+          "name": "Post",
+          "lineNumber": 50,
+          "cancellable": false
+        },
+        {
+          "name": "Pre",
+          "lineNumber": 56,
+          "cancellable": true,
+          "cancellableEvidence": "implements ICancellableEcsEvent at line 56"
+        }
+      ],
+      "annotations": [],
+      "verified": true
+    },
+    {
+      "name": "DropItemEvent",
+      "fullName": "com.hypixel.hytale.server.core.event.events.ecs.DropItemEvent",
+      "sourceFile": "decompiled/com/hypixel/hytale/server/core/event/events/ecs/DropItemEvent.java",
+      "lineNumber": 7,
+      "codeSnippet": "public class DropItemEvent extends CancellableEcsEvent {",
+      "parent": "CancellableEcsEvent",
+      "cancellable": true,
+      "cancellableEvidence": "Extends CancellableEcsEvent",
+      "innerClasses": [
+        {
+          "name": "Drop",
+          "lineNumber": 11,
+          "fields": [
+            {
+              "name": "itemStack",
+              "type": "ItemStack",
+              "accessor": "getItemStack()"
+            },
+            {
+              "name": "throwSpeed",
+              "type": "float",
+              "accessor": "getThrowSpeed()"
+            }
+          ]
+        },
+        {
+          "name": "PlayerRequest",
+          "lineNumber": 39,
+          "fields": [
+            {
+              "name": "inventorySectionId",
+              "type": "int",
+              "accessor": "getInventorySectionId()"
+            },
+            {
+              "name": "slotId",
+              "type": "short",
+              "accessor": "getSlotId()"
+            }
+          ]
+        }
+      ],
+      "annotations": [],
+      "verified": true
+    },
+    {
+      "name": "CraftRecipeEvent",
+      "fullName": "com.hypixel.hytale.server.core.event.events.ecs.CraftRecipeEvent",
+      "sourceFile": "decompiled/com/hypixel/hytale/server/core/event/events/ecs/CraftRecipeEvent.java",
+      "lineNumber": 7,
+      "codeSnippet": "public abstract class CraftRecipeEvent extends CancellableEcsEvent {",
+      "parent": "CancellableEcsEvent",
+      "cancellable": true,
+      "cancellableEvidence": "Extends CancellableEcsEvent",
+      "isAbstract": true,
+      "fields": [
+        {
+          "name": "craftedRecipe",
+          "type": "CraftingRecipe",
+          "lineNumber": 9,
+          "accessor": "getCraftedRecipe()"
+        },
+        {
+          "name": "quantity",
+          "type": "int",
+          "lineNumber": 10,
+          "accessor": "getQuantity()"
+        }
+      ],
+      "innerClasses": [
+        {
+          "name": "Pre",
+          "lineNumber": 32
+        },
+        {
+          "name": "Post",
+          "lineNumber": 26
+        }
+      ],
+      "annotations": [],
+      "verified": true
+    },
+    {
+      "name": "ChangeGameModeEvent",
+      "fullName": "com.hypixel.hytale.server.core.event.events.ecs.ChangeGameModeEvent",
+      "sourceFile": "decompiled/com/hypixel/hytale/server/core/event/events/ecs/ChangeGameModeEvent.java",
+      "lineNumber": 7,
+      "codeSnippet": "public class ChangeGameModeEvent extends CancellableEcsEvent {",
+      "parent": "CancellableEcsEvent",
+      "cancellable": true,
+      "cancellableEvidence": "Extends CancellableEcsEvent",
+      "fields": [
+        {
+          "name": "gameMode",
+          "type": "GameMode",
+          "lineNumber": 9,
+          "accessor": "getGameMode()"
+        }
+      ],
+      "methods": [
+        {
+          "name": "setGameMode",
+          "signature": "public void setGameMode(@Nonnull GameMode gameMode)",
+          "lineNumber": 20
+        }
+      ],
+      "annotations": [],
+      "verified": true
+    },
+    {
+      "name": "SwitchActiveSlotEvent",
+      "fullName": "com.hypixel.hytale.server.core.event.events.ecs.SwitchActiveSlotEvent",
+      "sourceFile": "decompiled/com/hypixel/hytale/server/core/event/events/ecs/SwitchActiveSlotEvent.java",
+      "lineNumber": 5,
+      "codeSnippet": "public class SwitchActiveSlotEvent extends CancellableEcsEvent {",
+      "parent": "CancellableEcsEvent",
+      "cancellable": true,
+      "cancellableEvidence": "Extends CancellableEcsEvent",
+      "fields": [
+        {
+          "name": "previousSlot",
+          "type": "int",
+          "lineNumber": 6,
+          "accessor": "getPreviousSlot()"
+        },
+        {
+          "name": "inventorySectionId",
+          "type": "int",
+          "lineNumber": 7,
+          "accessor": "getInventorySectionId()"
+        },
+        {
+          "name": "newSlot",
+          "type": "byte",
+          "lineNumber": 8,
+          "accessor": "getNewSlot()"
+        },
+        {
+          "name": "serverRequest",
+          "type": "boolean",
+          "lineNumber": 9,
+          "accessor": "isServerRequest()"
+        }
+      ],
+      "methods": [
+        {
+          "name": "setNewSlot",
+          "signature": "public void setNewSlot(byte newSlot)",
+          "lineNumber": 26
+        },
+        {
+          "name": "isClientRequest",
+          "signature": "public boolean isClientRequest()",
+          "lineNumber": 34
+        }
+      ],
+      "annotations": [],
+      "verified": true
+    },
+    {
+      "name": "InteractivelyPickupItemEvent",
+      "fullName": "com.hypixel.hytale.server.core.event.events.ecs.InteractivelyPickupItemEvent",
+      "sourceFile": "decompiled/com/hypixel/hytale/server/core/event/events/ecs/InteractivelyPickupItemEvent.java",
+      "lineNumber": 7,
+      "codeSnippet": "public class InteractivelyPickupItemEvent extends CancellableEcsEvent {",
+      "parent": "CancellableEcsEvent",
+      "cancellable": true,
+      "cancellableEvidence": "Extends CancellableEcsEvent",
+      "fields": [
+        {
+          "name": "itemStack",
+          "type": "ItemStack",
+          "lineNumber": 9,
+          "accessor": "getItemStack()"
+        }
+      ],
+      "methods": [
+        {
+          "name": "setItemStack",
+          "signature": "public void setItemStack(@Nonnull ItemStack itemStack)",
+          "lineNumber": 20
+        }
+      ],
+      "annotations": [],
+      "verified": true
+    },
+    {
+      "name": "DiscoverZoneEvent",
+      "fullName": "com.hypixel.hytale.server.core.event.events.ecs.DiscoverZoneEvent",
+      "sourceFile": "decompiled/com/hypixel/hytale/server/core/event/events/ecs/DiscoverZoneEvent.java",
+      "lineNumber": 8,
+      "codeSnippet": "public abstract class DiscoverZoneEvent extends EcsEvent {",
+      "parent": "EcsEvent",
+      "cancellable": false,
+      "isAbstract": true,
+      "fields": [
+        {
+          "name": "discoveryInfo",
+          "type": "WorldMapTracker.ZoneDiscoveryInfo",
+          "lineNumber": 10,
+          "accessor": "getDiscoveryInfo()"
+        }
+      ],
+      "innerClasses": [
+        {
+          "name": "Display",
+          "lineNumber": 21,
+          "cancellable": true,
+          "cancellableEvidence": "implements ICancellableEcsEvent at line 21"
+        }
+      ],
+      "annotations": [],
+      "verified": true
+    },
+    {
+      "name": "BootEvent",
+      "fullName": "com.hypixel.hytale.server.core.event.events.BootEvent",
+      "sourceFile": "decompiled/com/hypixel/hytale/server/core/event/events/BootEvent.java",
+      "lineNumber": 6,
+      "codeSnippet": "public class BootEvent implements IEvent<Void> {",
+      "parent": "IEvent",
+      "cancellable": false,
+      "fields": [],
+      "annotations": [],
+      "verified": true
+    },
+    {
+      "name": "ShutdownEvent",
+      "fullName": "com.hypixel.hytale.server.core.event.events.ShutdownEvent",
+      "sourceFile": "decompiled/com/hypixel/hytale/server/core/event/events/ShutdownEvent.java",
+      "lineNumber": 6,
+      "codeSnippet": "public class ShutdownEvent implements IEvent<Void> {\n   public static final short DISCONNECT_PLAYERS = -48;\n   public static final short UNBIND_LISTENERS = -40;\n   public static final short SHUTDOWN_WORLDS = -32;",
+      "parent": "IEvent",
+      "cancellable": false,
+      "fields": [],
+      "constants": [
+        {
+          "name": "DISCONNECT_PLAYERS",
+          "value": -48,
+          "description": "Priority for disconnecting players during shutdown"
+        },
+        {
+          "name": "UNBIND_LISTENERS",
+          "value": -40,
+          "description": "Priority for unbinding listeners during shutdown"
+        },
+        {
+          "name": "SHUTDOWN_WORLDS",
+          "value": -32,
+          "description": "Priority for shutting down worlds during shutdown"
+        }
+      ],
+      "annotations": [],
+      "verified": true
+    },
+    {
+      "name": "PrepareUniverseEvent",
+      "fullName": "com.hypixel.hytale.server.core.event.events.PrepareUniverseEvent",
+      "sourceFile": "decompiled/com/hypixel/hytale/server/core/event/events/PrepareUniverseEvent.java",
+      "lineNumber": 8,
+      "codeSnippet": "@Deprecated\npublic class PrepareUniverseEvent implements IEvent<Void> {",
+      "parent": "IEvent",
+      "cancellable": false,
+      "fields": [
+        {
+          "name": "worldConfigProvider",
+          "type": "WorldConfigProvider",
+          "lineNumber": 9,
+          "accessor": "getWorldConfigProvider()"
+        }
+      ],
+      "methods": [
+        {
+          "name": "setWorldConfigProvider",
+          "signature": "public void setWorldConfigProvider(WorldConfigProvider worldConfigProvider)",
+          "lineNumber": 19
+        }
+      ],
+      "annotations": [
+        "@Deprecated"
+      ],
+      "verified": true
+    },
+    {
+      "name": "WorldEvent",
+      "fullName": "com.hypixel.hytale.server.core.universe.world.events.WorldEvent",
+      "sourceFile": "decompiled/com/hypixel/hytale/server/core/universe/world/events/WorldEvent.java",
+      "lineNumber": 7,
+      "codeSnippet": "public abstract class WorldEvent implements IEvent<String> {",
+      "parent": "IEvent",
+      "cancellable": false,
+      "isAbstract": true,
+      "fields": [
+        {
+          "name": "world",
+          "type": "World",
+          "lineNumber": 9,
+          "accessor": "getWorld()"
+        }
+      ],
+      "annotations": [],
+      "verified": true
+    },
+    {
+      "name": "AddWorldEvent",
+      "fullName": "com.hypixel.hytale.server.core.universe.world.events.AddWorldEvent",
+      "sourceFile": "decompiled/com/hypixel/hytale/server/core/universe/world/events/AddWorldEvent.java",
+      "lineNumber": 7,
+      "codeSnippet": "public class AddWorldEvent extends WorldEvent implements ICancellable {",
+      "parent": "WorldEvent",
+      "cancellable": true,
+      "cancellableEvidence": "implements ICancellable, has isCancelled()/setCancelled() at lines 21-27",
+      "fields": [
+        {
+          "name": "cancelled",
+          "type": "boolean",
+          "lineNumber": 8,
+          "accessor": "isCancelled()"
+        }
+      ],
+      "annotations": [],
+      "verified": true
+    },
+    {
+      "name": "RemoveWorldEvent",
+      "fullName": "com.hypixel.hytale.server.core.universe.world.events.RemoveWorldEvent",
+      "sourceFile": "decompiled/com/hypixel/hytale/server/core/universe/world/events/RemoveWorldEvent.java",
+      "lineNumber": 7,
+      "codeSnippet": "public class RemoveWorldEvent extends WorldEvent implements ICancellable {",
+      "parent": "WorldEvent",
+      "cancellable": true,
+      "cancellableEvidence": "implements ICancellable, conditional cancel based on RemovalReason at line 24",
+      "fields": [
+        {
+          "name": "cancelled",
+          "type": "boolean",
+          "lineNumber": 8,
+          "accessor": "isCancelled()"
+        },
+        {
+          "name": "removalReason",
+          "type": "RemoveWorldEvent.RemovalReason",
+          "lineNumber": 10,
+          "accessor": "getRemovalReason()"
+        }
+      ],
+      "innerClasses": [
+        {
+          "name": "RemovalReason",
+          "type": "enum",
+          "lineNumber": 38,
+          "values": [
+            "GENERAL",
+            "EXCEPTIONAL"
+          ]
+        }
+      ],
+      "annotations": [],
+      "verified": true
+    },
+    {
+      "name": "StartWorldEvent",
+      "fullName": "com.hypixel.hytale.server.core.universe.world.events.StartWorldEvent",
+      "sourceFile": "decompiled/com/hypixel/hytale/server/core/universe/world/events/StartWorldEvent.java",
+      "lineNumber": 6,
+      "codeSnippet": "public class StartWorldEvent extends WorldEvent {",
+      "parent": "WorldEvent",
+      "cancellable": false,
+      "fields": [],
+      "annotations": [],
+      "verified": true
+    },
+    {
+      "name": "AllWorldsLoadedEvent",
+      "fullName": "com.hypixel.hytale.server.core.universe.world.events.AllWorldsLoadedEvent",
+      "sourceFile": "decompiled/com/hypixel/hytale/server/core/universe/world/events/AllWorldsLoadedEvent.java",
+      "lineNumber": 6,
+      "codeSnippet": "public class AllWorldsLoadedEvent implements IEvent<Void> {",
+      "parent": "IEvent",
+      "cancellable": false,
+      "fields": [],
+      "annotations": [],
+      "verified": true
+    },
+    {
+      "name": "ChunkEvent",
+      "fullName": "com.hypixel.hytale.server.core.universe.world.events.ChunkEvent",
+      "sourceFile": "decompiled/com/hypixel/hytale/server/core/universe/world/events/ChunkEvent.java",
+      "lineNumber": 7,
+      "codeSnippet": "public abstract class ChunkEvent implements IEvent<String> {",
+      "parent": "IEvent",
+      "cancellable": false,
+      "isAbstract": true,
+      "fields": [
+        {
+          "name": "chunk",
+          "type": "WorldChunk",
+          "lineNumber": 9,
+          "accessor": "getChunk()"
+        }
+      ],
+      "annotations": [],
+      "verified": true
+    },
+    {
+      "name": "ChunkPreLoadProcessEvent",
+      "fullName": "com.hypixel.hytale.server.core.universe.world.events.ChunkPreLoadProcessEvent",
+      "sourceFile": "decompiled/com/hypixel/hytale/server/core/universe/world/events/ChunkPreLoadProcessEvent.java",
+      "lineNumber": 12,
+      "codeSnippet": "public class ChunkPreLoadProcessEvent extends ChunkEvent implements IProcessedEvent {",
+      "parent": "ChunkEvent",
+      "cancellable": false,
+      "implements": [
+        "IProcessedEvent"
+      ],
+      "fields": [
+        {
+          "name": "newlyGenerated",
+          "type": "boolean",
+          "lineNumber": 13,
+          "accessor": "isNewlyGenerated()"
+        },
+        {
+          "name": "lastDispatchNanos",
+          "type": "long",
+          "lineNumber": 14,
+          "accessor": null
+        },
+        {
+          "name": "didLog",
+          "type": "boolean",
+          "lineNumber": 15,
+          "accessor": "didLog()"
+        },
+        {
+          "name": "holder",
+          "type": "Holder<ChunkStore>",
+          "lineNumber": 17,
+          "accessor": "getHolder()"
+        }
+      ],
+      "annotations": [],
+      "verified": true
+    },
+    {
+      "name": "ChunkSaveEvent",
+      "fullName": "com.hypixel.hytale.server.core.universe.world.events.ecs.ChunkSaveEvent",
+      "sourceFile": "decompiled/com/hypixel/hytale/server/core/universe/world/events/ecs/ChunkSaveEvent.java",
+      "lineNumber": 7,
+      "codeSnippet": "public class ChunkSaveEvent extends CancellableEcsEvent {",
+      "parent": "CancellableEcsEvent",
+      "cancellable": true,
+      "cancellableEvidence": "Extends CancellableEcsEvent",
+      "fields": [
+        {
+          "name": "chunk",
+          "type": "WorldChunk",
+          "lineNumber": 9,
+          "accessor": "getChunk()"
+        }
+      ],
+      "annotations": [],
+      "verified": true
+    },
+    {
+      "name": "ChunkUnloadEvent",
+      "fullName": "com.hypixel.hytale.server.core.universe.world.events.ecs.ChunkUnloadEvent",
+      "sourceFile": "decompiled/com/hypixel/hytale/server/core/universe/world/events/ecs/ChunkUnloadEvent.java",
+      "lineNumber": 7,
+      "codeSnippet": "public class ChunkUnloadEvent extends CancellableEcsEvent {",
+      "parent": "CancellableEcsEvent",
+      "cancellable": true,
+      "cancellableEvidence": "Extends CancellableEcsEvent",
+      "fields": [
+        {
+          "name": "chunk",
+          "type": "WorldChunk",
+          "lineNumber": 9,
+          "accessor": "getChunk()"
+        },
+        {
+          "name": "resetKeepAlive",
+          "type": "boolean",
+          "lineNumber": 10,
+          "accessor": "willResetKeepAlive()"
+        }
+      ],
+      "methods": [
+        {
+          "name": "setResetKeepAlive",
+          "signature": "public void setResetKeepAlive(boolean willResetKeepAlive)",
+          "lineNumber": 21
+        }
+      ],
+      "annotations": [],
+      "verified": true
+    },
+    {
+      "name": "MoonPhaseChangeEvent",
+      "fullName": "com.hypixel.hytale.server.core.universe.world.events.ecs.MoonPhaseChangeEvent",
+      "sourceFile": "decompiled/com/hypixel/hytale/server/core/universe/world/events/ecs/MoonPhaseChangeEvent.java",
+      "lineNumber": 5,
+      "codeSnippet": "public class MoonPhaseChangeEvent extends EcsEvent {",
+      "parent": "EcsEvent",
+      "cancellable": false,
+      "fields": [
+        {
+          "name": "newMoonPhase",
+          "type": "int",
+          "lineNumber": 6,
+          "accessor": "getNewMoonPhase()"
+        }
+      ],
+      "annotations": [],
+      "verified": true
+    },
+    {
+      "name": "PlayerPermissionChangeEvent",
+      "fullName": "com.hypixel.hytale.server.core.event.events.permissions.PlayerPermissionChangeEvent",
+      "sourceFile": "decompiled/com/hypixel/hytale/server/core/event/events/permissions/PlayerPermissionChangeEvent.java",
+      "lineNumber": 9,
+      "codeSnippet": "public abstract class PlayerPermissionChangeEvent implements IEvent<Void> {",
+      "parent": "IEvent",
+      "cancellable": false,
+      "isAbstract": true,
+      "fields": [
+        {
+          "name": "playerUuid",
+          "type": "UUID",
+          "lineNumber": 11,
+          "accessor": "getPlayerUuid()"
+        }
+      ],
+      "innerClasses": [
+        {
+          "name": "GroupAdded",
+          "lineNumber": 22
+        },
+        {
+          "name": "GroupRemoved",
+          "lineNumber": 37
+        },
+        {
+          "name": "PermissionsAdded",
+          "lineNumber": 52
+        },
+        {
+          "name": "PermissionsRemoved",
+          "lineNumber": 67
+        }
+      ],
+      "annotations": [],
+      "verified": true
+    },
+    {
+      "name": "GroupPermissionChangeEvent",
+      "fullName": "com.hypixel.hytale.server.core.event.events.permissions.GroupPermissionChangeEvent",
+      "sourceFile": "decompiled/com/hypixel/hytale/server/core/event/events/permissions/GroupPermissionChangeEvent.java",
+      "lineNumber": 8,
+      "codeSnippet": "public abstract class GroupPermissionChangeEvent implements IEvent<Void> {",
+      "parent": "IEvent",
+      "cancellable": false,
+      "isAbstract": true,
+      "fields": [
+        {
+          "name": "groupName",
+          "type": "String",
+          "lineNumber": 10,
+          "accessor": "getGroupName()"
+        }
+      ],
+      "innerClasses": [
+        {
+          "name": "Added",
+          "lineNumber": 21
+        },
+        {
+          "name": "Removed",
+          "lineNumber": 36
+        }
+      ],
+      "annotations": [],
+      "verified": true
+    },
+    {
+      "name": "PlayerGroupEvent",
+      "fullName": "com.hypixel.hytale.server.core.event.events.permissions.PlayerGroupEvent",
+      "sourceFile": "decompiled/com/hypixel/hytale/server/core/event/events/permissions/PlayerGroupEvent.java",
+      "lineNumber": 6,
+      "codeSnippet": "public class PlayerGroupEvent extends PlayerPermissionChangeEvent {",
+      "parent": "PlayerPermissionChangeEvent",
+      "cancellable": false,
+      "fields": [
+        {
+          "name": "groupName",
+          "type": "String",
+          "lineNumber": 8,
+          "accessor": "getGroupName()"
+        }
+      ],
+      "innerClasses": [
+        {
+          "name": "Added",
+          "lineNumber": 20
+        },
+        {
+          "name": "Removed",
+          "lineNumber": 26
+        }
+      ],
+      "annotations": [],
+      "verified": true
+    },
+    {
+      "name": "PluginEvent",
+      "fullName": "com.hypixel.hytale.server.core.plugin.event.PluginEvent",
+      "sourceFile": "decompiled/com/hypixel/hytale/server/core/plugin/event/PluginEvent.java",
+      "lineNumber": 7,
+      "codeSnippet": "public abstract class PluginEvent implements IEvent<Class<? extends PluginBase>> {",
+      "parent": "IEvent",
+      "cancellable": false,
+      "isAbstract": true,
+      "fields": [
+        {
+          "name": "plugin",
+          "type": "PluginBase",
+          "lineNumber": 9,
+          "accessor": "getPlugin()"
+        }
+      ],
+      "annotations": [],
+      "verified": true
+    },
+    {
+      "name": "PluginSetupEvent",
+      "fullName": "com.hypixel.hytale.server.core.plugin.event.PluginSetupEvent",
+      "sourceFile": "decompiled/com/hypixel/hytale/server/core/plugin/event/PluginSetupEvent.java",
+      "lineNumber": 6,
+      "codeSnippet": "public class PluginSetupEvent extends PluginEvent {",
+      "parent": "PluginEvent",
+      "cancellable": false,
+      "fields": [],
+      "annotations": [],
+      "verified": true
+    },
+    {
+      "name": "KillFeedEvent",
+      "fullName": "com.hypixel.hytale.server.core.modules.entity.damage.event.KillFeedEvent",
+      "sourceFile": "decompiled/com/hypixel/hytale/server/core/modules/entity/damage/event/KillFeedEvent.java",
+      "lineNumber": 13,
+      "codeSnippet": "public class KillFeedEvent {\n   public KillFeedEvent() {\n   }",
+      "parent": null,
+      "cancellable": false,
+      "description": "Container class for kill feed related ECS events",
+      "innerClasses": [
+        {
+          "name": "DecedentMessage",
+          "lineNumber": 17,
+          "parent": "CancellableEcsEvent",
+          "cancellable": true
+        },
+        {
+          "name": "Display",
+          "lineNumber": 41,
+          "parent": "CancellableEcsEvent",
+          "cancellable": true
+        },
+        {
+          "name": "KillerMessage",
+          "lineNumber": 75,
+          "parent": "CancellableEcsEvent",
+          "cancellable": true
+        }
+      ],
+      "annotations": [],
+      "verified": true
+    },
+    {
+      "name": "MessagesUpdated",
+      "fullName": "com.hypixel.hytale.server.core.modules.i18n.event.MessagesUpdated",
+      "sourceFile": "decompiled/com/hypixel/hytale/server/core/modules/i18n/event/MessagesUpdated.java",
+      "lineNumber": 7,
+      "codeSnippet": "public class MessagesUpdated implements IEvent<Void> {",
+      "parent": "IEvent",
+      "cancellable": false,
+      "fields": [
+        {
+          "name": "changedMessages",
+          "type": "Map<String, Map<String, String>>",
+          "lineNumber": 8,
+          "accessor": "getChangedMessages()"
+        },
+        {
+          "name": "removedMessages",
+          "type": "Map<String, Map<String, String>>",
+          "lineNumber": 9,
+          "accessor": "getRemovedMessages()"
+        }
+      ],
+      "annotations": [],
+      "verified": true
+    },
+    {
+      "name": "GenerateDefaultLanguageEvent",
+      "fullName": "com.hypixel.hytale.server.core.modules.i18n.event.GenerateDefaultLanguageEvent",
+      "sourceFile": "decompiled/com/hypixel/hytale/server/core/modules/i18n/event/GenerateDefaultLanguageEvent.java",
+      "lineNumber": 8,
+      "codeSnippet": "public class GenerateDefaultLanguageEvent implements IEvent<Void> {",
+      "parent": "IEvent",
+      "cancellable": false,
+      "fields": [
+        {
+          "name": "translationFiles",
+          "type": "ConcurrentHashMap<String, TranslationMap>",
+          "lineNumber": 9,
+          "accessor": null
+        }
+      ],
+      "methods": [
+        {
+          "name": "putTranslationFile",
+          "signature": "public void putTranslationFile(@Nonnull String filename, @Nonnull TranslationMap translations)",
+          "lineNumber": 15
+        }
+      ],
+      "annotations": [],
+      "verified": true
+    },
+    {
+      "name": "PrefabPasteEvent",
+      "fullName": "com.hypixel.hytale.server.core.prefab.event.PrefabPasteEvent",
+      "sourceFile": "decompiled/com/hypixel/hytale/server/core/prefab/event/PrefabPasteEvent.java",
+      "lineNumber": 5,
+      "codeSnippet": "public class PrefabPasteEvent extends CancellableEcsEvent {",
+      "parent": "CancellableEcsEvent",
+      "cancellable": true,
+      "cancellableEvidence": "Extends CancellableEcsEvent",
+      "fields": [
+        {
+          "name": "prefabId",
+          "type": "int",
+          "lineNumber": 6,
+          "accessor": "getPrefabId()"
+        },
+        {
+          "name": "pasteStart",
+          "type": "boolean",
+          "lineNumber": 7,
+          "accessor": "isPasteStart()"
+        }
+      ],
+      "annotations": [],
+      "verified": true
+    },
+    {
+      "name": "PrefabPlaceEntityEvent",
+      "fullName": "com.hypixel.hytale.server.core.prefab.event.PrefabPlaceEntityEvent",
+      "sourceFile": "decompiled/com/hypixel/hytale/server/core/prefab/event/PrefabPlaceEntityEvent.java",
+      "lineNumber": 8,
+      "codeSnippet": "public class PrefabPlaceEntityEvent extends EcsEvent {",
+      "parent": "EcsEvent",
+      "cancellable": false,
+      "fields": [
+        {
+          "name": "prefabId",
+          "type": "int",
+          "lineNumber": 9,
+          "accessor": "getPrefabId()"
+        },
+        {
+          "name": "holder",
+          "type": "Holder<EntityStore>",
+          "lineNumber": 11,
+          "accessor": "getHolder()"
+        }
+      ],
+      "annotations": [],
+      "verified": true
+    },
+    {
+      "name": "TreasureChestOpeningEvent",
+      "fullName": "com.hypixel.hytale.builtin.adventure.objectives.events.TreasureChestOpeningEvent",
+      "sourceFile": "decompiled/com/hypixel/hytale/builtin/adventure/objectives/events/TreasureChestOpeningEvent.java",
+      "lineNumber": 10,
+      "codeSnippet": "public class TreasureChestOpeningEvent implements IEvent<String> {",
+      "parent": "IEvent",
+      "cancellable": false,
+      "fields": [
+        {
+          "name": "objectiveUUID",
+          "type": "UUID",
+          "lineNumber": 12,
+          "accessor": "getObjectiveUUID()"
+        },
+        {
+          "name": "chestUUID",
+          "type": "UUID",
+          "lineNumber": 14,
+          "accessor": "getChestUUID()"
+        },
+        {
+          "name": "playerRef",
+          "type": "Ref<EntityStore>",
+          "lineNumber": 16,
+          "accessor": "getPlayerRef()"
+        },
+        {
+          "name": "store",
+          "type": "Store<EntityStore>",
+          "lineNumber": 18,
+          "accessor": "getStore()"
+        }
+      ],
+      "annotations": [],
+      "verified": true
+    },
+    {
+      "name": "DiscoverInstanceEvent",
+      "fullName": "com.hypixel.hytale.builtin.instances.event.DiscoverInstanceEvent",
+      "sourceFile": "decompiled/com/hypixel/hytale/builtin/instances/event/DiscoverInstanceEvent.java",
+      "lineNumber": 9,
+      "codeSnippet": "public abstract class DiscoverInstanceEvent extends EcsEvent {",
+      "parent": "EcsEvent",
+      "cancellable": false,
+      "isAbstract": true,
+      "fields": [
+        {
+          "name": "instanceWorldUuid",
+          "type": "UUID",
+          "lineNumber": 11,
+          "accessor": "getInstanceWorldUuid()"
+        },
+        {
+          "name": "discoveryConfig",
+          "type": "InstanceDiscoveryConfig",
+          "lineNumber": 13,
+          "accessor": "getDiscoveryConfig()"
+        }
+      ],
+      "innerClasses": [
+        {
+          "name": "Display",
+          "lineNumber": 30,
+          "cancellable": true,
+          "cancellableEvidence": "implements ICancellableEcsEvent"
+        }
+      ],
+      "annotations": [],
+      "verified": true
+    }
+  ],
+  "registration": {
+    "mechanism": "Events are registered via EventBus.register() methods which accept an event class, optional priority, optional key, and a Consumer callback. Registration returns an EventRegistration object that can be used to unregister. There are three registration types: register (key-specific), registerGlobal (all keys), registerUnhandled (fallback when no handlers matched).",
+    "sourceFile": "decompiled/com/hypixel/hytale/event/EventBus.java",
+    "lineNumber": 89,
+    "codeSnippet": "public <EventType extends IBaseEvent<Void>> EventRegistration<Void, EventType> register(\n   @Nonnull Class<? super EventType> eventClass, @Nonnull Consumer<EventType> consumer\n) {\n   return this.register((short)0, eventClass, null, consumer);\n}",
+    "registrationMethods": [
+      {
+        "name": "register",
+        "description": "Register for specific event with default priority",
+        "lineNumber": 89
+      },
+      {
+        "name": "register",
+        "description": "Register with EventPriority enum",
+        "lineNumber": 96
+      },
+      {
+        "name": "register",
+        "description": "Register with short priority value",
+        "lineNumber": 103
+      },
+      {
+        "name": "register",
+        "description": "Register for specific key with default priority",
+        "lineNumber": 110
+      },
+      {
+        "name": "registerGlobal",
+        "description": "Register to receive all events of type regardless of key",
+        "lineNumber": 183
+      },
+      {
+        "name": "registerUnhandled",
+        "description": "Register to receive events that had no other handlers",
+        "lineNumber": 227
+      },
+      {
+        "name": "registerAsync",
+        "description": "Register async handler with CompletableFuture",
+        "lineNumber": 131
+      }
+    ],
+    "verified": true
+  },
+  "dispatch": {
+    "mechanism": "Events are dispatched via EventBus.dispatch() or dispatchFor().dispatch() methods. The dispatch method gets the appropriate registry for the event class, then calls dispatch on either the key-specific map or global dispatcher. Sync events use SyncEventBusRegistry which iterates consumers by priority. Async events use AsyncEventBusRegistry with CompletableFuture chaining.",
+    "sourceFile": "decompiled/com/hypixel/hytale/event/IEventBus.java",
+    "lineNumber": 8,
+    "codeSnippet": "default <KeyType, EventType extends IEvent<KeyType>> EventType dispatch(@Nonnull Class<EventType> eventClass) {\n   return this.dispatchFor(eventClass, null).dispatch(null);\n}",
+    "dispatchMethods": [
+      {
+        "name": "dispatch",
+        "description": "Dispatch event with no key",
+        "lineNumber": 8
+      },
+      {
+        "name": "dispatchAsync",
+        "description": "Dispatch async event returning CompletableFuture",
+        "lineNumber": 12
+      },
+      {
+        "name": "dispatchFor",
+        "description": "Get dispatcher for specific key",
+        "lineNumber": 16
+      }
+    ],
+    "dispatchFlow": "EventBus.dispatchFor() -> SyncEventBusRegistry.dispatchFor() -> SyncEventConsumerMap.dispatch() -> dispatchEventMap() iterates by priority calling each consumer",
+    "verified": true
+  },
+  "eventHierarchy": {
+    "IBaseEvent": [
+      "IEvent",
+      "IAsyncEvent"
+    ],
+    "IEvent": [
+      "PlayerEvent",
+      "PlayerRefEvent",
+      "PlayerConnectEvent",
+      "PlayerSetupConnectEvent",
+      "PlayerSetupDisconnectEvent",
+      "AddPlayerToWorldEvent",
+      "DrainPlayerFromWorldEvent",
+      "EntityEvent",
+      "WorldEvent",
+      "ChunkEvent",
+      "BootEvent",
+      "ShutdownEvent",
+      "PrepareUniverseEvent",
+      "AllWorldsLoadedEvent",
+      "PlayerPermissionChangeEvent",
+      "GroupPermissionChangeEvent",
+      "PluginEvent",
+      "AssetStoreEvent",
+      "AssetsEvent",
+      "MessagesUpdated",
+      "GenerateDefaultLanguageEvent",
+      "TreasureChestOpeningEvent",
+      "LivingEntityUseBlockEvent"
+    ],
+    "IAsyncEvent": [
+      "PlayerChatEvent"
+    ],
+    "PlayerEvent": [
+      "PlayerInteractEvent",
+      "PlayerMouseButtonEvent",
+      "PlayerMouseMotionEvent",
+      "PlayerReadyEvent",
+      "PlayerCraftEvent"
+    ],
+    "PlayerRefEvent": [
+      "PlayerDisconnectEvent"
+    ],
+    "EntityEvent": [
+      "EntityRemoveEvent",
+      "LivingEntityInventoryChangeEvent"
+    ],
+    "WorldEvent": [
+      "AddWorldEvent",
+      "RemoveWorldEvent",
+      "StartWorldEvent"
+    ],
+    "ChunkEvent": [
+      "ChunkPreLoadProcessEvent"
+    ],
+    "PlayerPermissionChangeEvent": [
+      "PlayerGroupEvent",
+      "PlayerPermissionChangeEvent.GroupAdded",
+      "PlayerPermissionChangeEvent.GroupRemoved",
+      "PlayerPermissionChangeEvent.PermissionsAdded",
+      "PlayerPermissionChangeEvent.PermissionsRemoved"
+    ],
+    "GroupPermissionChangeEvent": [
+      "GroupPermissionChangeEvent.Added",
+      "GroupPermissionChangeEvent.Removed"
+    ],
+    "PluginEvent": [
+      "PluginSetupEvent"
+    ],
+    "EcsEvent": [
+      "CancellableEcsEvent",
+      "UseBlockEvent",
+      "DiscoverZoneEvent",
+      "MoonPhaseChangeEvent",
+      "PrefabPlaceEntityEvent",
+      "DiscoverInstanceEvent"
+    ],
+    "CancellableEcsEvent": [
+      "BreakBlockEvent",
+      "PlaceBlockEvent",
+      "DamageBlockEvent",
+      "DropItemEvent",
+      "CraftRecipeEvent",
+      "ChangeGameModeEvent",
+      "SwitchActiveSlotEvent",
+      "InteractivelyPickupItemEvent",
+      "ChunkSaveEvent",
+      "ChunkUnloadEvent",
+      "PrefabPasteEvent",
+      "KillFeedEvent.DecedentMessage",
+      "KillFeedEvent.Display",
+      "KillFeedEvent.KillerMessage"
+    ]
+  },
+  "unverifiedClaims": []
+}

@@ -1,0 +1,594 @@
+{
+  "analysisDate": "2026-01-14T00:00:00Z",
+  "domain": "plugins",
+  "pluginBaseClass": {
+    "className": "PluginBase",
+    "fullName": "com.hypixel.hytale.server.core.plugin.PluginBase",
+    "sourceFile": "com/hypixel/hytale/server/core/plugin/PluginBase.java",
+    "lineNumber": 43,
+    "codeSnippet": "public abstract class PluginBase implements CommandOwner {\n   @Nonnull\n   public static final MetricsRegistry<PluginBase> METRICS_REGISTRY = new MetricsRegistry<>(MetricProvider.maybe(Function.identity()))\n      .register(\"Identifier\", plugin -> plugin.identifier.toString(), Codec.STRING)\n      .register(\"Type\", PluginBase::getType, new EnumCodec<>(PluginType.class))\n      .register(\"Manifest\", plugin -> plugin.manifest, PluginManifest.CODEC)\n      .register(\"State\", plugin -> plugin.state, new EnumCodec<>(PluginState.class))\n      .register(\"Builtin\", plugin -> {\n         if (plugin instanceof JavaPlugin jp && jp.getClassLoader().isInServerClassPath()) {\n            return true;\n         }\n         return false;\n      }, Codec.BOOLEAN);",
+    "isAbstract": true,
+    "isInterface": false,
+    "verified": true
+  },
+  "javaPluginClass": {
+    "className": "JavaPlugin",
+    "fullName": "com.hypixel.hytale.server.core.plugin.JavaPlugin",
+    "sourceFile": "com/hypixel/hytale/server/core/plugin/JavaPlugin.java",
+    "lineNumber": 10,
+    "codeSnippet": "public abstract class JavaPlugin extends PluginBase {\n   @Nonnull\n   private final Path file;\n   @Nonnull\n   private final PluginClassLoader classLoader;\n\n   public JavaPlugin(@Nonnull JavaPluginInit init) {\n      super(init);\n      this.file = init.getFile();\n      this.classLoader = init.getClassLoader();\n      this.classLoader.setPlugin(this);\n   }",
+    "isAbstract": true,
+    "isInterface": false,
+    "extendsClass": "PluginBase",
+    "verified": true
+  },
+  "lifecycleMethods": [
+    {
+      "name": "preLoad",
+      "signature": "public CompletableFuture<Void> preLoad()",
+      "sourceFile": "com/hypixel/hytale/server/core/plugin/PluginBase.java",
+      "lineNumber": 129,
+      "description": "Called before setup to preload configs asynchronously. Returns a CompletableFuture that completes when all configs are loaded.",
+      "codeSnippet": "@Nullable\npublic CompletableFuture<Void> preLoad() {\n   if (this.configs.isEmpty()) {\n      return null;\n   } else {\n      CompletableFuture<?>[] futures = new CompletableFuture[this.configs.size()];\n      for (int i = 0; i < this.configs.size(); i++) {\n         futures[i] = this.configs.get(i).load();\n      }\n      return CompletableFuture.allOf(futures);\n   }\n}",
+      "verified": true
+    },
+    {
+      "name": "setup",
+      "signature": "protected void setup()",
+      "sourceFile": "com/hypixel/hytale/server/core/plugin/PluginBase.java",
+      "lineNumber": 265,
+      "description": "Called during plugin initialization phase. Override to register commands, events, assets, and components. Empty by default.",
+      "codeSnippet": "protected void setup() {\n}",
+      "verified": true
+    },
+    {
+      "name": "start",
+      "signature": "protected void start()",
+      "sourceFile": "com/hypixel/hytale/server/core/plugin/PluginBase.java",
+      "lineNumber": 284,
+      "description": "Called after setup to enable the plugin. Override to perform any start-up logic after all plugins are set up. Empty by default.",
+      "codeSnippet": "protected void start() {\n}",
+      "verified": true
+    },
+    {
+      "name": "shutdown",
+      "signature": "protected void shutdown()",
+      "sourceFile": "com/hypixel/hytale/server/core/plugin/PluginBase.java",
+      "lineNumber": 300,
+      "description": "Called when plugin is shutting down. Override to perform cleanup before registries are cleaned up. Empty by default.",
+      "codeSnippet": "protected void shutdown() {\n}",
+      "verified": true
+    }
+  ],
+  "pluginStates": {
+    "className": "PluginState",
+    "fullName": "com.hypixel.hytale.server.core.plugin.PluginState",
+    "sourceFile": "com/hypixel/hytale/server/core/plugin/PluginState.java",
+    "lineNumber": 3,
+    "states": [
+      {
+        "name": "NONE",
+        "description": "Initial state before any lifecycle method is called"
+      },
+      {
+        "name": "SETUP",
+        "description": "During setup() method execution"
+      },
+      {
+        "name": "START",
+        "description": "During start() method execution"
+      },
+      {
+        "name": "ENABLED",
+        "description": "Plugin is fully operational"
+      },
+      {
+        "name": "SHUTDOWN",
+        "description": "During shutdown() method execution"
+      },
+      {
+        "name": "DISABLED",
+        "description": "Plugin is disabled or failed to initialize"
+      }
+    ],
+    "codeSnippet": "public enum PluginState {\n   NONE,\n   SETUP,\n   START,\n   ENABLED,\n   SHUTDOWN,\n   DISABLED;\n}",
+    "verified": true
+  },
+  "manifestFormat": {
+    "className": "PluginManifest",
+    "fullName": "com.hypixel.hytale.common.plugin.PluginManifest",
+    "sourceFile": "com/hypixel/hytale/common/plugin/PluginManifest.java",
+    "lineNumber": 21,
+    "format": "JSON (manifest.json)",
+    "fields": [
+      {
+        "name": "Group",
+        "type": "String",
+        "required": false,
+        "description": "Plugin group/namespace"
+      },
+      {
+        "name": "Name",
+        "type": "String",
+        "required": true,
+        "description": "Plugin name identifier"
+      },
+      {
+        "name": "Version",
+        "type": "Semver",
+        "required": false,
+        "description": "Semantic version string"
+      },
+      {
+        "name": "Description",
+        "type": "String",
+        "required": false,
+        "description": "Plugin description"
+      },
+      {
+        "name": "Authors",
+        "type": "AuthorInfo[]",
+        "required": false,
+        "description": "Array of author information"
+      },
+      {
+        "name": "Website",
+        "type": "String",
+        "required": false,
+        "description": "Plugin website URL"
+      },
+      {
+        "name": "Main",
+        "type": "String",
+        "required": false,
+        "description": "Fully qualified main class name"
+      },
+      {
+        "name": "ServerVersion",
+        "type": "SemverRange",
+        "required": false,
+        "description": "Compatible server version range"
+      },
+      {
+        "name": "Dependencies",
+        "type": "Map<PluginIdentifier, SemverRange>",
+        "required": false,
+        "description": "Required plugin dependencies"
+      },
+      {
+        "name": "OptionalDependencies",
+        "type": "Map<PluginIdentifier, SemverRange>",
+        "required": false,
+        "description": "Optional plugin dependencies"
+      },
+      {
+        "name": "LoadBefore",
+        "type": "Map<PluginIdentifier, SemverRange>",
+        "required": false,
+        "description": "Plugins that should load after this one"
+      },
+      {
+        "name": "DisabledByDefault",
+        "type": "boolean",
+        "required": false,
+        "description": "Whether plugin is disabled by default"
+      },
+      {
+        "name": "IncludesAssetPack",
+        "type": "boolean",
+        "required": false,
+        "description": "Whether plugin includes an asset pack"
+      },
+      {
+        "name": "SubPlugins",
+        "type": "PluginManifest[]",
+        "required": false,
+        "description": "Nested sub-plugin manifests"
+      }
+    ],
+    "codeSnippet": "public static final Codec<PluginManifest> CODEC = BUILDER.append(\n      new KeyedCodec<>(\"Group\", Codec.STRING), (manifest, o) -> manifest.group = o, manifest -> manifest.group\n   )\n   .add()\n   .<String>append(new KeyedCodec<>(\"Name\", Codec.STRING), (manifest, o) -> manifest.name = o, manifest -> manifest.name)\n   .addValidator(Validators.nonNull())\n   .add()\n   .append(new KeyedCodec<>(\"Version\", Semver.CODEC), (manifest, o) -> manifest.version = o, manifest -> manifest.version)\n   .add()",
+    "verified": true
+  },
+  "authorInfo": {
+    "className": "AuthorInfo",
+    "fullName": "com.hypixel.hytale.common.plugin.AuthorInfo",
+    "sourceFile": "com/hypixel/hytale/common/plugin/AuthorInfo.java",
+    "lineNumber": 9,
+    "fields": [
+      {
+        "name": "Name",
+        "type": "String",
+        "required": false
+      },
+      {
+        "name": "Email",
+        "type": "String",
+        "required": false
+      },
+      {
+        "name": "Url",
+        "type": "String",
+        "required": false
+      }
+    ],
+    "codeSnippet": "public static final Codec<AuthorInfo> CODEC = BuilderCodec.builder(AuthorInfo.class, AuthorInfo::new)\n   .append(new KeyedCodec<>(\"Name\", Codec.STRING), (authorInfo, s) -> authorInfo.name = s, authorInfo -> authorInfo.name)\n   .add()\n   .append(new KeyedCodec<>(\"Email\", Codec.STRING), (authorInfo, s) -> authorInfo.email = s, authorInfo -> authorInfo.email)\n   .add()\n   .append(new KeyedCodec<>(\"Url\", Codec.STRING), (authorInfo, s) -> authorInfo.url = s, authorInfo -> authorInfo.url)\n   .add()\n   .build();",
+    "verified": true
+  },
+  "pluginIdentifier": {
+    "className": "PluginIdentifier",
+    "fullName": "com.hypixel.hytale.common.plugin.PluginIdentifier",
+    "sourceFile": "com/hypixel/hytale/common/plugin/PluginIdentifier.java",
+    "lineNumber": 7,
+    "format": "Group:Name (e.g., Hytale:BlockSpawnerPlugin)",
+    "fields": [
+      {
+        "name": "group",
+        "type": "String",
+        "required": true
+      },
+      {
+        "name": "name",
+        "type": "String",
+        "required": true
+      }
+    ],
+    "codeSnippet": "public class PluginIdentifier {\n   @Nonnull\n   private final String group;\n   @Nonnull\n   private final String name;\n\n   public PluginIdentifier(@Nonnull String group, @Nonnull String name) {\n      this.group = group;\n      this.name = name;\n   }\n\n   @Nonnull\n   @Override\n   public String toString() {\n      return this.group + \":\" + this.name;\n   }",
+    "verified": true
+  },
+  "pluginManager": {
+    "className": "PluginManager",
+    "fullName": "com.hypixel.hytale.server.core.plugin.PluginManager",
+    "sourceFile": "com/hypixel/hytale/server/core/plugin/PluginManager.java",
+    "lineNumber": 61,
+    "modsPath": "mods",
+    "methods": [
+      {
+        "name": "get",
+        "signature": "public static PluginManager get()",
+        "lineNumber": 92,
+        "description": "Gets the singleton PluginManager instance"
+      },
+      {
+        "name": "setup",
+        "signature": "public void setup()",
+        "lineNumber": 123,
+        "description": "Initializes all plugins, loads from directories and classpath, validates dependencies"
+      },
+      {
+        "name": "start",
+        "signature": "public void start()",
+        "lineNumber": 219,
+        "description": "Starts all set up plugins, transitions them to ENABLED state"
+      },
+      {
+        "name": "shutdown",
+        "signature": "public void shutdown()",
+        "lineNumber": 254,
+        "description": "Shuts down all enabled plugins in reverse order"
+      },
+      {
+        "name": "getPlugins",
+        "signature": "public List<PluginBase> getPlugins()",
+        "lineNumber": 488,
+        "description": "Returns a list of all loaded plugins"
+      },
+      {
+        "name": "getPlugin",
+        "signature": "public PluginBase getPlugin(PluginIdentifier identifier)",
+        "lineNumber": 502,
+        "description": "Gets a plugin by its identifier"
+      },
+      {
+        "name": "load",
+        "signature": "public boolean load(PluginIdentifier identifier)",
+        "lineNumber": 567,
+        "description": "Dynamically loads a plugin by identifier"
+      },
+      {
+        "name": "unload",
+        "signature": "public boolean unload(PluginIdentifier identifier)",
+        "lineNumber": 526,
+        "description": "Unloads a plugin by identifier"
+      },
+      {
+        "name": "reload",
+        "signature": "public boolean reload(PluginIdentifier identifier)",
+        "lineNumber": 520,
+        "description": "Reloads a plugin (unload then load)"
+      },
+      {
+        "name": "registerCorePlugin",
+        "signature": "public void registerCorePlugin(PluginManifest builder)",
+        "lineNumber": 101,
+        "description": "Registers a core/builtin plugin manifest"
+      }
+    ],
+    "codeSnippet": "public class PluginManager {\n   @Nonnull\n   private static final HytaleLogger LOGGER = HytaleLogger.forEnclosingClass();\n   @Nonnull\n   public static final Path MODS_PATH = Path.of(\"mods\");\n   ...\n   private static PluginManager instance;\n   @Nonnull\n   private final PluginClassLoader corePluginClassLoader = new PluginClassLoader(this, true);\n   @Nonnull\n   private final List<PendingLoadPlugin> corePlugins = new ObjectArrayList<>();",
+    "verified": true
+  },
+  "apiAccess": {
+    "loggerAccess": {
+      "method": "getLogger()",
+      "returnType": "HytaleLogger",
+      "sourceFile": "com/hypixel/hytale/server/core/plugin/PluginBase.java",
+      "lineNumber": 150,
+      "codeSnippet": "@Nonnull\npublic HytaleLogger getLogger() {\n   return this.logger;\n}",
+      "verified": true
+    },
+    "commandRegistration": {
+      "method": "getCommandRegistry()",
+      "returnType": "CommandRegistry",
+      "sourceFile": "com/hypixel/hytale/server/core/plugin/PluginBase.java",
+      "lineNumber": 180,
+      "codeSnippet": "@Nonnull\npublic CommandRegistry getCommandRegistry() {\n   return this.commandRegistry;\n}",
+      "usageExample": "getCommandRegistry().registerCommand(new MyCommand())",
+      "verified": true
+    },
+    "eventRegistration": {
+      "method": "getEventRegistry()",
+      "returnType": "EventRegistry",
+      "sourceFile": "com/hypixel/hytale/server/core/plugin/PluginBase.java",
+      "lineNumber": 185,
+      "codeSnippet": "@Nonnull\npublic EventRegistry getEventRegistry() {\n   return this.eventRegistry;\n}",
+      "usageExample": "getEventRegistry().register(EventClass.class, this::handleEvent)",
+      "verified": true
+    },
+    "configAccess": {
+      "method": "withConfig(BuilderCodec<T> configCodec)",
+      "returnType": "Config<T>",
+      "sourceFile": "com/hypixel/hytale/server/core/plugin/PluginBase.java",
+      "lineNumber": 113,
+      "codeSnippet": "@Nonnull\nprotected final <T> Config<T> withConfig(@Nonnull BuilderCodec<T> configCodec) {\n   return this.withConfig(\"config\", configCodec);\n}\n\n@Nonnull\nprotected final <T> Config<T> withConfig(@Nonnull String name, @Nonnull BuilderCodec<T> configCodec) {\n   if (this.state != PluginState.NONE) {\n      throw new IllegalStateException(\"Must be called before setup\");\n   } else {\n      Config<T> config = new Config<>(this.dataDirectory, name, configCodec);\n      this.configs.add(config);\n      return config;\n   }\n}",
+      "verified": true
+    },
+    "dataDirectory": {
+      "method": "getDataDirectory()",
+      "returnType": "Path",
+      "sourceFile": "com/hypixel/hytale/server/core/plugin/PluginBase.java",
+      "lineNumber": 165,
+      "codeSnippet": "@Nonnull\npublic Path getDataDirectory() {\n   return this.dataDirectory;\n}",
+      "verified": true
+    },
+    "manifestAccess": {
+      "method": "getManifest()",
+      "returnType": "PluginManifest",
+      "sourceFile": "com/hypixel/hytale/server/core/plugin/PluginBase.java",
+      "lineNumber": 160,
+      "codeSnippet": "@Nonnull\npublic PluginManifest getManifest() {\n   return this.manifest;\n}",
+      "verified": true
+    },
+    "identifierAccess": {
+      "method": "getIdentifier()",
+      "returnType": "PluginIdentifier",
+      "sourceFile": "com/hypixel/hytale/server/core/plugin/PluginBase.java",
+      "lineNumber": 155,
+      "codeSnippet": "@Nonnull\npublic PluginIdentifier getIdentifier() {\n   return this.identifier;\n}",
+      "verified": true
+    },
+    "blockStateRegistry": {
+      "method": "getBlockStateRegistry()",
+      "returnType": "BlockStateRegistry",
+      "sourceFile": "com/hypixel/hytale/server/core/plugin/PluginBase.java",
+      "lineNumber": 190,
+      "codeSnippet": "@Nonnull\npublic BlockStateRegistry getBlockStateRegistry() {\n   return this.blockStateRegistry;\n}",
+      "verified": true
+    },
+    "entityRegistry": {
+      "method": "getEntityRegistry()",
+      "returnType": "EntityRegistry",
+      "sourceFile": "com/hypixel/hytale/server/core/plugin/PluginBase.java",
+      "lineNumber": 195,
+      "codeSnippet": "@Nonnull\npublic EntityRegistry getEntityRegistry() {\n   return this.entityRegistry;\n}",
+      "verified": true
+    },
+    "taskRegistry": {
+      "method": "getTaskRegistry()",
+      "returnType": "TaskRegistry",
+      "sourceFile": "com/hypixel/hytale/server/core/plugin/PluginBase.java",
+      "lineNumber": 200,
+      "codeSnippet": "@Nonnull\npublic TaskRegistry getTaskRegistry() {\n   return this.taskRegistry;\n}",
+      "verified": true
+    },
+    "assetRegistry": {
+      "method": "getAssetRegistry()",
+      "returnType": "AssetRegistry",
+      "sourceFile": "com/hypixel/hytale/server/core/plugin/PluginBase.java",
+      "lineNumber": 215,
+      "codeSnippet": "@Nonnull\npublic AssetRegistry getAssetRegistry() {\n   return this.assetRegistry;\n}",
+      "verified": true
+    },
+    "chunkStoreRegistry": {
+      "method": "getChunkStoreRegistry()",
+      "returnType": "ComponentRegistryProxy<ChunkStore>",
+      "sourceFile": "com/hypixel/hytale/server/core/plugin/PluginBase.java",
+      "lineNumber": 210,
+      "codeSnippet": "@Nonnull\npublic ComponentRegistryProxy<ChunkStore> getChunkStoreRegistry() {\n   return this.chunkStoreRegistry;\n}",
+      "verified": true
+    },
+    "entityStoreRegistry": {
+      "method": "getEntityStoreRegistry()",
+      "returnType": "ComponentRegistryProxy<EntityStore>",
+      "sourceFile": "com/hypixel/hytale/server/core/plugin/PluginBase.java",
+      "lineNumber": 205,
+      "codeSnippet": "@Nonnull\npublic ComponentRegistryProxy<EntityStore> getEntityStoreRegistry() {\n   return this.entityStoreRegistry;\n}",
+      "verified": true
+    },
+    "clientFeatureRegistry": {
+      "method": "getClientFeatureRegistry()",
+      "returnType": "ClientFeatureRegistry",
+      "sourceFile": "com/hypixel/hytale/server/core/plugin/PluginBase.java",
+      "lineNumber": 175,
+      "codeSnippet": "@Nonnull\npublic ClientFeatureRegistry getClientFeatureRegistry() {\n   return this.clientFeatureRegistry;\n}",
+      "verified": true
+    }
+  },
+  "eventRegistryMethods": {
+    "className": "EventRegistry",
+    "fullName": "com.hypixel.hytale.event.EventRegistry",
+    "sourceFile": "com/hypixel/hytale/event/EventRegistry.java",
+    "lineNumber": 12,
+    "methods": [
+      {
+        "name": "register",
+        "signature": "register(Class<? super EventType> eventClass, Consumer<EventType> consumer)",
+        "lineNumber": 33,
+        "description": "Register an event listener with default priority"
+      },
+      {
+        "name": "register",
+        "signature": "register(EventPriority priority, Class<? super EventType> eventClass, Consumer<EventType> consumer)",
+        "lineNumber": 41,
+        "description": "Register an event listener with specified priority"
+      },
+      {
+        "name": "register",
+        "signature": "register(Class<? super EventType> eventClass, KeyType key, Consumer<EventType> consumer)",
+        "lineNumber": 57,
+        "description": "Register a keyed event listener"
+      },
+      {
+        "name": "registerGlobal",
+        "signature": "registerGlobal(Class<? super EventType> eventClass, Consumer<EventType> consumer)",
+        "lineNumber": 139,
+        "description": "Register a global event listener that receives all events of the type"
+      },
+      {
+        "name": "registerAsync",
+        "signature": "registerAsync(Class<? super EventType> eventClass, Function<CompletableFuture<EventType>, CompletableFuture<EventType>> function)",
+        "lineNumber": 81,
+        "description": "Register an async event listener"
+      }
+    ],
+    "codeSnippet": "public class EventRegistry extends Registry<EventRegistration<?, ?>> implements IEventRegistry {\n   @Nonnull\n   private final IEventRegistry parent;\n\n   public EventRegistry(\n      @Nonnull List<BooleanConsumer> registrations, @Nonnull BooleanSupplier precondition, String preconditionMessage, @Nonnull IEventRegistry parent\n   ) {\n      super(registrations, precondition, preconditionMessage, EventRegistration::new);\n      this.parent = parent;\n   }",
+    "verified": true
+  },
+  "commandRegistryMethods": {
+    "className": "CommandRegistry",
+    "fullName": "com.hypixel.hytale.server.core.command.system.CommandRegistry",
+    "sourceFile": "com/hypixel/hytale/server/core/command/system/CommandRegistry.java",
+    "lineNumber": 10,
+    "methods": [
+      {
+        "name": "registerCommand",
+        "signature": "public CommandRegistration registerCommand(AbstractCommand command)",
+        "lineNumber": 18,
+        "description": "Registers a command with the server's command manager"
+      }
+    ],
+    "codeSnippet": "public class CommandRegistry extends Registry<CommandRegistration> {\n   private final PluginBase plugin;\n\n   public CommandRegistry(@Nonnull List<BooleanConsumer> registrations, BooleanSupplier precondition, String preconditionMessage, PluginBase plugin) {\n      super(registrations, precondition, preconditionMessage, CommandRegistration::new);\n      this.plugin = plugin;\n   }\n\n   public CommandRegistration registerCommand(@Nonnull AbstractCommand command) {\n      this.checkPrecondition();\n      if (this.plugin != null) {\n         command.setOwner(this.plugin);\n      }\n      return this.register(CommandManager.get().register(command));\n   }\n}",
+    "verified": true
+  },
+  "pluginClassLoader": {
+    "className": "PluginClassLoader",
+    "fullName": "com.hypixel.hytale.server.core.plugin.PluginClassLoader",
+    "sourceFile": "com/hypixel/hytale/server/core/plugin/PluginClassLoader.java",
+    "lineNumber": 12,
+    "extendsClass": "URLClassLoader",
+    "description": "Custom class loader for plugins that supports loading from JAR files and cross-plugin class access",
+    "loaderNames": {
+      "builtin": "BuiltinPlugin",
+      "thirdParty": "ThirdPartyPlugin"
+    },
+    "codeSnippet": "public class PluginClassLoader extends URLClassLoader {\n   public static final String THIRD_PARTY_LOADER_NAME = \"ThirdPartyPlugin\";\n   @Nonnull\n   private final PluginManager pluginManager;\n   private final boolean inServerClassPath;\n   @Nullable\n   private JavaPlugin plugin;\n\n   public PluginClassLoader(@Nonnull PluginManager pluginManager, boolean inServerClassPath, @Nonnull URL... urls) {\n      super(inServerClassPath ? \"BuiltinPlugin\" : \"ThirdPartyPlugin\", urls, null);\n      this.inServerClassPath = inServerClassPath;\n      this.pluginManager = pluginManager;\n   }",
+    "verified": true
+  },
+  "pluginLoadingProcess": {
+    "description": "Plugin loading follows a multi-phase process",
+    "phases": [
+      {
+        "name": "Discovery",
+        "description": "Plugins are discovered from: core plugins, builtin directory, classpath (manifest.json/manifests.json), mods directory"
+      },
+      {
+        "name": "Dependency Validation",
+        "description": "Dependencies are validated against loaded plugins and server version requirements"
+      },
+      {
+        "name": "Load Order Calculation",
+        "description": "Plugins are sorted based on dependencies and LoadBefore declarations"
+      },
+      {
+        "name": "Instantiation",
+        "description": "Main class is loaded via reflection, constructor taking JavaPluginInit is invoked"
+      },
+      {
+        "name": "PreLoad",
+        "description": "preLoad() is called to load configs asynchronously"
+      },
+      {
+        "name": "Setup",
+        "description": "setup() is called to register commands, events, assets, etc."
+      },
+      {
+        "name": "Start",
+        "description": "start() is called after all plugins are set up"
+      }
+    ],
+    "sourceFile": "com/hypixel/hytale/server/core/plugin/PluginManager.java",
+    "verified": true
+  },
+  "builtinPluginExamples": [
+    {
+      "name": "BlockSpawnerPlugin",
+      "sourceFile": "com/hypixel/hytale/builtin/blockspawner/BlockSpawnerPlugin.java",
+      "lineNumber": 37,
+      "purpose": "Handles block spawner mechanics - spawns blocks based on configured spawner tables",
+      "codeSnippet": "public class BlockSpawnerPlugin extends JavaPlugin {\n   private static final HytaleLogger LOGGER = HytaleLogger.forEnclosingClass();\n   private ComponentType<ChunkStore, BlockSpawner> blockSpawnerComponentType;\n   private static BlockSpawnerPlugin INSTANCE;\n\n   public static BlockSpawnerPlugin get() {\n      return INSTANCE;\n   }\n\n   public BlockSpawnerPlugin(@Nonnull JavaPluginInit init) {\n      super(init);\n      INSTANCE = this;\n   }",
+      "verified": true
+    },
+    {
+      "name": "BlockTickPlugin",
+      "sourceFile": "com/hypixel/hytale/builtin/blocktick/BlockTickPlugin.java",
+      "lineNumber": 24,
+      "purpose": "Manages block ticking procedures for block growth and state changes",
+      "codeSnippet": "public class BlockTickPlugin extends JavaPlugin implements IBlockTickProvider {\n   private static BlockTickPlugin instance;\n\n   public BlockTickPlugin(@Nonnull JavaPluginInit init) {\n      super(init);\n      instance = this;\n   }\n\n   @Override\n   protected void setup() {\n      TickProcedure.CODEC.register(\"BasicChance\", BasicChanceBlockGrowthProcedure.class, BasicChanceBlockGrowthProcedure.CODEC);\n      TickProcedure.CODEC.register(\"SplitChance\", SplitChanceBlockGrowthProcedure.class, SplitChanceBlockGrowthProcedure.CODEC);\n      this.getEventRegistry().registerGlobal(EventPriority.EARLY, ChunkPreLoadProcessEvent.class, this::discoverTickingBlocks);\n      ChunkStore.REGISTRY.registerSystem(new ChunkBlockTickSystem.PreTick());\n      ChunkStore.REGISTRY.registerSystem(new ChunkBlockTickSystem.Ticking());\n      ChunkStore.REGISTRY.registerSystem(new MergeWaitingBlocksSystem());\n      BlockTickManager.setBlockTickProvider(this);\n   }",
+      "verified": true
+    },
+    {
+      "name": "BlockPhysicsPlugin",
+      "sourceFile": "com/hypixel/hytale/builtin/blockphysics/BlockPhysicsPlugin.java",
+      "lineNumber": 14,
+      "purpose": "Handles block physics simulation and prefab validation",
+      "codeSnippet": "public class BlockPhysicsPlugin extends JavaPlugin {\n   public BlockPhysicsPlugin(@Nonnull JavaPluginInit init) {\n      super(init);\n   }\n\n   @Override\n   protected void setup() {\n      this.getEventRegistry().register(LoadAssetEvent.class, BlockPhysicsPlugin::validatePrefabs);\n      this.getChunkStoreRegistry().registerSystem(new BlockPhysicsSystems.Ticking());\n   }",
+      "verified": true
+    },
+    {
+      "name": "HytaleGenerator",
+      "sourceFile": "com/hypixel/hytale/builtin/hytalegenerator/plugin/HytaleGenerator.java",
+      "lineNumber": 56,
+      "purpose": "Provides world generation using biome maps, terrain generation, and prop placement",
+      "codeSnippet": "public class HytaleGenerator extends JavaPlugin {\n   private AssetManager assetManager;\n   private Runnable assetReloadListener;\n   private final Map<ChunkRequest.GeneratorProfile, ChunkGenerator> generators = new HashMap<>();\n\n   @Override\n   protected void setup() {\n      this.assetManager = new AssetManager(this.getEventRegistry(), this.getLogger());\n      BuilderCodec<HandleProvider> generatorProvider = BuilderCodec.builder(HandleProvider.class, () -> new HandleProvider(this))\n         .documentation(\"The standard generator for Hytale.\")\n         .append(new KeyedCodec<>(\"WorldStructure\", Codec.STRING), HandleProvider::setWorldStructureName, HandleProvider::getWorldStructureName)\n         .documentation(\"The world structure to be used for this world.\")\n         .add()\n         ...\n      IWorldGenProvider.CODEC.register(\"HytaleGenerator\", HandleProvider.class, generatorProvider);\n      this.getCommandRegistry().registerCommand(new ViewportCommand(this.assetManager));\n   }",
+      "verified": true
+    },
+    {
+      "name": "AssetEditorPlugin",
+      "sourceFile": "com/hypixel/hytale/builtin/asseteditor/AssetEditorPlugin.java",
+      "lineNumber": 120,
+      "purpose": "Provides in-game asset editing capabilities for development",
+      "codeSnippet": "public class AssetEditorPlugin extends JavaPlugin {",
+      "verified": true
+    }
+  ],
+  "pluginTypes": {
+    "className": "PluginType",
+    "fullName": "com.hypixel.hytale.server.core.plugin.PluginType",
+    "sourceFile": "com/hypixel/hytale/server/core/plugin/PluginType.java",
+    "lineNumber": 5,
+    "types": [
+      {
+        "name": "PLUGIN",
+        "displayName": "Plugin"
+      }
+    ],
+    "codeSnippet": "public enum PluginType {\n   PLUGIN(\"Plugin\");\n\n   @Nonnull\n   private final String displayName;\n\n   private PluginType(@Nonnull final String displayName) {\n      this.displayName = displayName;\n   }",
+    "verified": true
+  },
+  "constructorRequirement": {
+    "description": "Plugins must have a constructor that takes JavaPluginInit as the only parameter",
+    "sourceFile": "com/hypixel/hytale/server/core/plugin/pending/PendingLoadJavaPlugin.java",
+    "lineNumber": 42,
+    "codeSnippet": "Constructor<?> constructor = mainClass.getConstructor(JavaPluginInit.class);\nPath dataDirectory = PluginManager.MODS_PATH.resolve(manifest.getGroup() + \"_\" + manifest.getName());\nJavaPluginInit init = new JavaPluginInit(manifest, dataDirectory, this.getPath(), this.urlClassLoader);\nreturn (JavaPlugin)constructor.newInstance(init);",
+    "verified": true
+  },
+  "unverifiedClaims": []
+}
