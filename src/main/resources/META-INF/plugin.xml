@@ -54,6 +54,8 @@
                 serviceImplementation="com.hytaledocs.intellij.services.ServerLaunchService"/>
         <projectService
                 serviceImplementation="com.hytaledocs.intellij.services.HytaleProjectService"/>
+        <projectService
+                serviceImplementation="com.hytaledocs.intellij.services.AssetScannerService"/>
 
         <applicationService
                 serviceImplementation="com.hytaledocs.intellij.services.JavaInstallService"/>

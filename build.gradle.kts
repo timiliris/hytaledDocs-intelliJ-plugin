@@ -22,6 +22,8 @@ kotlin {
 // Configure project's dependencies
 repositories {
     mavenCentral()
+    // JitPack for java-vorbis-support library (OGG audio playback)
+    maven { url = uri("https://jitpack.io") }
 
     // IntelliJ Platform Gradle Plugin Repositories Extension - read more: https://plugins.jetbrains.com/docs/intellij/tools-intellij-platform-gradle-plugin-repositories-extension.html
     intellijPlatform {
@@ -35,6 +37,8 @@ dependencies {
     implementation("org.apache.commons:commons-compress:1.26.0")
     // Gson for JSON parsing
     implementation("com.google.code.gson:gson:2.11.0")
+    // OGG Vorbis audio support for asset preview
+    implementation("com.github.trilarion:java-vorbis-support:1.2.1")
 
     testImplementation(libs.junit)
     testImplementation(libs.opentest4j)

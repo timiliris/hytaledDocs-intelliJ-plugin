@@ -94,6 +94,7 @@ class HytaleToolWindowPanel(
 
         tabbedPane.addTab("Server", createServerTab())
         tabbedPane.addTab("Console", createConsoleTab())
+        tabbedPane.addTab("Assets", AssetsExplorerPanel(project))
         tabbedPane.addTab("Resources", createResourcesTab())
         tabbedPane.addTab("Docs", DocumentationPanel(project))
         tabbedPane.addTab("AI", AIAssistantPanel(project))

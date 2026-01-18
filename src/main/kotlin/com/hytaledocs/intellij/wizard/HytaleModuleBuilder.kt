@@ -5,8 +5,8 @@ import com.intellij.ide.util.projectWizard.ModuleBuilder
 import com.intellij.ide.util.projectWizard.ModuleWizardStep
 import com.intellij.ide.util.projectWizard.WizardContext
 import com.intellij.openapi.Disposable
+import com.intellij.openapi.module.JavaModuleType
 import com.intellij.openapi.module.ModuleType
-import com.intellij.openapi.module.StdModuleTypes
 import com.intellij.openapi.roots.ModifiableRootModel
 import com.intellij.openapi.util.io.FileUtil
 import com.intellij.openapi.vfs.LocalFileSystem
@@ -124,11 +124,11 @@ class HytaleModuleBuilder : ModuleBuilder() {
     var hytaleInstallation: HytaleInstallation? = detectHytaleInstallation()
     var copyFromGame: Boolean = hytaleInstallation != null
 
-    override fun getModuleType(): ModuleType<*> = StdModuleTypes.JAVA
+    override fun getModuleType(): ModuleType<*> = JavaModuleType.getModuleType()
 
     override fun getName(): String = "Hytale Mod"
 
-    override fun getDescription(): String = "Create a new Hytale server mod with HDDT"
+    override fun getDescription(): String = "Create a new Hytale server plugin"
 
     override fun getNodeIcon(): Icon = HytaleIcons.HYTALE
 
@@ -329,7 +329,7 @@ class HytaleModuleBuilder : ModuleBuilder() {
 
             # Hytale
             libs/HytaleServer.jar
-            server/plugins/
+            server/mods/
             server/logs/
             server/world/
         """.trimIndent())
@@ -535,8 +535,8 @@ class HytaleModuleBuilder : ModuleBuilder() {
                       </option>
                       <option name="goals">
                         <list>
+                          <option value="clean" />
                           <option value="package" />
-                          <option value="exec:exec@deploy" />
                         </list>
                       </option>
                       <option name="pomFileName" value="" />
@@ -677,13 +677,13 @@ class HytaleModuleBuilder : ModuleBuilder() {
                 dependsOn 'copyServerJar'
             }
 
-            // Deploy plugin JAR to server plugins folder
+            // Deploy plugin JAR to server mods folder
             tasks.register('deployToServer', Copy) {
-                dependsOn shadowJar
-                from shadowJar.archiveFile
-                into 'server/plugins'
+                // Using 'from shadowJar' automatically adds task dependency and proper input tracking
+                from shadowJar
+                into 'server/mods'
                 doLast {
-                    println "Deployed ${'$'}{shadowJar.archiveFile.get().asFile.name} to server/plugins/"
+                    println "Deployed to server/mods/"
                 }
             }
 
@@ -1526,6 +1526,31 @@ class HytaleModuleBuilder : ModuleBuilder() {
                                                 <exclude>com.hypixel.hytale:*</exclude>
                                             </excludes>
                                         </artifactSet>
+                                    </configuration>
+                                </execution>
+                            </executions>
+                        </plugin>
+                        <plugin>
+                            <groupId>org.apache.maven.plugins</groupId>
+                            <artifactId>maven-resources-plugin</artifactId>
+                            <version>3.3.1</version>
+                            <executions>
+                                <execution>
+                                    <id>copy-to-mods</id>
+                                    <phase>package</phase>
+                                    <goals>
+                                        <goal>copy-resources</goal>
+                                    </goals>
+                                    <configuration>
+                                        <outputDirectory>${'$'}{project.basedir}/server/mods</outputDirectory>
+                                        <resources>
+                                            <resource>
+                                                <directory>${'$'}{project.build.directory}</directory>
+                                                <includes>
+                                                    <include>${'$'}{project.build.finalName}.jar</include>
+                                                </includes>
+                                            </resource>
+                                        </resources>
                                     </configuration>
                                 </execution>
                             </executions>

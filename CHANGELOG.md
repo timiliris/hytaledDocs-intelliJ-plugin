@@ -2,6 +2,25 @@
 
 ## [Unreleased]
 
+## [1.3.1] - 2026-01-18
+
+### Added
+
+- **Assets Explorer**: New "Assets" tab in tool window for browsing game assets
+  - Tree view with toggle between "By Type" and "By Folder" modes
+  - Support for ZIP archives (Assets.zip in server/ directory)
+  - Preview panels for images, JSON, YAML, and audio files (including OGG)
+  - Search and filter by asset type
+  - Context menu: open in editor, reveal in project, copy path, extract from ZIP
+  - Drag & drop to import assets
+  - Statistics bar showing asset counts and sizes
+
+### Fixed
+
+- **Build & Deploy configuration**: Now correctly deploys to `server/mods/` instead of `server/plugins/` ([#2](https://github.com/timiliris/hytaledDocs-intelliJ-plugin/issues/2))
+- **deployToServer Gradle task**: Fixed task dependency issue causing build failures ([#3](https://github.com/timiliris/hytaledDocs-intelliJ-plugin/issues/3))
+- **Maven Build & Deploy**: Added maven-resources-plugin to auto-copy JAR to server/mods during package phase
+
 ## [1.3.0] - 2026-01-18
 
 ### Added
@@ -76,7 +95,8 @@
 - Supports IntelliJ IDEA 2024.3+
 - Requires Java 25 for Hytale development
 
-[Unreleased]: https://github.com/HytaleDocs/hytale-intellij-plugin/compare/v1.3.0...HEAD
+[Unreleased]: https://github.com/HytaleDocs/hytale-intellij-plugin/compare/v1.3.1...HEAD
+[1.3.1]: https://github.com/HytaleDocs/hytale-intellij-plugin/compare/v1.3.0...v1.3.1
 [1.3.0]: https://github.com/HytaleDocs/hytale-intellij-plugin/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/HytaleDocs/hytale-intellij-plugin/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/HytaleDocs/hytale-intellij-plugin/compare/v1.0.0...v1.1.0
