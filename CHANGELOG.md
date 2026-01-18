@@ -1,5 +1,12 @@
 # HytaleDocs IntelliJ Plugin Changelog
 
+## [1.3.0] - 2026-01-18
+
+### Changed
+- **New Plugin Icon**: Fresh HytaleDocs branding with simplified H-style icon
+- **Tool Window Renamed**: Changed from "Hytale" to "HytaleDocs" for better brand consistency
+- Icon now uses IntelliJ ExpUI color scheme for proper dark/light theme support
+
 ## [1.2.0] - 2026-01-17
 
 ### Added
