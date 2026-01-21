@@ -483,6 +483,10 @@ class HytaleToolWindowPanel(
 
         // Useful Commands Card
         contentPanel.add(createCommandsCard())
+        contentPanel.add(Box.createVerticalStrut(JBUI.scale(12)))
+
+        // Contributors Card
+        contentPanel.add(createContributorsCard())
 
         contentPanel.add(Box.createVerticalGlue())
 
@@ -590,6 +594,66 @@ class HytaleToolWindowPanel(
         val descLabel = JLabel(description)
         descLabel.foreground = HytaleTheme.mutedText
         row.add(descLabel, BorderLayout.CENTER)
+
+        return row
+    }
+
+    private fun createContributorsCard(): JPanel {
+        val card = HytaleTheme.createCard("Contributors")
+        card.maximumSize = Dimension(Int.MAX_VALUE, JBUI.scale(180))
+
+        // Thank you message
+        val thankYouLabel = JLabel("Thanks to all contributors who help improve this plugin!")
+        thankYouLabel.foreground = HytaleTheme.mutedText
+        thankYouLabel.font = thankYouLabel.font.deriveFont(JBUI.scaleFontSize(12f))
+        thankYouLabel.alignmentX = Component.LEFT_ALIGNMENT
+        card.add(thankYouLabel)
+        card.add(Box.createVerticalStrut(JBUI.scale(8)))
+
+        // Contributors list
+        val contributors = listOf(
+            Triple("maartenpeels", "Mac & Linux support", "https://github.com/maartenpeels")
+        )
+
+        contributors.forEach { (name, contribution, url) ->
+            card.add(createContributorRow(name, contribution, url))
+            card.add(Box.createVerticalStrut(JBUI.scale(4)))
+        }
+
+        card.add(Box.createVerticalStrut(JBUI.scale(8)))
+
+        // Link to all contributors
+        card.add(HytaleTheme.createLinkRow(
+            "View all contributors",
+            "See everyone who contributed",
+            "https://github.com/HytaleDocs/hytale-intellij-plugin/graphs/contributors"
+        ))
+
+        return card
+    }
+
+    private fun createContributorRow(name: String, contribution: String, url: String): JPanel {
+        val row = JPanel(BorderLayout(JBUI.scale(12), 0))
+        row.isOpaque = false
+        row.alignmentX = Component.LEFT_ALIGNMENT
+        row.maximumSize = Dimension(Int.MAX_VALUE, JBUI.scale(24))
+        row.cursor = Cursor.getPredefinedCursor(Cursor.HAND_CURSOR)
+
+        val nameLabel = JLabel("@$name")
+        nameLabel.foreground = HytaleTheme.accentColor
+        nameLabel.font = Font(Font.MONOSPACED, Font.BOLD, JBUI.scaleFontSize(12f).toInt())
+        nameLabel.preferredSize = Dimension(JBUI.scale(140), nameLabel.preferredSize.height)
+        row.add(nameLabel, BorderLayout.WEST)
+
+        val contribLabel = JLabel(contribution)
+        contribLabel.foreground = HytaleTheme.mutedText
+        row.add(contribLabel, BorderLayout.CENTER)
+
+        row.addMouseListener(object : java.awt.event.MouseAdapter() {
+            override fun mouseClicked(e: java.awt.event.MouseEvent?) {
+                BrowserUtil.browse(url)
+            }
+        })
 
         return row
     }

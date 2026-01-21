@@ -4,28 +4,143 @@
     <vendor email="contact@hytale-docs.com" url="https://hytale-docs.com">HytaleDocs</vendor>
 
     <description><![CDATA[
-        <p>A comprehensive toolkit for developing Hytale server plugins in IntelliJ IDEA.</p>
+<p><b>The ultimate toolkit for Hytale server plugin development.</b> Create, build, deploy, and debug your plugins without leaving IntelliJ IDEA.</p>
 
-        <h3>Features</h3>
-        <ul>
-            <li><b>Project Wizard</b> - Create new Hytale plugin projects with Gradle setup</li>
-            <li><b>Run Configuration</b> - Build, Deploy & Debug with one click</li>
-            <li><b>Assets Explorer</b> - Preview images, audio, and JSON files</li>
-            <li><b>UI File Support</b> - Syntax highlighting for .ui files</li>
-            <li><b>Live Templates</b> - Quick code snippets (hyevent, hycmd, hyecs...)</li>
-            <li><b>API Completion</b> - Autocomplete for Hytale server classes</li>
-            <li><b>Documentation</b> - Browse docs directly in IDE</li>
-        </ul>
+<hr/>
 
-        <h3>Community</h3>
-        <p>
-            <a href="https://discord.gg/yAjaFBH4Y8">Join our Discord</a> |
-            <a href="https://hytale-docs.com">Documentation</a> |
-            <a href="https://github.com/HytaleDocs/hytale-intellij-plugin">GitHub</a>
-        </p>
+<h2>Key Features</h2>
+
+<h3>Project Wizard</h3>
+<p>Create new Hytale plugin projects in seconds with pre-configured Gradle setup, manifest.json, and ready-to-use templates.</p>
+<ul>
+    <li>Choose between <b>Empty</b> or <b>Full</b> templates</li>
+    <li>Auto-generated Mod ID and package name</li>
+    <li>Automatic server files detection</li>
+</ul>
+
+<h3>One-Click Run Configuration</h3>
+<p>Build, deploy, and launch your server with a single click. The plugin handles everything:</p>
+<ul>
+    <li>Builds your plugin with Gradle</li>
+    <li>Copies JAR to <code>server/plugins/</code></li>
+    <li>Starts the server with configured memory and port</li>
+    <li>Supports debugging with automatic port detection</li>
+</ul>
+
+<h3>Integrated Tool Window</h3>
+<p>A powerful sidebar with 6 tabs to manage your entire workflow:</p>
+<table>
+    <tr><td><b>Server</b></td><td>Start/stop server, view status, configure settings</td></tr>
+    <tr><td><b>Console</b></td><td>Color-coded logs, send commands, copy output</td></tr>
+    <tr><td><b>Assets</b></td><td>Browse and preview game assets (images, audio, JSON)</td></tr>
+    <tr><td><b>Docs</b></td><td>Search and browse API documentation offline</td></tr>
+    <tr><td><b>AI</b></td><td>MCP integration for Claude, quick prompts</td></tr>
+    <tr><td><b>Infos</b></td><td>Links, templates reference, contributors</td></tr>
+</table>
+
+<h3>UI File Support</h3>
+<p>Full language support for Hytale <code>.ui</code> files:</p>
+<ul>
+    <li>Syntax highlighting for components and properties</li>
+    <li>Code completion for UI elements</li>
+    <li>Color preview in the gutter</li>
+    <li>Color picker - click to change colors inline</li>
+    <li>Code folding for Groups</li>
+</ul>
+
+<h3>Smart Code Completion</h3>
+<p>Context-aware autocomplete for the Hytale API:</p>
+<ul>
+    <li>Event classes (<code>PlayerConnectEvent</code>, <code>PlayerChatEvent</code>...)</li>
+    <li>Event methods and properties</li>
+    <li>Plugin lifecycle methods</li>
+</ul>
+
+<hr/>
+
+<h2>Getting Started</h2>
+
+<h3>1. Create a New Project</h3>
+<ol>
+    <li>Go to <b>File</b> &gt; <b>New</b> &gt; <b>Project</b></li>
+    <li>Select <b>Hytale Plugin</b></li>
+    <li>Fill in your plugin details and click <b>Create</b></li>
+</ol>
+
+<h3>2. Setup Server (First Time)</h3>
+<ol>
+    <li>Go to <b>Tools</b> &gt; <b>Hytale Server</b> &gt; <b>Setup Server</b></li>
+    <li>The plugin downloads Java 25 and server files automatically</li>
+</ol>
+
+<h3>3. Run Your Plugin</h3>
+<ol>
+    <li>Press <b>Shift+F10</b> or click the Run button</li>
+    <li>Your plugin is built, deployed, and the server starts</li>
+    <li>View logs in the <b>Console</b> tab</li>
+</ol>
+
+<hr/>
+
+<h2>Live Templates</h2>
+<p>Type these shortcuts and press <b>Tab</b> to expand:</p>
+<table>
+    <tr><td><code>hyplugin</code></td><td>Main plugin class with logger</td></tr>
+    <tr><td><code>hyevent</code></td><td>Register event listener</td></tr>
+    <tr><td><code>hycmd</code></td><td>Command collection class</td></tr>
+    <tr><td><code>hyecs</code></td><td>ECS Event System</td></tr>
+    <tr><td><code>hylistener</code></td><td>Quick event listener lambda</td></tr>
+    <tr><td><code>hylogger</code></td><td>Logger declaration</td></tr>
+    <tr><td><code>hymsg</code></td><td>Send message to player</td></tr>
+    <tr><td><code>hyquery</code></td><td>ECS Query for entity filtering</td></tr>
+    <tr><td><code>hysubcmd</code></td><td>Add sub-command</td></tr>
+</table>
+
+<hr/>
+
+<h2>Quick File Creation</h2>
+<p>Right-click a package &gt; <b>New</b> &gt; <b>Hytale</b>:</p>
+<ul>
+    <li><b>Hytale Plugin</b> - Main plugin class</li>
+    <li><b>Hytale Listener</b> - Event listener</li>
+    <li><b>Hytale Command</b> - Command handler</li>
+    <li><b>Hytale UI File</b> - UI definition file</li>
+</ul>
+
+<hr/>
+
+<h2>Server Management</h2>
+<p>Available in <b>Tools</b> &gt; <b>Hytale Server</b>:</p>
+<ul>
+    <li><b>Setup Server</b> - Download Java 25 and server files</li>
+    <li><b>Hot Reload Plugin</b> - Reload without restart</li>
+    <li><b>Reload All Plugins</b> - Send /reload command</li>
+</ul>
+
+<hr/>
+
+<h2>Resources</h2>
+<p>
+    <a href="https://hytale-docs.com">Documentation</a> ·
+    <a href="https://hytale-docs.com/api">API Reference</a> ·
+    <a href="https://hytale-docs.com/modding/plugins/project-setup">Plugin Guide</a> ·
+    <a href="https://discord.gg/yAjaFBH4Y8">Discord</a> ·
+    <a href="https://github.com/HytaleDocs/hytale-intellij-plugin">GitHub</a>
+</p>
+
+<hr/>
+
+<p><i>Made with care by the <a href="https://hytale-docs.com">HytaleDocs</a> community.</i></p>
     ]]></description>
 
     <change-notes><![CDATA[
+        <h3>1.3.4</h3>
+        <ul>
+            <li><b>Mac & Linux Support</b> - Hytale installation detection now works on macOS and Linux (thanks <a href="https://github.com/maartenpeels">@maartenpeels</a>!)</li>
+            <li><b>Contributors Section</b> - New contributors card in the Infos tab</li>
+            <li><b>Improved Documentation</b> - Enhanced plugin page with getting started guide</li>
+        </ul>
+
         <h3>1.3.2</h3>
         <ul>
             <li><b>Run Configuration</b> - Build, Deploy & Debug Hytale servers with one click</li>

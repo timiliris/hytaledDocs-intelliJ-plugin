@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Getting Started with Hytale Dev Tools</title>
+</head>
+<body>
+
+<h1>Getting Started with Hytale Dev Tools</h1>
+<p>This guide will help you get started with the <b>Hytale Dev Tools</b> IntelliJ plugin for developing Hytale server plugins.</p>
+
+<h2>Installation</h2>
+<ol>
+    <li>Open IntelliJ IDEA (2024.2 or later)</li>
+    <li>Go to <b>Settings</b> &gt; <b>Plugins</b> &gt; <b>Marketplace</b></li>
+    <li>Search for "Hytale Dev Tools"</li>
+    <li>Click <b>Install</b> and restart the IDE</li>
+</ol>
+
+<h2>Creating Your First Plugin</h2>
+
+<h3>Using the Project Wizard</h3>
+<ol>
+    <li>Go to <b>File</b> &gt; <b>New</b> &gt; <b>Project</b></li>
+    <li>Select <b>Hytale Plugin</b> from the generators list</li>
+    <li>Fill in your project details:
+        <ul>
+            <li><b>Display Name</b>: Your plugin's name (e.g., "My First Plugin")</li>
+            <li><b>Mod ID</b>: Auto-generated from name (e.g., <code>myfirstplugin</code>)</li>
+            <li><b>Package Name</b>: Your Java package (e.g., <code>com.example.myfirstplugin</code>)</li>
+            <li><b>Author</b>: Your name</li>
+            <li><b>Description</b>: What your plugin does</li>
+        </ul>
+    </li>
+    <li>Choose a template:
+        <ul>
+            <li><b>Empty</b>: Minimal plugin with just the main class</li>
+            <li><b>Full</b>: Includes example event listener and command</li>
+        </ul>
+    </li>
+    <li>Click <b>Create</b></li>
+</ol>
+
+<p>The wizard will generate a complete Gradle project with:</p>
+<ul>
+    <li><code>manifest.json</code> - Plugin metadata</li>
+    <li>Main plugin class with lifecycle methods</li>
+    <li>Gradle build configuration with shadow plugin</li>
+    <li>Run configuration for the server</li>
+</ul>
+
+<h3>Project Structure</h3>
+<pre>
+my-plugin/
+├── src/main/java/com/example/myfirstplugin/
+│   └── MyFirstPlugin.java       # Main plugin class
+├── src/main/resources/
+│   └── manifest.json            # Plugin manifest
+├── build.gradle.kts             # Build configuration
+└── server/                      # Server files (auto-detected)
+    └── HytaleServer.jar
+</pre>
+
+<h2>Tool Window</h2>
+<p>Open the <b>HytaleDocs</b> tool window from the right sidebar. It has 6 tabs:</p>
+
+<h3>Server Tab</h3>
+<ul>
+    <li>View environment status (Java, server files, auth)</li>
+    <li>Start/stop the server</li>
+    <li>Monitor server statistics and online players</li>
+    <li>Quick settings for memory and port</li>
+</ul>
+
+<h3>Console Tab</h3>
+<ul>
+    <li>View server logs with color-coded levels</li>
+    <li>Send commands directly to the server</li>
+    <li>Clear or copy console output</li>
+</ul>
+
+<h3>Assets Tab</h3>
+<ul>
+    <li>Browse game assets (images, audio, JSON)</li>
+    <li>Preview assets directly in the IDE</li>
+    <li>Filter by type or search</li>
+</ul>
+
+<h3>Docs Tab</h3>
+<ul>
+    <li>Browse API documentation offline</li>
+    <li>Search across all documentation</li>
+    <li>Quick links to guides and references</li>
+</ul>
+
+<h3>AI Tab</h3>
+<ul>
+    <li>Manage offline documentation cache</li>
+    <li>MCP configuration for Claude integration</li>
+    <li>Quick prompts for common tasks</li>
+</ul>
+
+<h3>Infos Tab</h3>
+<ul>
+    <li>Links to documentation and Discord</li>
+    <li>Live template reference</li>
+    <li>Useful server commands</li>
+    <li>Contributors</li>
+</ul>
+
+<h2>Running Your Plugin</h2>
+
+<h3>Automatic Setup</h3>
+<p>When you open a Hytale plugin project, the plugin will:</p>
+<ol>
+    <li>Detect your <code>manifest.json</code></li>
+    <li>Create a run configuration automatically</li>
+    <li>Detect installed Java 25 and server files</li>
+</ol>
+
+<h3>Manual Configuration</h3>
+<ol>
+    <li>Go to <b>Run</b> &gt; <b>Edit Configurations</b></li>
+    <li>Click <b>+</b> and select <b>Hytale Server</b></li>
+    <li>Configure:
+        <ul>
+            <li><b>Server Path</b>: Path to <code>HytaleServer.jar</code></li>
+            <li><b>Java Path</b>: Path to Java 25 executable</li>
+            <li><b>Memory</b>: Min/Max heap size (e.g., 2G/4G)</li>
+            <li><b>Port</b>: Server port (default: 5520 UDP)</li>
+        </ul>
+    </li>
+</ol>
+
+<h3>Running</h3>
+<ol>
+    <li>Click the <b>Run</b> button or press <code>Shift+F10</code></li>
+    <li>The plugin will:
+        <ul>
+            <li>Build your plugin with Gradle</li>
+            <li>Copy the JAR to <code>server/plugins/</code></li>
+            <li>Start the server</li>
+        </ul>
+    </li>
+    <li>View output in the Console tab</li>
+</ol>
+
+<h2>Live Templates</h2>
+<p>Speed up coding with these shortcuts (type and press <code>Tab</code>):</p>
+
+<table border="1" cellpadding="8" cellspacing="0">
+    <tr><th>Shortcut</th><th>Description</th></tr>
+    <tr><td><code>hyplugin</code></td><td>Create main plugin class</td></tr>
+    <tr><td><code>hyevent</code></td><td>Register event listener</td></tr>
+    <tr><td><code>hycmd</code></td><td>Create command handler</td></tr>
+    <tr><td><code>hyecs</code></td><td>Create ECS system</td></tr>
+    <tr><td><code>hylistener</code></td><td>Quick event listener</td></tr>
+    <tr><td><code>hylogger</code></td><td>Declare logger</td></tr>
+    <tr><td><code>hymsg</code></td><td>Send message to player</td></tr>
+    <tr><td><code>hypermission</code></td><td>Permission check</td></tr>
+    <tr><td><code>hyquery</code></td><td>Create ECS query</td></tr>
+    <tr><td><code>hysubcmd</code></td><td>Add sub-command</td></tr>
+</table>
+
+<h3>Example: Creating an Event Listener</h3>
+<ol>
+    <li>In a Java file, type <code>hyevent</code> and press <code>Tab</code></li>
+    <li>Fill in the event class name</li>
+    <li>The template expands to:</li>
+</ol>
+<pre>
+plugin.events().register($EVENT_CLASS$.class, event -> {
+    // Handle event
+});
+</pre>
+
+<h2>Quick File Creation</h2>
+<p>Right-click on a package and select <b>New</b> &gt; <b>Hytale</b>:</p>
+<ul>
+    <li><b>Hytale Plugin</b> - New plugin main class</li>
+    <li><b>Hytale Listener</b> - New event listener</li>
+    <li><b>Hytale Command</b> - New command handler</li>
+    <li><b>Hytale UI File</b> - New <code>.ui</code> file</li>
+</ul>
+
+<h2>UI Files</h2>
+<p>The plugin provides full support for Hytale <code>.ui</code> files:</p>
+<ul>
+    <li><b>Syntax highlighting</b> for components and properties</li>
+    <li><b>Code completion</b> for UI elements</li>
+    <li><b>Color preview</b> in the gutter for hex colors</li>
+    <li><b>Color picker</b> - click the gutter icon to change colors</li>
+    <li><b>Code folding</b> for Groups and properties</li>
+</ul>
+
+<h3>Example UI File</h3>
+<pre>
+Group {
+    id: "main_menu"
+    Style {
+        backgroundColor: #1a1a2e
+        padding: 20
+    }
+
+    Label {
+        text: "Welcome!"
+        Style {
+            color: #ffffff
+            fontSize: 24
+        }
+    }
+}
+</pre>
+
+<h2>Server Management</h2>
+
+<h3>Setup Server Files</h3>
+<p>If you don't have the server files:</p>
+<ol>
+    <li>Go to <b>Tools</b> &gt; <b>Hytale Server</b> &gt; <b>Setup Server</b></li>
+    <li>The plugin will download:
+        <ul>
+            <li>Java 25 (if not installed)</li>
+            <li><code>HytaleServer.jar</code></li>
+            <li><code>Assets.zip</code></li>
+        </ul>
+    </li>
+</ol>
+
+<h3>Authentication</h3>
+<p>Hytale servers require authentication for online play:</p>
+<ol>
+    <li>In the Server tab, click <b>Settings</b></li>
+    <li>Set <b>Auth Mode</b> to "Authenticated"</li>
+    <li>Run the server - it will prompt for device code authentication</li>
+    <li>Or use "Offline" mode for local testing</li>
+</ol>
+
+<h3>Hot Reload</h3>
+<p>Reload your plugin without restarting the server:</p>
+<ol>
+    <li>Go to <b>Tools</b> &gt; <b>Hytale Server</b> &gt; <b>Hot Reload Plugin</b></li>
+    <li>Or configure hot reload in run configuration settings</li>
+</ol>
+
+<h2>Code Completion</h2>
+<p>The plugin provides smart completions for:</p>
+<ul>
+    <li><b>Event classes</b> - Type <code>Player</code> and see <code>PlayerConnectEvent</code>, <code>PlayerChatEvent</code>, etc.</li>
+    <li><b>Event methods</b> - On event objects, see available getters/setters</li>
+    <li><b>Plugin methods</b> - In plugin classes, see lifecycle methods</li>
+</ul>
+
+<h2>Settings</h2>
+<p>Configure the plugin at <b>Settings</b> &gt; <b>Tools</b> &gt; <b>Hytale Server</b>:</p>
+<ul>
+    <li><b>Server directory</b> - Where server files are stored</li>
+    <li><b>Java path</b> - Path to Java 25</li>
+    <li><b>Memory</b> - Min/max heap allocation</li>
+    <li><b>Port</b> - Server UDP port</li>
+    <li><b>Console options</b> - Auto-scroll, timestamps</li>
+</ul>
+
+<h2>Keyboard Shortcuts</h2>
+<table border="1" cellpadding="8" cellspacing="0">
+    <tr><th>Action</th><th>Shortcut</th></tr>
+    <tr><td>Run server</td><td><code>Shift+F10</code></td></tr>
+    <tr><td>Stop server</td><td><code>Ctrl+F2</code></td></tr>
+    <tr><td>Build plugin</td><td><code>Ctrl+F9</code></td></tr>
+    <tr><td>New file</td><td><code>Alt+Insert</code></td></tr>
+</table>
+
+<h2>Troubleshooting</h2>
+
+<h3>Server won't start</h3>
+<ol>
+    <li>Check Java 25 is installed: <b>Tools</b> &gt; <b>Hytale Server</b> &gt; <b>Setup Server</b></li>
+    <li>Verify server path in run configuration</li>
+    <li>Check Console tab for error messages</li>
+</ol>
+
+<h3>Plugin not loading</h3>
+<ol>
+    <li>Verify <code>manifest.json</code> exists in <code>src/main/resources/</code></li>
+    <li>Check the plugin JAR is in <code>server/plugins/</code></li>
+    <li>Look for errors in server console</li>
+</ol>
+
+<h3>Build fails</h3>
+<ol>
+    <li>Run <code>./gradlew build</code> from terminal for detailed errors</li>
+    <li>Verify <code>HytaleServer.jar</code> is in <code>libs/</code> or configured as dependency</li>
+</ol>
+
+<h2>Resources</h2>
+<ul>
+    <li><a href="https://hytale-docs.com">HytaleDocs</a> - Community documentation</li>
+    <li><a href="https://hytale-docs.com/api">API Reference</a> - Server API docs</li>
+    <li><a href="https://hytale-docs.com/modding/plugins/project-setup">Plugin Guide</a> - Detailed setup guide</li>
+    <li><a href="https://discord.gg/yAjaFBH4Y8">Discord</a> - Community support</li>
+</ul>
+
+<h2>Contributing</h2>
+<p>Found a bug or want to contribute? Visit the <a href="https://github.com/HytaleDocs/hytale-intellij-plugin">GitHub repository</a>.</p>
+
+</body>
+</html>
