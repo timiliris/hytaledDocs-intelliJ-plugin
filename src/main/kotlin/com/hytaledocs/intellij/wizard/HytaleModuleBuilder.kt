@@ -31,69 +31,97 @@ class HytaleModuleBuilder : ModuleBuilder() {
          */
         fun detectHytaleInstallation(): HytaleInstallation? {
             val userHome = System.getProperty("user.home")
+            val osName = System.getProperty("os.name").lowercase()
+            val isWindows = osName.contains("win")
+            val isMac = osName.contains("mac")
+            val isLinux = osName.contains("linux") || osName.contains("nix") || osName.contains("nux")
 
-            // Priority 1: Official Hytale Launcher location (AppData/Roaming)
+            // Priority 1: Official Hytale Launcher location
             // Structure: .../Hytale/install/release/package/game/latest/
             //   - Assets.zip is in 'latest/'
             //   - HytaleServer.jar is in 'latest/Server/'
-            val launcherPath = Paths.get(userHome, "AppData", "Roaming", "Hytale", "install", "release", "package", "game", "latest")
-            if (Files.exists(launcherPath)) {
-                val serverJar = launcherPath.resolve("Server/HytaleServer.jar")
-                val assetsZip = launcherPath.resolve("Assets.zip")
+            val officialLauncherPaths = mutableListOf<java.nio.file.Path>()
 
-                if (Files.exists(serverJar) || Files.exists(assetsZip)) {
-                    return HytaleInstallation(
-                        basePath = launcherPath,
-                        serverJarPath = if (Files.exists(serverJar)) serverJar else null,
-                        assetsPath = if (Files.exists(assetsZip)) assetsZip else null
-                    )
+            if (isWindows) {
+                // Windows: AppData/Roaming
+                officialLauncherPaths.add(Paths.get(userHome, "AppData", "Roaming", "Hytale", "install", "release", "package", "game", "latest"))
+            } else if (isMac) {
+                // macOS: ~/Library/Application Support/Hytale/...
+                officialLauncherPaths.add(Paths.get(userHome, "Library", "Application Support", "Hytale", "install", "release", "package", "game", "latest"))
+            } else if (isLinux) {
+                // Linux: XDG_DATA_HOME or ~/.local/share
+                val xdgDataHome = System.getenv("XDG_DATA_HOME")
+                if (xdgDataHome != null && xdgDataHome.isNotEmpty()) {
+                    officialLauncherPaths.add(Paths.get(xdgDataHome, "Hytale", "install", "release", "package", "game", "latest"))
+                }
+                // Default XDG_DATA_HOME location
+                officialLauncherPaths.add(Paths.get(userHome, ".local", "share", "Hytale", "install", "release", "package", "game", "latest"))
+                // Flatpak installation
+                officialLauncherPaths.add(Paths.get(userHome, ".var", "app", "com.hypixel.HytaleLauncher", "data", "Hytale", "install", "release", "package", "game", "latest"))
+            }
+
+            // Check Priority 1 paths
+            for (launcherPath in officialLauncherPaths) {
+                if (Files.exists(launcherPath)) {
+                    val serverJar = launcherPath.resolve("Server/HytaleServer.jar")
+                    val assetsZip = launcherPath.resolve("Assets.zip")
+
+                    if (Files.exists(serverJar) || Files.exists(assetsZip)) {
+                        return HytaleInstallation(
+                            basePath = launcherPath,
+                            serverJarPath = if (Files.exists(serverJar)) serverJar else null,
+                            assetsPath = if (Files.exists(assetsZip)) assetsZip else null
+                        )
+                    }
                 }
             }
 
-            // Priority 2: Check other common installation paths
-            val otherPaths = listOf(
-                // Standard installation paths
-                "C:/Program Files/Hytale",
-                "C:/Program Files (x86)/Hytale",
-                "C:/Hytale",
-                // Epic Games
-                "C:/Program Files/Epic Games/Hytale",
-                // Steam (if applicable)
-                "C:/Program Files (x86)/Steam/steamapps/common/Hytale",
-                // User-specific paths
-                "$userHome/Hytale",
-                "$userHome/Games/Hytale",
-                "$userHome/AppData/Local/Hytale",
-                // Custom drives
-                "D:/Hytale",
-                "D:/Games/Hytale",
-                "E:/Hytale",
-                "E:/Games/Hytale"
-            )
+            // Priority 2: Check other common installation paths (Windows only)
+            if (isWindows) {
+                val otherPaths = listOf(
+                    // Standard installation paths
+                    "C:/Program Files/Hytale",
+                    "C:/Program Files (x86)/Hytale",
+                    "C:/Hytale",
+                    // Epic Games
+                    "C:/Program Files/Epic Games/Hytale",
+                    // Steam (if applicable)
+                    "C:/Program Files (x86)/Steam/steamapps/common/Hytale",
+                    // User-specific paths
+                    "$userHome/Hytale",
+                    "$userHome/Games/Hytale",
+                    "$userHome/AppData/Local/Hytale",
+                    // Custom drives
+                    "D:/Hytale",
+                    "D:/Games/Hytale",
+                    "E:/Hytale",
+                    "E:/Games/Hytale"
+                )
 
-            for (basePath in otherPaths) {
-                val path = Paths.get(basePath)
-                if (Files.exists(path)) {
-                    // Check for server files in various locations
-                    val serverJarLocations = listOf(
-                        path.resolve("HytaleServer.jar"),
-                        path.resolve("Server/HytaleServer.jar"),
-                        path.resolve("server/HytaleServer.jar")
-                    )
-                    val assetsLocations = listOf(
-                        path.resolve("Assets.zip"),
-                        path.resolve("assets/Assets.zip")
-                    )
-
-                    val serverJar = serverJarLocations.firstOrNull { Files.exists(it) }
-                    val assetsZip = assetsLocations.firstOrNull { Files.exists(it) }
-
-                    if (serverJar != null || assetsZip != null) {
-                        return HytaleInstallation(
-                            basePath = path,
-                            serverJarPath = serverJar,
-                            assetsPath = assetsZip
+                for (basePath in otherPaths) {
+                    val path = Paths.get(basePath)
+                    if (Files.exists(path)) {
+                        // Check for server files in various locations
+                        val serverJarLocations = listOf(
+                            path.resolve("HytaleServer.jar"),
+                            path.resolve("Server/HytaleServer.jar"),
+                            path.resolve("server/HytaleServer.jar")
                         )
+                        val assetsLocations = listOf(
+                            path.resolve("Assets.zip"),
+                            path.resolve("assets/Assets.zip")
+                        )
+
+                        val serverJar = serverJarLocations.firstOrNull { Files.exists(it) }
+                        val assetsZip = assetsLocations.firstOrNull { Files.exists(it) }
+
+                        if (serverJar != null || assetsZip != null) {
+                            return HytaleInstallation(
+                                basePath = path,
+                                serverJarPath = serverJar,
+                                assetsPath = assetsZip
+                            )
+                        }
                     }
                 }
             }
