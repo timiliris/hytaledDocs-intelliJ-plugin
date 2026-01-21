@@ -7,7 +7,7 @@
 <p align="center">
   <a href="https://discord.gg/yAjaFBH4Y8"><img src="https://img.shields.io/discord/1234567890?color=5865F2&logo=discord&logoColor=white&label=Discord" alt="Discord"></a>
   <a href="https://github.com/HytaleDocs/hytale-intellij-plugin/releases"><img src="https://img.shields.io/github/v/release/HytaleDocs/hytale-intellij-plugin?color=blue" alt="Release"></a>
-  <a href="https://plugins.jetbrains.com/plugin/XXXXX-hytale-development-tools"><img src="https://img.shields.io/jetbrains/plugin/v/XXXXX?color=green" alt="JetBrains Plugin"></a>
+  <a href="https://plugins.jetbrains.com/plugin/26469-hytale-docs-dev-tools"><img src="https://img.shields.io/jetbrains/plugin/v/26469?color=green" alt="JetBrains Plugin"></a>
 </p>
 
 <!-- Plugin description -->
@@ -162,7 +162,52 @@ Claude will now have access to all Hytale documentation!
 
 ## Contributing
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+Contributions are welcome! Here's how to get started:
+
+### Branching Workflow
+
+- **`main`** - Stable releases only. Protected branch requiring PR review.
+- **`dev`** - Development branch. All PRs should target this branch.
+
+### How to Contribute
+
+1. **Fork** the repository
+2. **Clone** your fork: `git clone https://github.com/YOUR_USERNAME/hytale-intellij-plugin.git`
+3. **Create a branch** from `dev`: `git checkout -b feature/your-feature dev`
+4. **Make your changes** and commit with clear messages
+5. **Push** to your fork: `git push origin feature/your-feature`
+6. **Open a PR** targeting the `dev` branch
+
+### Development Setup
+
+```bash
+# Clone the repo
+git clone https://github.com/HytaleDocs/hytale-intellij-plugin.git
+cd hytale-intellij-plugin
+
+# Run the plugin in a sandboxed IDE
+./gradlew runIde
+
+# Build the plugin
+./gradlew buildPlugin
+
+# Verify compatibility
+./gradlew verifyPlugin
+```
+
+### Labels
+
+We use labels to categorize issues and PRs:
+
+| Label | Description |
+|-------|-------------|
+| `feature` | New feature or enhancement |
+| `bug` | Something isn't working |
+| `good first issue` | Good for newcomers |
+| `help wanted` | Extra attention is needed |
+| `ui` | UI file support related |
+| `server` | Server management related |
+| `wizard` | Project wizard related |
 
 Join our [Discord](https://discord.gg/yAjaFBH4Y8) to discuss features and get help.
 
