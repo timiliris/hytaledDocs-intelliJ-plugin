@@ -1,10 +1,10 @@
 package com.hytaledocs.intellij.services
 
+import com.hytaledocs.intellij.util.HttpClientPool
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.project.Project
 import java.io.File
 import java.net.URI
-import java.net.http.HttpClient
 import java.net.http.HttpRequest
 import java.net.http.HttpResponse
 import java.nio.file.Path
@@ -47,13 +47,12 @@ class HytaleProjectService(private val project: Project) {
         val targetPath = libsDir.toPath().resolve(SERVER_JAR_NAME)
 
         return CompletableFuture.supplyAsync {
-            val client = HttpClient.newHttpClient()
             val request = HttpRequest.newBuilder()
                 .uri(URI.create(SERVER_JAR_URL))
                 .GET()
                 .build()
 
-            val response = client.send(request, HttpResponse.BodyHandlers.ofInputStream())
+            val response = HttpClientPool.client.send(request, HttpResponse.BodyHandlers.ofInputStream())
 
             if (response.statusCode() == 200) {
                 response.body().use { inputStream ->

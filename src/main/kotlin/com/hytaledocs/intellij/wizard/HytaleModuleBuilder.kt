@@ -4,6 +4,7 @@ import com.hytaledocs.intellij.HytaleIcons
 import com.intellij.ide.util.projectWizard.ModuleBuilder
 import com.intellij.ide.util.projectWizard.ModuleWizardStep
 import com.intellij.ide.util.projectWizard.WizardContext
+import com.intellij.openapi.application.WriteAction
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.module.JavaModuleType
 import com.intellij.openapi.module.ModuleType
@@ -150,84 +151,86 @@ class HytaleModuleBuilder : ModuleBuilder() {
     }
 
     private fun createProjectStructure(basePath: String) {
-        val packagePath = packageName.replace('.', '/')
-        val modFolder = modId.replace("-", "").lowercase()
-        val srcLang = if (language == "Kotlin") "kotlin" else "java"
+        WriteAction.run<Throwable> {
+            val packagePath = packageName.replace('.', '/')
+            val modFolder = modId.replace("-", "").lowercase()
+            val srcLang = if (language == "Kotlin") "kotlin" else "java"
 
-        // Create base directories
-        val baseDirs = mutableListOf(
-            "src/main/$srcLang/$packagePath",
-            "src/main/resources",
-            "libs",
-            "server"
-        )
+            // Create base directories
+            val baseDirs = mutableListOf(
+                "src/main/$srcLang/$packagePath",
+                "src/main/resources",
+                "libs",
+                "server"
+            )
 
-        // Add template-specific directories
-        when (templateType) {
-            TemplateType.EMPTY -> {
-                // No additional directories needed
-            }
-            TemplateType.FULL -> {
-                baseDirs.addAll(listOf(
-                    "src/main/$srcLang/$packagePath/commands",
-                    "src/main/$srcLang/$packagePath/listeners",
-                    "src/main/$srcLang/$packagePath/ui",
-                    "src/main/resources/Common/UI/Custom/$modFolder"
-                ))
-            }
-        }
-
-        baseDirs.forEach { FileUtil.createDirectory(File(basePath, it)) }
-
-        // Generate build system files
-        when (buildSystem) {
-            "Maven" -> {
-                generatePomXml(basePath)
-            }
-            else -> { // Gradle
-                generateBuildGradle(basePath)
-                generateSettingsGradle(basePath)
-                generateGradleWrapper(basePath)
-            }
-        }
-
-        generateGitignore(basePath)
-
-        // Generate template-specific files
-        when (templateType) {
-            TemplateType.EMPTY -> {
-                generateManifestEmpty(basePath)
-                if (language == "Kotlin") {
-                    generateMainClassEmptyKotlin(basePath, packagePath)
-                } else {
-                    generateMainClassEmpty(basePath, packagePath)
+            // Add template-specific directories
+            when (templateType) {
+                TemplateType.EMPTY -> {
+                    // No additional directories needed
+                }
+                TemplateType.FULL -> {
+                    baseDirs.addAll(listOf(
+                        "src/main/$srcLang/$packagePath/commands",
+                        "src/main/$srcLang/$packagePath/listeners",
+                        "src/main/$srcLang/$packagePath/ui",
+                        "src/main/resources/Common/UI/Custom/$modFolder"
+                    ))
                 }
             }
-            TemplateType.FULL -> {
-                generateManifest(basePath)
-                if (language == "Kotlin") {
-                    generateMainClassKotlin(basePath, packagePath)
-                    generateMainCommandKotlin(basePath, packagePath)
-                    generatePlayerListenerKotlin(basePath, packagePath)
-                } else {
-                    generateMainClass(basePath, packagePath)
-                    generateMainCommand(basePath, packagePath)
-                    generateHelpSubCommand(basePath, packagePath)
-                    generateInfoSubCommand(basePath, packagePath)
-                    generateReloadSubCommand(basePath, packagePath)
-                    generateUISubCommand(basePath, packagePath)
-                    generateMainUI(basePath, packagePath)
-                    generatePlayerListener(basePath, packagePath)
+
+            baseDirs.forEach { FileUtil.createDirectory(File(basePath, it)) }
+
+            // Generate build system files
+            when (buildSystem) {
+                "Maven" -> {
+                    generatePomXml(basePath)
                 }
-                generateUIFile(basePath, modFolder)
+                else -> { // Gradle
+                    generateBuildGradle(basePath)
+                    generateSettingsGradle(basePath)
+                    generateGradleWrapper(basePath)
+                }
             }
+
+            generateGitignore(basePath)
+
+            // Generate template-specific files
+            when (templateType) {
+                TemplateType.EMPTY -> {
+                    generateManifestEmpty(basePath)
+                    if (language == "Kotlin") {
+                        generateMainClassEmptyKotlin(basePath, packagePath)
+                    } else {
+                        generateMainClassEmpty(basePath, packagePath)
+                    }
+                }
+                TemplateType.FULL -> {
+                    generateManifest(basePath)
+                    if (language == "Kotlin") {
+                        generateMainClassKotlin(basePath, packagePath)
+                        generateMainCommandKotlin(basePath, packagePath)
+                        generatePlayerListenerKotlin(basePath, packagePath)
+                    } else {
+                        generateMainClass(basePath, packagePath)
+                        generateMainCommand(basePath, packagePath)
+                        generateHelpSubCommand(basePath, packagePath)
+                        generateInfoSubCommand(basePath, packagePath)
+                        generateReloadSubCommand(basePath, packagePath)
+                        generateUISubCommand(basePath, packagePath)
+                        generateMainUI(basePath, packagePath)
+                        generatePlayerListener(basePath, packagePath)
+                    }
+                    generateUIFile(basePath, modFolder)
+                }
+            }
+
+            // Copy server files from game installation or configured path
+            copyServerFiles(basePath)
+
+            // Generate IntelliJ run configurations
+            generateRunConfigurations(basePath)
         }
-
-        // Copy server files from game installation or configured path
-        copyServerFiles(basePath)
-
-        // Generate IntelliJ run configurations
-        generateRunConfigurations(basePath)
     }
 
     private fun copyServerFiles(basePath: String) {
@@ -555,27 +558,27 @@ class HytaleModuleBuilder : ModuleBuilder() {
     }
 
     private fun generateRunServerConfig(configDir: File) {
-        // Run Server configuration (Shell Script)
-        File(configDir, "Run_Server.xml").writeText("""
-            <component name="ProjectRunConfigurationManager">
-              <configuration default="false" name="Run Server" type="ShConfigurationType">
-                <option name="SCRIPT_TEXT" value="" />
-                <option name="INDEPENDENT_SCRIPT_PATH" value="true" />
-                <option name="SCRIPT_PATH" value="" />
-                <option name="SCRIPT_OPTIONS" value="" />
-                <option name="INDEPENDENT_SCRIPT_WORKING_DIRECTORY" value="true" />
-                <option name="SCRIPT_WORKING_DIRECTORY" value="${'$'}PROJECT_DIR${'$'}/server" />
-                <option name="INDEPENDENT_INTERPRETER_PATH" value="true" />
-                <option name="INTERPRETER_PATH" value="" />
-                <option name="INTERPRETER_OPTIONS" value="" />
-                <option name="EXECUTE_IN_TERMINAL" value="true" />
-                <option name="EXECUTE_SCRIPT_FILE" value="false" />
-                <envs />
-                <method v="2">
-                  <option name="RunConfigurationTask" enabled="true" run_configuration_name="Build &amp; Deploy" run_configuration_type="GradleRunConfiguration" />
-                </method>
-              </configuration>
-            </component>
+        // Generate a .hytale/project.json file with plugin info
+        // This will be read by HytaleRunConfigurationSetup at project open
+        val hytaleDir = File(configDir.parentFile.parentFile, ".hytale")
+        hytaleDir.mkdirs()
+
+        val artifactId = modId.lowercase().replace(" ", "-")
+        val group = packageName.substringBeforeLast('.')
+        // Plugin name must have no spaces for hot reload to work
+        val pluginName = modName.replace(" ", "")
+
+        File(hytaleDir, "project.json").writeText("""
+            {
+              "groupId": "$group",
+              "artifactId": "$artifactId",
+              "modName": "$pluginName",
+              "version": "$version",
+              "buildSystem": "$buildSystem",
+              "language": "$language",
+              "jarPath": "${if (buildSystem == "Gradle") "build/libs/$artifactId-$version.jar" else "target/$artifactId-$version.jar"}",
+              "buildTask": "${if (buildSystem == "Gradle") "shadowJar" else "package"}"
+            }
         """.trimIndent())
     }
 
@@ -593,6 +596,29 @@ class HytaleModuleBuilder : ModuleBuilder() {
             zipStoreBase=GRADLE_USER_HOME
             zipStorePath=wrapper/dists
         """.trimIndent())
+
+        // Copy gradle-wrapper.jar from resources
+        javaClass.getResourceAsStream("/gradle-wrapper/gradle-wrapper.jar")?.use { input ->
+            File(basePath, "gradle/wrapper/gradle-wrapper.jar").outputStream().use { output ->
+                input.copyTo(output)
+            }
+        }
+
+        // Copy gradlew script (Unix)
+        javaClass.getResourceAsStream("/gradle-wrapper/gradlew")?.use { input ->
+            val gradlewFile = File(basePath, "gradlew")
+            gradlewFile.outputStream().use { output ->
+                input.copyTo(output)
+            }
+            gradlewFile.setExecutable(true)
+        }
+
+        // Copy gradlew.bat script (Windows)
+        javaClass.getResourceAsStream("/gradle-wrapper/gradlew.bat")?.use { input ->
+            File(basePath, "gradlew.bat").outputStream().use { output ->
+                input.copyTo(output)
+            }
+        }
     }
 
     private fun generateBuildGradle(basePath: String) {
@@ -703,11 +729,13 @@ class HytaleModuleBuilder : ModuleBuilder() {
 
     private fun generateManifestEmpty(basePath: String) {
         val className = modName.replace(" ", "") + "Plugin"
+        // Plugin name must have no spaces for hot reload to work
+        val pluginName = modName.replace(" ", "")
         val escapedDescription = modDescription.replace("\"", "\\\"").replace("\n", "\\n")
         File(basePath, "src/main/resources/manifest.json").writeText("""
             {
               "Group": "${packageName.substringBeforeLast('.')}",
-              "Name": "$modName",
+              "Name": "$pluginName",
               "Version": "$version",
               "Description": "$escapedDescription",
               "Authors": [{"Name": "$author"}],
@@ -774,12 +802,14 @@ class HytaleModuleBuilder : ModuleBuilder() {
 
     private fun generateManifest(basePath: String) {
         val className = modName.replace(" ", "") + "Plugin"
+        // Plugin name must have no spaces for hot reload to work
+        val pluginName = modName.replace(" ", "")
         // Escape description for JSON
         val escapedDescription = modDescription.replace("\"", "\\\"").replace("\n", "\\n")
         File(basePath, "src/main/resources/manifest.json").writeText("""
             {
               "Group": "${packageName.substringBeforeLast('.')}",
-              "Name": "$modName",
+              "Name": "$pluginName",
               "Version": "$version",
               "Description": "$escapedDescription",
               "Authors": [{"Name": "$author"}],

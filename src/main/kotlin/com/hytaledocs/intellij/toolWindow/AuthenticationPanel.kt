@@ -4,6 +4,7 @@ import com.hytaledocs.intellij.services.AuthenticationService
 import com.hytaledocs.intellij.ui.HytaleTheme
 import com.intellij.icons.AllIcons
 import com.intellij.ide.BrowserUtil
+import com.intellij.openapi.Disposable
 import com.intellij.ui.JBColor
 import com.intellij.ui.RoundedLineBorder
 import com.intellij.ui.components.JBLabel
@@ -18,7 +19,7 @@ import javax.swing.*
  * Modern authentication panel that displays when server needs authentication.
  * Shows the device code prominently with copy and open browser buttons.
  */
-class AuthenticationPanel : JBPanel<AuthenticationPanel>(BorderLayout()) {
+class AuthenticationPanel : JBPanel<AuthenticationPanel>(BorderLayout()), Disposable {
 
     companion object {
         // Panel-specific color for authentication code display (purple) - uses IDE theme
@@ -34,6 +35,10 @@ class AuthenticationPanel : JBPanel<AuthenticationPanel>(BorderLayout()) {
     private val retryButton: JButton
 
     private var currentSession: AuthenticationService.AuthSession? = null
+
+    // Track active timers to prevent memory leaks
+    private var autoHideTimer: Timer? = null
+    private var copyFeedbackTimer: Timer? = null
 
     init {
         background = JBColor.namedColor("ToolWindow.background", UIUtil.getPanelBackground())
@@ -200,8 +205,9 @@ class AuthenticationPanel : JBPanel<AuthenticationPanel>(BorderLayout()) {
                 openBrowserButton.isVisible = false
                 retryButton.isVisible = false
 
-                // Auto-hide after delay
-                Timer(3000) { isVisible = false }.apply {
+                // Auto-hide after delay - stop any existing timer first
+                autoHideTimer?.stop()
+                autoHideTimer = Timer(3000) { isVisible = false }.apply {
                     isRepeats = false
                     start()
                 }
@@ -242,10 +248,11 @@ class AuthenticationPanel : JBPanel<AuthenticationPanel>(BorderLayout()) {
             val selection = StringSelection(code)
             Toolkit.getDefaultToolkit().systemClipboard.setContents(selection, null)
 
-            // Visual feedback
+            // Visual feedback - stop any existing timer first
+            copyFeedbackTimer?.stop()
             val originalText = copyButton.text
             copyButton.text = "Copied!"
-            Timer(1500) {
+            copyFeedbackTimer = Timer(1500) {
                 copyButton.text = originalText
             }.apply {
                 isRepeats = false
@@ -263,5 +270,12 @@ class AuthenticationPanel : JBPanel<AuthenticationPanel>(BorderLayout()) {
     private fun triggerRetry() {
         AuthenticationService.getInstance().resetSession()
         isVisible = false
+    }
+
+    override fun dispose() {
+        autoHideTimer?.stop()
+        autoHideTimer = null
+        copyFeedbackTimer?.stop()
+        copyFeedbackTimer = null
     }
 }

@@ -3,6 +3,28 @@
     <name>Hytale Docs Dev Tools</name>
     <vendor email="contact@hytale-docs.com" url="https://hytale-docs.com">HytaleDocs</vendor>
 
+    <description><![CDATA[
+        <p>A comprehensive toolkit for developing Hytale server plugins in IntelliJ IDEA.</p>
+
+        <h3>Features</h3>
+        <ul>
+            <li><b>Project Wizard</b> - Create new Hytale plugin projects with Gradle setup</li>
+            <li><b>Run Configuration</b> - Build, Deploy & Debug with one click</li>
+            <li><b>Assets Explorer</b> - Preview images, audio, and JSON files</li>
+            <li><b>UI File Support</b> - Syntax highlighting for .ui files</li>
+            <li><b>Live Templates</b> - Quick code snippets (hyevent, hycmd, hyecs...)</li>
+            <li><b>API Completion</b> - Autocomplete for Hytale server classes</li>
+            <li><b>Documentation</b> - Browse docs directly in IDE</li>
+        </ul>
+
+        <h3>Community</h3>
+        <p>
+            <a href="https://discord.gg/yAjaFBH4Y8">Join our Discord</a> |
+            <a href="https://hytale-docs.com">Documentation</a> |
+            <a href="https://github.com/HytaleDocs/hytale-intellij-plugin">GitHub</a>
+        </p>
+    ]]></description>
+
     <depends>com.intellij.modules.platform</depends>
     <depends>com.intellij.modules.java</depends>
 
@@ -18,6 +40,58 @@
         <internalFileTemplate name="Hytale Listener"/>
         <internalFileTemplate name="Hytale Command"/>
         <internalFileTemplate name="Hytale ECS System"/>
+        <internalFileTemplate name="Hytale UI File"/>
+
+        <!-- ==================== Hytale UI File Support ==================== -->
+
+        <!-- UI File Type Registration -->
+        <fileType
+                name="Hytale UI File"
+                implementationClass="com.hytaledocs.intellij.uifile.UIFileType"
+                fieldName="INSTANCE"
+                language="HytaleUI"
+                extensions="ui"/>
+
+        <!-- UI Language Parser -->
+        <lang.parserDefinition
+                language="HytaleUI"
+                implementationClass="com.hytaledocs.intellij.uifile.parser.UIParserDefinition"/>
+
+        <!-- UI Syntax Highlighting -->
+        <lang.syntaxHighlighterFactory
+                language="HytaleUI"
+                implementationClass="com.hytaledocs.intellij.uifile.highlighter.UISyntaxHighlighterFactory"/>
+
+        <!-- UI Brace Matching -->
+        <lang.braceMatcher
+                language="HytaleUI"
+                implementationClass="com.hytaledocs.intellij.uifile.UIBraceMatcher"/>
+
+        <!-- UI Code Folding -->
+        <lang.foldingBuilder
+                language="HytaleUI"
+                implementationClass="com.hytaledocs.intellij.uifile.UIFoldingBuilder"/>
+
+        <!-- UI Commenting -->
+        <lang.commenter
+                language="HytaleUI"
+                implementationClass="com.hytaledocs.intellij.uifile.UICommenter"/>
+
+        <!-- UI Code Completion -->
+        <completion.contributor
+                language="HytaleUI"
+                implementationClass="com.hytaledocs.intellij.uifile.completion.UICompletionContributor"/>
+
+        <!-- UI Color Preview (gutter icons) -->
+        <annotator
+                language="HytaleUI"
+                implementationClass="com.hytaledocs.intellij.uifile.highlighter.UIColorAnnotator"/>
+
+        <!-- UI Color Settings Page -->
+        <colorSettingsPage
+                implementation="com.hytaledocs.intellij.uifile.highlighter.UIColorSettingsPage"/>
+
+
 
         <!-- Live Templates -->
         <defaultLiveTemplates file="/liveTemplates/Hytale.xml"/>
@@ -56,6 +130,8 @@
                 serviceImplementation="com.hytaledocs.intellij.services.HytaleProjectService"/>
         <projectService
                 serviceImplementation="com.hytaledocs.intellij.services.AssetScannerService"/>
+        <projectService
+                serviceImplementation="com.hytaledocs.intellij.services.AssetSyncService"/>
 
         <applicationService
                 serviceImplementation="com.hytaledocs.intellij.services.JavaInstallService"/>
@@ -77,12 +153,26 @@
         <!-- Server Data Service for API completion data -->
         <applicationService
                 serviceImplementation="com.hytaledocs.intellij.services.ServerDataService"/>
+        <applicationService
+                serviceImplementation="com.hytaledocs.intellij.services.OfflineDocsService"/>
 
         <!-- Code Completion for Hytale API -->
         <completion.contributor
                 language="JAVA"
                 implementationClass="com.hytaledocs.intellij.completion.HytaleCompletionContributor"
                 order="first"/>
+
+        <!-- Run Configuration for Hytale Server -->
+        <configurationType
+                implementation="com.hytaledocs.intellij.run.HytaleServerConfigurationType"/>
+
+        <!-- Debug Runner for Hytale Server -->
+        <programRunner
+                implementation="com.hytaledocs.intellij.run.HytaleServerDebugRunner"/>
+
+        <!-- Auto-setup Run Configuration for Hytale projects -->
+        <postStartupActivity
+                implementation="com.hytaledocs.intellij.run.HytaleRunConfigurationSetup"/>
     </extensions>
 
     <actions>
@@ -104,7 +194,14 @@
                     class="com.hytaledocs.intellij.actions.NewCommandAction"
                     text="Hytale Command"
                     description="Create a new Hytale command"/>
+
+            <action id="HytaleDocs.NewUIFile"
+                    class="com.hytaledocs.intellij.uifile.action.NewUIFileAction"
+                    text="Hytale UI File"
+                    description="Create a new Hytale UI definition file"
+                    icon="/icons/ui-file.svg"/>
         </group>
+
 
         <group id="HytaleDocs.ToolsMenu" text="Hytale Server" description="Hytale server management">
             <add-to-group group-id="ToolsMenu" anchor="last"/>
@@ -124,8 +221,22 @@
 
             <action id="HytaleDocs.QuickReloadPlugins"
                     class="com.hytaledocs.intellij.actions.QuickReloadPluginsAction"
-                    text="Reload Plugins"
+                    text="Reload All Plugins"
                     description="Send /reload plugins command to the running Hytale server"
+                    icon="AllIcons.Actions.Refresh"/>
+
+            <action id="HytaleDocs.HotReloadPlugin"
+                    class="com.hytaledocs.intellij.actions.HotReloadPluginAction"
+                    text="Hot Reload Plugin"
+                    description="Build and reload your plugin on the running server (Build → Unload → Deploy → Load)"
+                    icon="AllIcons.Actions.ForceRefresh"/>
+
+            <separator/>
+
+            <action id="HytaleDocs.ReconfigureRunConfig"
+                    class="com.hytaledocs.intellij.actions.ReconfigureRunConfigAction"
+                    text="Reconfigure Run Configuration"
+                    description="Auto-detect plugin info and update the Hytale Server run configuration"
                     icon="AllIcons.Actions.Refresh"/>
         </group>
     </actions>

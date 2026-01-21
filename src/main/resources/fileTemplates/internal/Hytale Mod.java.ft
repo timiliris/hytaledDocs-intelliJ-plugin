@@ -1,29 +1,54 @@
 package ${PACKAGE_NAME};
 
-import com.hypixel.hytale.event.EventRegistry;
 import com.hypixel.hytale.server.core.plugin.JavaPlugin;
 import com.hypixel.hytale.server.core.plugin.JavaPluginInit;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import com.hypixel.hytale.logger.HytaleLogger;
 
+import javax.annotation.Nonnull;
+import java.util.logging.Level;
+
+/**
+ * ${NAME} - A Hytale server plugin.
+ */
 public class ${NAME} extends JavaPlugin {
 
-    private static final Logger LOGGER = LoggerFactory.getLogger(${NAME}.class);
+    private static final HytaleLogger LOGGER = HytaleLogger.forEnclosingClass();
+    private static ${NAME} instance;
 
-    @Override
-    public void setup(JavaPluginInit init) {
-        LOGGER.info("Setting up...");
-        EventRegistry eventBus = init.getEventRegistry();
-        // Register events and commands here
+    public ${NAME}(@Nonnull JavaPluginInit init) {
+        super(init);
+        instance = this;
+    }
+
+    public static ${NAME} getInstance() {
+        return instance;
     }
 
     @Override
-    public void start() {
-        LOGGER.info("Started!");
+    protected void setup() {
+        LOGGER.at(Level.INFO).log("Setting up...");
+
+        // TODO: Register commands and listeners here
+        // Use this.getEventRegistry() to register event listeners
+        // Use this.getCommandRegistry() to register commands
+
+        LOGGER.at(Level.INFO).log("Setup complete!");
     }
 
     @Override
-    public void shutdown() {
-        LOGGER.info("Stopped!");
+    protected void start() {
+        LOGGER.at(Level.INFO).log("Started!");
+    }
+
+    @Override
+    protected void shutdown() {
+        LOGGER.at(Level.INFO).log("Shutting down...");
+
+        // TODO: Clean up resources for hot reload support
+        // - Cancel scheduled tasks
+        // - Close connections
+        // - Registries are cleaned up automatically
+
+        instance = null;
     }
 }

@@ -3,12 +3,13 @@ package com.hytaledocs.intellij.services
 import com.google.gson.Gson
 import com.google.gson.JsonObject
 import com.google.gson.reflect.TypeToken
+import com.hytaledocs.intellij.util.HttpClientPool
+import com.hytaledocs.intellij.util.RetryUtil
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.diagnostic.Logger
 import java.net.URI
 import java.net.URLEncoder
-import java.net.http.HttpClient
 import java.net.http.HttpRequest
 import java.net.http.HttpResponse
 import java.time.Duration
@@ -35,11 +36,6 @@ class DocumentationApiClient {
             return ApplicationManager.getApplication().getService(DocumentationApiClient::class.java)
         }
     }
-
-    private val httpClient = HttpClient.newBuilder()
-        .connectTimeout(Duration.ofSeconds(10))
-        .followRedirects(HttpClient.Redirect.ALWAYS)
-        .build()
 
     private val gson = Gson()
 
@@ -118,7 +114,13 @@ class DocumentationApiClient {
                     .timeout(Duration.ofSeconds(15))
                     .build()
 
-                val response = httpClient.send(request, HttpResponse.BodyHandlers.ofString())
+                val response = RetryUtil.withRetry(
+                    maxAttempts = 3,
+                    delayMs = 1000,
+                    operation = "Fetch sidebar"
+                ) {
+                    HttpClientPool.client.send(request, HttpResponse.BodyHandlers.ofString())
+                }
 
                 if (response.statusCode() == 200) {
                     val sidebarResponse = gson.fromJson(response.body(), SidebarResponse::class.java)
@@ -166,7 +168,13 @@ class DocumentationApiClient {
                     .timeout(Duration.ofSeconds(15))
                     .build()
 
-                val response = httpClient.send(request, HttpResponse.BodyHandlers.ofString())
+                val response = RetryUtil.withRetry(
+                    maxAttempts = 3,
+                    delayMs = 1000,
+                    operation = "Fetch doc '$normalizedPath'"
+                ) {
+                    HttpClientPool.client.send(request, HttpResponse.BodyHandlers.ofString())
+                }
 
                 if (response.statusCode() == 200) {
                     val docResponse = gson.fromJson(response.body(), DocResponse::class.java)
@@ -201,7 +209,13 @@ class DocumentationApiClient {
                     .timeout(Duration.ofSeconds(15))
                     .build()
 
-                val response = httpClient.send(request, HttpResponse.BodyHandlers.ofString())
+                val response = RetryUtil.withRetry(
+                    maxAttempts = 3,
+                    delayMs = 1000,
+                    operation = "Search docs"
+                ) {
+                    HttpClientPool.client.send(request, HttpResponse.BodyHandlers.ofString())
+                }
 
                 if (response.statusCode() == 200) {
                     val type = object : TypeToken<SearchResponse>() {}.type

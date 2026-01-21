@@ -113,10 +113,10 @@ class ImagePreviewPanel : JBPanel<ImagePreviewPanel>(BorderLayout()) {
      */
     fun loadImage(file: AssetNode.FileNode) {
         try {
-            currentImage = if (file.isInZip && file.zipSource != null) {
+            currentImage = file.zipSource?.let { source ->
                 // Load from ZIP
-                loadImageFromZip(file.zipSource!!.zipFile, file.zipSource!!.entryPath)
-            } else {
+                loadImageFromZip(source.zipFile, source.entryPath)
+            } ?: run {
                 // Load from file system
                 file.file?.let { ImageIO.read(it) }
             }

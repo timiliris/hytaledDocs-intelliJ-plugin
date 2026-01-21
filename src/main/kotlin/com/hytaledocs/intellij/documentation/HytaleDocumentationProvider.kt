@@ -1,8 +1,14 @@
 package com.hytaledocs.intellij.documentation
 
+import com.hytaledocs.intellij.completion.data.EventInfo
+import com.hytaledocs.intellij.completion.data.FieldInfo
+import com.hytaledocs.intellij.completion.data.LifecycleMethodInfo
+import com.hytaledocs.intellij.completion.data.MethodInfo
 import com.hytaledocs.intellij.services.DocumentationService
+import com.hytaledocs.intellij.services.ServerDataService
 import com.intellij.lang.documentation.AbstractDocumentationProvider
 import com.intellij.lang.documentation.ExternalDocumentationHandler
+import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.editor.Editor
 import com.intellij.psi.PsiClass
 import com.intellij.psi.PsiElement
@@ -13,6 +19,7 @@ import com.intellij.psi.util.PsiTreeUtil
 /**
  * Documentation provider for Hytale API classes.
  * Provides inline documentation and external documentation links (F1).
+ * Enhanced with data from ServerDataService for rich API documentation.
  */
 class HytaleDocumentationProvider : AbstractDocumentationProvider(), ExternalDocumentationHandler {
 
@@ -26,14 +33,16 @@ class HytaleDocumentationProvider : AbstractDocumentationProvider(), ExternalDoc
     private fun isHytaleElement(element: PsiElement?): Boolean {
         if (element == null) return false
 
-        val psiClass = when (element) {
-            is PsiClass -> element
-            is PsiMethod -> element.containingClass
-            else -> PsiTreeUtil.getParentOfType(element, PsiClass::class.java)
-        }
+        return ReadAction.compute<Boolean, Throwable> {
+            val psiClass = when (element) {
+                is PsiClass -> element
+                is PsiMethod -> element.containingClass
+                else -> PsiTreeUtil.getParentOfType(element, PsiClass::class.java)
+            }
 
-        val qualifiedName = psiClass?.qualifiedName ?: return false
-        return qualifiedName.startsWith(HYTALE_PACKAGE_PREFIX)
+            val qualifiedName = psiClass?.qualifiedName ?: return@compute false
+            qualifiedName.startsWith(HYTALE_PACKAGE_PREFIX)
+        }
     }
 
     /**
@@ -42,13 +51,15 @@ class HytaleDocumentationProvider : AbstractDocumentationProvider(), ExternalDoc
     private fun getClassName(element: PsiElement?): String? {
         if (element == null) return null
 
-        val psiClass = when (element) {
-            is PsiClass -> element
-            is PsiMethod -> element.containingClass
-            else -> PsiTreeUtil.getParentOfType(element, PsiClass::class.java)
-        }
+        return ReadAction.compute<String?, Throwable> {
+            val psiClass = when (element) {
+                is PsiClass -> element
+                is PsiMethod -> element.containingClass
+                else -> PsiTreeUtil.getParentOfType(element, PsiClass::class.java)
+            }
 
-        return psiClass?.name
+            psiClass?.name
+        }
     }
 
     /**
@@ -57,13 +68,15 @@ class HytaleDocumentationProvider : AbstractDocumentationProvider(), ExternalDoc
     private fun getQualifiedName(element: PsiElement?): String? {
         if (element == null) return null
 
-        val psiClass = when (element) {
-            is PsiClass -> element
-            is PsiMethod -> element.containingClass
-            else -> PsiTreeUtil.getParentOfType(element, PsiClass::class.java)
-        }
+        return ReadAction.compute<String?, Throwable> {
+            val psiClass = when (element) {
+                is PsiClass -> element
+                is PsiMethod -> element.containingClass
+                else -> PsiTreeUtil.getParentOfType(element, PsiClass::class.java)
+            }
 
-        return psiClass?.qualifiedName
+            psiClass?.qualifiedName
+        }
     }
 
     // ==================== DocumentationProvider ====================
@@ -88,6 +101,7 @@ class HytaleDocumentationProvider : AbstractDocumentationProvider(), ExternalDoc
         val className = getClassName(element) ?: return null
         val qualifiedName = getQualifiedName(element) ?: return null
         val docService = DocumentationService.getInstance()
+        val serverDataService = ServerDataService.getInstance()
         val docUrl = docService.getDocUrlForClass(className)
 
         val sb = StringBuilder()
@@ -96,6 +110,119 @@ class HytaleDocumentationProvider : AbstractDocumentationProvider(), ExternalDoc
         sb.append("<p><code>$qualifiedName</code></p>")
         sb.append("<hr/>")
 
+        // Try to get rich documentation from ServerDataService
+        val eventInfo = serverDataService.getEventByClassName(className)
+            ?: serverDataService.getEventByFullName(qualifiedName)
+
+        if (eventInfo != null) {
+            appendEventDocumentation(sb, eventInfo)
+        } else {
+            // Check if it's a lifecycle method
+            val lifecycleMethod = serverDataService.getLifecycleMethod(className)
+            if (lifecycleMethod != null) {
+                appendLifecycleMethodDocumentation(sb, lifecycleMethod)
+            } else {
+                // Fallback to basic documentation
+                appendBasicDocumentation(sb, docUrl)
+            }
+        }
+
+        sb.append("</body></html>")
+        return sb.toString()
+    }
+
+    /**
+     * Append rich documentation for an event class.
+     */
+    private fun appendEventDocumentation(sb: StringBuilder, event: EventInfo) {
+        // Description and attributes
+        event.description?.let {
+            sb.append("<p>$it</p>")
+        }
+
+        // Event attributes
+        val attributes = mutableListOf<String>()
+        if (event.cancellable) attributes.add("<b>Cancellable</b>")
+        if (event.isAsync) attributes.add("<b>Async</b>")
+        if (event.isAbstract) attributes.add("<i>Abstract</i>")
+
+        if (attributes.isNotEmpty()) {
+            sb.append("<p>${attributes.joinToString(" | ")}</p>")
+        }
+
+        // Parent class
+        event.parent?.let {
+            sb.append("<p>Extends: <code>$it</code></p>")
+        }
+
+        // Deprecation warning
+        if (event.annotations.any { it.contains("Deprecated") }) {
+            sb.append("<p><b style=\"color: #FFA500;\">⚠ Deprecated</b></p>")
+        }
+
+        sb.append("<hr/>")
+
+        // Fields
+        if (event.fields.isNotEmpty()) {
+            sb.append("<h3>Fields</h3>")
+            sb.append("<table>")
+            for (field in event.fields) {
+                appendFieldRow(sb, field)
+            }
+            sb.append("</table>")
+        }
+
+        // Methods
+        if (event.methods.isNotEmpty()) {
+            sb.append("<h3>Methods</h3>")
+            sb.append("<table>")
+            for (method in event.methods) {
+                appendMethodRow(sb, method)
+            }
+            sb.append("</table>")
+        }
+
+        // Inner classes
+        if (event.innerClasses.isNotEmpty()) {
+            sb.append("<h3>Inner Classes</h3>")
+            sb.append("<ul>")
+            for (inner in event.innerClasses) {
+                sb.append("<li><code>${inner.name}</code>")
+                if (inner.cancellable) sb.append(" (cancellable)")
+                sb.append("</li>")
+            }
+            sb.append("</ul>")
+        }
+
+        // Source reference
+        event.sourceFile?.let { file ->
+            event.lineNumber?.let { line ->
+                sb.append("<p><small>Source: $file:$line</small></p>")
+            }
+        }
+    }
+
+    /**
+     * Append documentation for a lifecycle method.
+     */
+    private fun appendLifecycleMethodDocumentation(sb: StringBuilder, method: LifecycleMethodInfo) {
+        sb.append("<p><b>Plugin Lifecycle Method</b></p>")
+
+        method.description?.let {
+            sb.append("<p>$it</p>")
+        }
+
+        sb.append("<p>Signature: <code>${method.signature}</code></p>")
+
+        method.codeSnippet?.let {
+            sb.append("<pre>$it</pre>")
+        }
+    }
+
+    /**
+     * Append basic documentation when no rich data is available.
+     */
+    private fun appendBasicDocumentation(sb: StringBuilder, docUrl: String?) {
         if (docUrl != null) {
             sb.append("<p><b>Hytale API Documentation</b></p>")
             sb.append("<p>View full documentation at:</p>")
@@ -107,9 +234,33 @@ class HytaleDocumentationProvider : AbstractDocumentationProvider(), ExternalDoc
             sb.append("<p>Documentation may be available at:</p>")
             sb.append("<p><a href=\"${DocumentationService.BASE_URL}\">${DocumentationService.BASE_URL}</a></p>")
         }
+    }
 
-        sb.append("</body></html>")
-        return sb.toString()
+    /**
+     * Append a table row for a field.
+     */
+    private fun appendFieldRow(sb: StringBuilder, field: FieldInfo) {
+        sb.append("<tr>")
+        sb.append("<td><code>${field.name}</code></td>")
+        sb.append("<td><code>${field.type}</code></td>")
+        field.accessor?.let {
+            sb.append("<td>→ <code>$it</code></td>")
+        }
+        sb.append("</tr>")
+    }
+
+    /**
+     * Append a table row for a method.
+     */
+    private fun appendMethodRow(sb: StringBuilder, method: MethodInfo) {
+        sb.append("<tr>")
+        val style = if (method.deprecated) "text-decoration: line-through;" else ""
+        sb.append("<td style=\"$style\"><code>${method.name}</code></td>")
+        method.signature?.let {
+            val returnType = it.split(" ").firstOrNull { part -> !part.startsWith("public") && !part.startsWith("protected") }
+            sb.append("<td><code>$returnType</code></td>")
+        }
+        sb.append("</tr>")
     }
 
     override fun getDocumentationElementForLookupItem(
@@ -173,15 +324,17 @@ class HytaleDocumentationProvider : AbstractDocumentationProvider(), ExternalDoc
         contextElement: PsiElement?,
         targetOffset: Int
     ): PsiElement? {
-        // Find the class or method at the cursor position
-        val element = file.findElementAt(targetOffset) ?: return null
+        return ReadAction.compute<PsiElement?, Throwable> {
+            // Find the class or method at the cursor position
+            val element = file.findElementAt(targetOffset) ?: return@compute null
 
-        // Check if we're on a Hytale class reference
-        val psiClass = PsiTreeUtil.getParentOfType(element, PsiClass::class.java)
-        if (psiClass != null && isHytaleElement(psiClass)) {
-            return psiClass
+            // Check if we're on a Hytale class reference
+            val psiClass = PsiTreeUtil.getParentOfType(element, PsiClass::class.java)
+            if (psiClass != null && isHytaleElement(psiClass)) {
+                return@compute psiClass
+            }
+
+            null
         }
-
-        return null
     }
 }

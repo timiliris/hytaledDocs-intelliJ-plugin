@@ -1,10 +1,10 @@
 package com.hytaledocs.intellij.services
 
+import com.hytaledocs.intellij.util.HttpClientPool
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.components.Service
 import java.io.*
 import java.net.URI
-import java.net.http.HttpClient
 import java.net.http.HttpRequest
 import java.net.http.HttpResponse
 import java.nio.file.Files
@@ -16,6 +16,7 @@ import java.util.function.Consumer
 import java.util.zip.GZIPInputStream
 import java.util.zip.ZipInputStream
 import org.apache.commons.compress.archivers.tar.TarArchiveInputStream
+import com.intellij.openapi.vfs.LocalFileSystem
 
 @Service(Service.Level.APP)
 class JavaInstallService {
@@ -166,10 +167,6 @@ class JavaInstallService {
 
             progressCallback?.accept(DownloadProgress("download", 5, "Connecting to Adoptium..."))
 
-            val client = HttpClient.newBuilder()
-                .followRedirects(HttpClient.Redirect.ALWAYS)
-                .build()
-
             val request = HttpRequest.newBuilder()
                 .uri(URI.create(downloadUrl))
                 .GET()
@@ -178,7 +175,7 @@ class JavaInstallService {
             val tempFile = Files.createTempFile("java-$version", ".$extension")
 
             try {
-                val response = client.send(request, HttpResponse.BodyHandlers.ofInputStream())
+                val response = HttpClientPool.client.send(request, HttpResponse.BodyHandlers.ofInputStream())
 
                 if (response.statusCode() != 200) {
                     throw RuntimeException("Failed to download Java: HTTP ${response.statusCode()}")
@@ -241,6 +238,9 @@ class JavaInstallService {
                 // Verify installation
                 val installedVersion = getJavaVersion(jdkDir)
                     ?: throw RuntimeException("Failed to verify Java installation")
+
+                // Refresh VFS to make installed Java files visible to IntelliJ
+                LocalFileSystem.getInstance().refreshAndFindFileByPath(jdkDir.toString())
 
                 progressCallback?.accept(DownloadProgress("complete", 100, "Java $version installed successfully!"))
 

@@ -1,11 +1,12 @@
 package com.hytaledocs.intellij.services
 
+import com.hytaledocs.intellij.util.HttpClientPool
+import com.hytaledocs.intellij.util.RetryUtil
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.project.Project
 import java.io.File
 import java.io.FileOutputStream
 import java.net.URI
-import java.net.http.HttpClient
 import java.net.http.HttpRequest
 import java.net.http.HttpResponse
 import java.nio.file.Files
@@ -13,6 +14,7 @@ import java.nio.file.Path
 import java.util.concurrent.CompletableFuture
 import java.util.function.Consumer
 import java.util.zip.ZipInputStream
+import com.intellij.openapi.vfs.LocalFileSystem
 
 @Service(Service.Level.PROJECT)
 class ServerDownloadService(private val project: Project) {
@@ -50,10 +52,6 @@ class ServerDownloadService(private val project: Project) {
 
             progressCallback?.accept(DownloadProgress("download", 0, "Starting download..."))
 
-            val client = HttpClient.newBuilder()
-                .followRedirects(HttpClient.Redirect.ALWAYS)
-                .build()
-
             val request = HttpRequest.newBuilder()
                 .uri(URI.create(SERVER_JAR_URL))
                 .GET()
@@ -61,7 +59,13 @@ class ServerDownloadService(private val project: Project) {
 
             progressCallback?.accept(DownloadProgress("download", 10, "Connecting to CDN..."))
 
-            val response = client.send(request, HttpResponse.BodyHandlers.ofInputStream())
+            val response = RetryUtil.withRetry(
+                maxAttempts = 3,
+                delayMs = 2000,
+                operation = "Download server JAR"
+            ) {
+                HttpClientPool.client.send(request, HttpResponse.BodyHandlers.ofInputStream())
+            }
 
             if (response.statusCode() == 404) {
                 throw RuntimeException(
@@ -105,6 +109,10 @@ class ServerDownloadService(private val project: Project) {
             }
 
             progressCallback?.accept(DownloadProgress("download", 100, "Download complete!"))
+
+            // Refresh VFS to make downloaded JAR visible to IntelliJ
+            LocalFileSystem.getInstance().refreshAndFindFileByPath(targetPath.toString())
+
             targetPath
         }
     }
@@ -119,10 +127,6 @@ class ServerDownloadService(private val project: Project) {
         return CompletableFuture.supplyAsync {
             progressCallback?.accept(DownloadProgress("downloader", 0, "Downloading Hytale Downloader..."))
 
-            val client = HttpClient.newBuilder()
-                .followRedirects(HttpClient.Redirect.ALWAYS)
-                .build()
-
             val request = HttpRequest.newBuilder()
                 .uri(URI.create(DOWNLOADER_URL))
                 .GET()
@@ -131,7 +135,13 @@ class ServerDownloadService(private val project: Project) {
             val zipPath = targetDir.resolve("hytale-downloader.zip")
             Files.createDirectories(targetDir)
 
-            val response = client.send(request, HttpResponse.BodyHandlers.ofInputStream())
+            val response = RetryUtil.withRetry(
+                maxAttempts = 3,
+                delayMs = 2000,
+                operation = "Download Hytale Downloader"
+            ) {
+                HttpClientPool.client.send(request, HttpResponse.BodyHandlers.ofInputStream())
+            }
 
             if (response.statusCode() != 200) {
                 throw RuntimeException("Failed to download Hytale Downloader: HTTP ${response.statusCode()}")
@@ -166,6 +176,9 @@ class ServerDownloadService(private val project: Project) {
 
             // Clean up zip
             Files.deleteIfExists(zipPath)
+
+            // Refresh VFS to make extracted files visible to IntelliJ
+            LocalFileSystem.getInstance().refreshAndFindFileByPath(extractDir.toString())
 
             progressCallback?.accept(DownloadProgress("downloader", 100, "Hytale Downloader ready!"))
             executable

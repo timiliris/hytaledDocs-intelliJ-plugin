@@ -135,6 +135,14 @@ class HytaleSettingsConfigurable(private val project: Project) : BoundConfigurab
                         .bindSelected(settings::showTimestamps)
                 }
             }
+
+            group("Features") {
+                row {
+                    checkBox("Enable .ui file support")
+                        .bindSelected(settings::uiFileSupportEnabled)
+                        .comment("Syntax highlighting, code completion, and color preview for Hytale UI files (requires restart)")
+                }
+            }
         }
     }
 }

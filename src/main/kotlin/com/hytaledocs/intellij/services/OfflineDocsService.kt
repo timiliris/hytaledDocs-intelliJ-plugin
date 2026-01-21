@@ -2,12 +2,13 @@ package com.hytaledocs.intellij.services
 
 import com.google.gson.Gson
 import com.google.gson.GsonBuilder
+import com.hytaledocs.intellij.util.HttpClientPool
 import com.intellij.openapi.application.ApplicationManager
+import com.intellij.openapi.application.WriteAction
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.diagnostic.Logger
 import java.io.*
 import java.net.URI
-import java.net.http.HttpClient
 import java.net.http.HttpRequest
 import java.net.http.HttpResponse
 import java.nio.file.Files
@@ -15,6 +16,7 @@ import java.time.Duration
 import java.time.Instant
 import java.util.concurrent.CompletableFuture
 import java.util.zip.ZipInputStream
+import com.intellij.openapi.vfs.LocalFileSystem
 
 /**
  * Service for managing offline documentation downloaded from GitHub.
@@ -58,11 +60,6 @@ class OfflineDocsService {
         }
     }
 
-    private val httpClient = HttpClient.newBuilder()
-        .connectTimeout(Duration.ofSeconds(30))
-        .followRedirects(HttpClient.Redirect.ALWAYS)
-        .build()
-
     private val gson: Gson = GsonBuilder().setPrettyPrinting().create()
 
     @Volatile
@@ -100,9 +97,7 @@ class OfflineDocsService {
 
     data class DocFrontmatter(
         val title: String? = null,
-        val description: String? = null,
-        val order: Int? = null,
-        val tags: List<String>? = null
+        val description: String? = null
     )
 
     data class CacheStatus(
@@ -209,8 +204,14 @@ class OfflineDocsService {
                 ))
 
                 // Clear old docs
-                docsDir.deleteRecursively()
-                docsDir.mkdirs()
+                WriteAction.run<Throwable> {
+                    try {
+                        docsDir.deleteRecursively()
+                    } catch (e: Exception) {
+                        LOG.warn("Failed to delete old docs directory", e)
+                    }
+                    docsDir.mkdirs()
+                }
 
                 val extractedFiles = extractDocsFromZip(zipData, docsDir) { current, total ->
                     val percent = if (total > 0) (current * 100) / total else 0
@@ -255,7 +256,12 @@ class OfflineDocsService {
                 )
 
                 val indexFile = File(cacheDir, "index.json")
-                indexFile.writeText(gson.toJson(docsIndex))
+                WriteAction.run<Throwable> {
+                    indexFile.writeText(gson.toJson(docsIndex))
+                }
+
+                // Refresh VFS to make downloaded docs visible to IntelliJ
+                LocalFileSystem.getInstance().refreshAndFindFileByPath(cacheDir.absolutePath)
 
                 LOG.info("Downloaded ${docEntries.size} documentation files")
 
@@ -376,7 +382,13 @@ class OfflineDocsService {
      */
     fun clearCache() {
         try {
-            getCacheDir().deleteRecursively()
+            WriteAction.run<Throwable> {
+                try {
+                    getCacheDir().deleteRecursively()
+                } catch (e: Exception) {
+                    LOG.warn("Failed to delete cache directory", e)
+                }
+            }
             docsIndex = null
             docsCache.clear()
             LOG.info("Cache cleared")
@@ -410,7 +422,7 @@ class OfflineDocsService {
                 .timeout(Duration.ofSeconds(10))
                 .build()
 
-            val response = httpClient.send(request, HttpResponse.BodyHandlers.ofString())
+            val response = HttpClientPool.client.send(request, HttpResponse.BodyHandlers.ofString())
 
             if (response.statusCode() == 200) {
                 // Parse SHA from response
@@ -437,7 +449,7 @@ class OfflineDocsService {
 
             // For progress, we'd need content-length, but GitHub redirects...
             // For now, just download
-            val response = httpClient.send(request, HttpResponse.BodyHandlers.ofByteArray())
+            val response = HttpClientPool.client.send(request, HttpResponse.BodyHandlers.ofByteArray())
 
             if (response.statusCode() == 200) {
                 onProgress(100)

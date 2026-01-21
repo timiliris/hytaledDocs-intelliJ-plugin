@@ -1,5 +1,6 @@
 package com.hytaledocs.intellij.services
 
+import com.hytaledocs.intellij.util.HttpClientPool
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.components.Service
 import java.io.BufferedReader
@@ -7,16 +8,17 @@ import java.io.File
 import java.io.FileOutputStream
 import java.io.InputStreamReader
 import java.net.URI
-import java.net.http.HttpClient
 import java.net.http.HttpRequest
 import java.net.http.HttpResponse
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.Paths
 import java.util.concurrent.CompletableFuture
+import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.function.Consumer
 import java.util.zip.ZipInputStream
+import com.intellij.openapi.vfs.LocalFileSystem
 
 @Service(Service.Level.APP)
 class HytaleDownloaderService {
@@ -97,16 +99,12 @@ class HytaleDownloaderService {
             val zipPath = cacheDir.resolve("hytale-downloader.zip")
 
             // Download the zip
-            val client = HttpClient.newBuilder()
-                .followRedirects(HttpClient.Redirect.ALWAYS)
-                .build()
-
             val request = HttpRequest.newBuilder()
                 .uri(URI.create(DOWNLOADER_URL))
                 .GET()
                 .build()
 
-            val response = client.send(request, HttpResponse.BodyHandlers.ofInputStream())
+            val response = HttpClientPool.client.send(request, HttpResponse.BodyHandlers.ofInputStream())
 
             if (response.statusCode() != 200) {
                 throw RuntimeException("Failed to download Hytale Downloader: HTTP ${response.statusCode()}")
@@ -158,6 +156,9 @@ class HytaleDownloaderService {
             // Clean up
             Files.deleteIfExists(zipPath)
 
+            // Refresh VFS to make extracted files visible to IntelliJ
+            LocalFileSystem.getInstance().refreshAndFindFileByPath(cacheDir.toString())
+
             statusCallback?.accept(DownloaderStatus(Stage.EXTRACTING_CLI, 100, "CLI ready!"))
 
             downloaderPath
@@ -181,7 +182,11 @@ class HytaleDownloaderService {
 
             try {
                 // Ensure downloader is available
-                val downloaderPath = ensureDownloader(statusCallback).get()
+                val downloaderPath = ensureDownloader(statusCallback)
+                    .exceptionally { e ->
+                        throw RuntimeException("Failed to download CLI: ${e.message}", e)
+                    }
+                    .get(300, TimeUnit.SECONDS)
 
                 // Create destination directory
                 Files.createDirectories(destinationPath)
@@ -194,12 +199,13 @@ class HytaleDownloaderService {
                     .redirectErrorStream(true)
 
                 currentProcess = processBuilder.start()
+                val process = currentProcess ?: return@supplyAsync false
 
                 // Regex patterns for parsing output
                 val progressRegex = """(\d+)\.?\d*%""".toRegex()
                 val authService = AuthenticationService.getInstance()
 
-                BufferedReader(InputStreamReader(currentProcess!!.inputStream)).use { reader ->
+                BufferedReader(InputStreamReader(process.inputStream)).use { reader ->
                     var line: String?
                     while (reader.readLine().also { line = it } != null) {
                         val currentLine = line ?: continue
@@ -318,6 +324,9 @@ class HytaleDownloaderService {
 
             statusCallback?.accept(DownloaderStatus(Stage.EXTRACTING_SERVER, 100, "Extracted $extractedCount files"))
         }
+
+        // Refresh VFS to make extracted server files visible to IntelliJ
+        LocalFileSystem.getInstance().refreshAndFindFileByPath(destinationPath.toString())
     }
 
     /**

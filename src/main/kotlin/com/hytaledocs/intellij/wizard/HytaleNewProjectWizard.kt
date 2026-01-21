@@ -10,6 +10,9 @@ import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBScrollPane
 import com.intellij.ui.components.JBTextArea
 import com.intellij.ui.components.JBTextField
+import com.intellij.ui.dsl.builder.SegmentedButton
+import com.intellij.ui.dsl.builder.columns
+import com.intellij.ui.dsl.builder.panel
 import com.intellij.util.ui.JBUI
 import java.awt.*
 import javax.swing.*
@@ -32,8 +35,8 @@ class HytaleNewProjectWizard : LanguageGeneratorNewProjectWizard {
 class HytaleProjectWizardStep(parent: NewProjectWizardStep) : AbstractNewProjectWizardStep(parent) {
 
     // Fields
-    private val modNameField = JBTextField("My Hytale Mod")
-    private val modIdField = JBTextField("my-hytale-mod")
+    private val modNameField = JBTextField("MyHytaleMod")
+    private val modIdField = JBTextField("myhytalemod")
     private val packageNameField = JBTextField("com.example.myhytalemod")
     private val commandNameField = JBTextField("mhm")
     private val authorField = JBTextField(System.getProperty("user.name") ?: "Author")
@@ -46,10 +49,8 @@ class HytaleProjectWizardStep(parent: NewProjectWizardStep) : AbstractNewProject
     // Language and Build System
     private var selectedLanguage = "Java"
     private var selectedBuildSystem = "Gradle"
-    private lateinit var kotlinButton: JButton
-    private lateinit var javaButton: JButton
-    private lateinit var gradleButton: JButton
-    private lateinit var mavenButton: JButton
+    private lateinit var languageSegmentedButton: SegmentedButton<String>
+    private lateinit var buildSystemSegmentedButton: SegmentedButton<String>
 
     // Game detection
     private val hytaleInstallation = HytaleModuleBuilder.detectHytaleInstallation()
@@ -88,55 +89,58 @@ class HytaleProjectWizardStep(parent: NewProjectWizardStep) : AbstractNewProject
         })
 
         modIdField.document.addDocumentListener(object : DocumentListener {
-            override fun insertUpdate(e: DocumentEvent) { modIdManuallyEdited = true }
-            override fun removeUpdate(e: DocumentEvent) { modIdManuallyEdited = true }
-            override fun changedUpdate(e: DocumentEvent) { modIdManuallyEdited = true }
+            override fun insertUpdate(e: DocumentEvent) { if (!isUpdatingModId) modIdManuallyEdited = true }
+            override fun removeUpdate(e: DocumentEvent) { if (!isUpdatingModId) modIdManuallyEdited = true }
+            override fun changedUpdate(e: DocumentEvent) { if (!isUpdatingModId) modIdManuallyEdited = true }
         })
 
         packageNameField.document.addDocumentListener(object : DocumentListener {
-            override fun insertUpdate(e: DocumentEvent) { packageNameManuallyEdited = true }
-            override fun removeUpdate(e: DocumentEvent) { packageNameManuallyEdited = true }
-            override fun changedUpdate(e: DocumentEvent) { packageNameManuallyEdited = true }
+            override fun insertUpdate(e: DocumentEvent) { if (!isUpdatingPackageName) packageNameManuallyEdited = true }
+            override fun removeUpdate(e: DocumentEvent) { if (!isUpdatingPackageName) packageNameManuallyEdited = true }
+            override fun changedUpdate(e: DocumentEvent) { if (!isUpdatingPackageName) packageNameManuallyEdited = true }
         })
 
         commandNameField.document.addDocumentListener(object : DocumentListener {
-            override fun insertUpdate(e: DocumentEvent) { commandNameManuallyEdited = true }
-            override fun removeUpdate(e: DocumentEvent) { commandNameManuallyEdited = true }
-            override fun changedUpdate(e: DocumentEvent) { commandNameManuallyEdited = true }
+            override fun insertUpdate(e: DocumentEvent) { if (!isUpdatingCommandName) commandNameManuallyEdited = true }
+            override fun removeUpdate(e: DocumentEvent) { if (!isUpdatingCommandName) commandNameManuallyEdited = true }
+            override fun changedUpdate(e: DocumentEvent) { if (!isUpdatingCommandName) commandNameManuallyEdited = true }
         })
     }
+
+    // Flags to prevent DocumentListener from marking programmatic changes as manual edits
+    private var isUpdatingModId = false
+    private var isUpdatingPackageName = false
+    private var isUpdatingCommandName = false
 
     private fun updateDerivedFields() {
         val name = modNameField.text.trim()
 
         if (!modIdManuallyEdited) {
-            modIdManuallyEdited = false
+            isUpdatingModId = true
             modIdField.text = name.lowercase().replace(Regex("[^a-z0-9]+"), "-").trim('-')
-            modIdManuallyEdited = false
+            isUpdatingModId = false
         }
 
         if (!packageNameManuallyEdited) {
-            packageNameManuallyEdited = false
+            isUpdatingPackageName = true
             packageNameField.text = "com.example." + name.lowercase().replace(Regex("[^a-z0-9]"), "")
-            packageNameManuallyEdited = false
+            isUpdatingPackageName = false
         }
 
         if (!commandNameManuallyEdited) {
             val words = name.split(Regex("\\s+")).filter { it.isNotEmpty() }
             val abbrev = if (words.size > 1) words.map { it.first().lowercaseChar() }.joinToString("")
             else name.lowercase().replace(Regex("[^a-z]"), "").take(3)
-            commandNameManuallyEdited = false
+            isUpdatingCommandName = true
             commandNameField.text = abbrev
-            commandNameManuallyEdited = false
+            isUpdatingCommandName = false
         }
     }
 
     override fun setupUI(builder: com.intellij.ui.dsl.builder.Panel) {
-        if (mainPanel == null) {
-            mainPanel = createMainPanel()
-        }
+        val panel = mainPanel ?: createMainPanel().also { mainPanel = it }
         builder.row {
-            cell(mainPanel!!).align(com.intellij.ui.dsl.builder.Align.FILL)
+            cell(panel).align(com.intellij.ui.dsl.builder.Align.FILL)
         }.resizableRow()
     }
 
@@ -433,144 +437,45 @@ class HytaleProjectWizardStep(parent: NewProjectWizardStep) : AbstractNewProject
         subtitleLabel.border = JBUI.Borders.emptyBottom(20)
         content.add(subtitleLabel)
 
-        // Form
-        val formPanel = JPanel(GridBagLayout())
-        formPanel.isOpaque = false
+        // Use IntelliJ DSL panel for the form with native segmented buttons
+        val formPanel = panel {
+            row("Mod Name:") {
+                cell(modNameField)
+                    .columns(25)
+                    .comment("Names without spaces (e.g., 'MyCoolMod') enable hot reload support")
+            }
+            row("Package:") {
+                cell(packageNameField)
+                    .columns(25)
+                    .comment("Java package name")
+            }
+            row("Language:") {
+                languageSegmentedButton = segmentedButton(listOf("Kotlin", "Java")) { text = it }
+                    .whenItemSelected { selectedLanguage = it }
+                languageSegmentedButton.selectedItem = selectedLanguage
+            }
+            row("Build System:") {
+                buildSystemSegmentedButton = segmentedButton(listOf("Gradle", "Maven")) { text = it }
+                    .whenItemSelected { selectedBuildSystem = it }
+                buildSystemSegmentedButton.selectedItem = selectedBuildSystem
+            }
+            row("Version:") {
+                cell(versionField)
+                    .columns(15)
+                    .comment("Semantic version (e.g., 1.0.0)")
+            }
+            row("Command:") {
+                cell(commandNameField)
+                    .columns(10)
+                    .comment("In-game command shortcut")
+            }
+        }
         formPanel.alignmentX = Component.LEFT_ALIGNMENT
-        val gbc = GridBagConstraints()
-        gbc.insets = JBUI.insets(6, 0, 6, 12)
-        gbc.anchor = GridBagConstraints.WEST
-
-        var row = 0
-        addFormField(formPanel, gbc, row++, "Mod Name", modNameField, "The display name of your mod")
-        addFormField(formPanel, gbc, row++, "Package", packageNameField, "Java package name")
-
-        // Language selection
-        gbc.gridx = 0; gbc.gridy = row; gbc.weightx = 0.0; gbc.fill = GridBagConstraints.NONE
-        formPanel.add(JBLabel("Language:").apply { preferredSize = Dimension(90, 28) }, gbc)
-        gbc.gridx = 1; gbc.weightx = 1.0; gbc.fill = GridBagConstraints.NONE
-        formPanel.add(createLanguageButtons(), gbc)
-        row++
-
-        // Build System selection
-        gbc.gridx = 0; gbc.gridy = row; gbc.weightx = 0.0; gbc.fill = GridBagConstraints.NONE
-        formPanel.add(JBLabel("Build System:").apply { preferredSize = Dimension(90, 28) }, gbc)
-        gbc.gridx = 1; gbc.weightx = 1.0; gbc.fill = GridBagConstraints.NONE
-        formPanel.add(createBuildSystemButtons(), gbc)
-        row++
-
-        // Spacer
-        gbc.gridx = 0; gbc.gridy = row; gbc.gridwidth = 2
-        formPanel.add(Box.createVerticalStrut(8), gbc)
-        gbc.gridwidth = 1
-        row++
-
-        addFormField(formPanel, gbc, row++, "Version", versionField, "Semantic version (e.g., 1.0.0)")
-        addFormField(formPanel, gbc, row++, "Command", commandNameField, "In-game command shortcut")
-
         content.add(formPanel)
         content.add(Box.createVerticalGlue())
 
         panel.add(content, BorderLayout.NORTH)
         return panel
-    }
-
-    private fun createLanguageButtons(): JPanel {
-        val panel = JPanel(FlowLayout(FlowLayout.LEFT, 0, 0))
-        panel.isOpaque = false
-
-        kotlinButton = createToggleButton("Kotlin", selectedLanguage == "Kotlin") {
-            selectedLanguage = "Kotlin"
-            updateLanguageButtons()
-        }
-
-        javaButton = createToggleButton("Java", selectedLanguage == "Java") {
-            selectedLanguage = "Java"
-            updateLanguageButtons()
-        }
-
-        panel.add(kotlinButton)
-        panel.add(Box.createHorizontalStrut(8))
-        panel.add(javaButton)
-
-        return panel
-    }
-
-    private fun createBuildSystemButtons(): JPanel {
-        val panel = JPanel(FlowLayout(FlowLayout.LEFT, 0, 0))
-        panel.isOpaque = false
-
-        gradleButton = createToggleButton("Gradle", selectedBuildSystem == "Gradle") {
-            selectedBuildSystem = "Gradle"
-            updateBuildSystemButtons()
-        }
-
-        mavenButton = createToggleButton("Maven", selectedBuildSystem == "Maven") {
-            selectedBuildSystem = "Maven"
-            updateBuildSystemButtons()
-        }
-
-        panel.add(gradleButton)
-        panel.add(Box.createHorizontalStrut(8))
-        panel.add(mavenButton)
-
-        return panel
-    }
-
-    private fun createToggleButton(text: String, selected: Boolean, onClick: () -> Unit): JButton {
-        val button = JButton(text)
-        button.preferredSize = Dimension(80, 28)
-        button.isFocusPainted = false
-        button.cursor = Cursor.getPredefinedCursor(Cursor.HAND_CURSOR)
-
-        updateToggleButtonStyle(button, selected)
-
-        button.addActionListener {
-            onClick()
-        }
-
-        return button
-    }
-
-    private fun updateToggleButtonStyle(button: JButton, selected: Boolean) {
-        if (selected) {
-            button.background = JBColor(Color(255, 140, 0), Color(255, 165, 50))
-            button.foreground = Color.WHITE
-            button.border = BorderFactory.createLineBorder(JBColor(Color(255, 140, 0), Color(255, 165, 50)), 1)
-        } else {
-            button.background = JBColor(Color(60, 63, 65), Color(60, 63, 65))
-            button.foreground = JBColor(Color(200, 200, 200), Color(180, 180, 180))
-            button.border = BorderFactory.createLineBorder(JBColor(Color(80, 80, 80), Color(80, 80, 80)), 1)
-        }
-    }
-
-    private fun updateLanguageButtons() {
-        updateToggleButtonStyle(kotlinButton, selectedLanguage == "Kotlin")
-        updateToggleButtonStyle(javaButton, selectedLanguage == "Java")
-    }
-
-    private fun updateBuildSystemButtons() {
-        updateToggleButtonStyle(gradleButton, selectedBuildSystem == "Gradle")
-        updateToggleButtonStyle(mavenButton, selectedBuildSystem == "Maven")
-    }
-
-    private fun addFormField(panel: JPanel, gbc: GridBagConstraints, row: Int, label: String, field: JTextField, hint: String) {
-        gbc.gridx = 0
-        gbc.gridy = row
-        gbc.weightx = 0.0
-        gbc.fill = GridBagConstraints.NONE
-
-        val labelComp = JBLabel("$label:")
-        labelComp.preferredSize = Dimension(90, 28)
-        panel.add(labelComp, gbc)
-
-        gbc.gridx = 1
-        gbc.weightx = 1.0
-        gbc.fill = GridBagConstraints.HORIZONTAL
-
-        field.preferredSize = Dimension(300, 28)
-        field.toolTipText = hint
-        panel.add(field, gbc)
     }
 
     private fun createStep3Panel(): JPanel {
@@ -664,16 +569,16 @@ class HytaleProjectWizardStep(parent: NewProjectWizardStep) : AbstractNewProject
         statusRow.add(iconLabel)
         statusRow.add(Box.createHorizontalStrut(10))
 
-        val statusText = if (detected) {
-            val hasJar = hytaleInstallation!!.hasServerJar()
-            val hasAssets = hytaleInstallation.hasAssets()
+        val statusText = hytaleInstallation?.let { installation ->
+            val hasJar = installation.hasServerJar()
+            val hasAssets = installation.hasAssets()
             buildString {
                 append("Hytale detected")
                 if (hasJar && hasAssets) append(" • Server + Assets")
                 else if (hasJar) append(" • Server only")
                 else if (hasAssets) append(" • Assets only")
             }
-        } else "Hytale installation not found"
+        } ?: "Hytale installation not found"
 
         val textLabel = JBLabel(statusText)
         textLabel.font = textLabel.font.deriveFont(Font.BOLD, 13f)

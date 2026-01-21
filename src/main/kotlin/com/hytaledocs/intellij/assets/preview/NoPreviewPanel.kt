@@ -114,11 +114,11 @@ class NoPreviewPanel : JBPanel<NoPreviewPanel>(BorderLayout()) {
         detailsPanel.add(createValueLabel(file.relativePath), gbc)
 
         // Source row (if in ZIP)
-        if (file.isInZip && file.zipSource != null) {
+        file.zipSource?.let { source ->
             gbc.gridx = 0; gbc.gridy = 4
             detailsPanel.add(createDetailLabel("Source:"), gbc)
             gbc.gridx = 1
-            detailsPanel.add(createValueLabel("ZIP: ${file.zipSource!!.zipFile.name}"), gbc)
+            detailsPanel.add(createValueLabel("ZIP: ${source.zipFile.name}"), gbc)
         }
 
         detailsPanel.isVisible = true

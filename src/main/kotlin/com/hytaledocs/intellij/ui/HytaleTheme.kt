@@ -5,7 +5,11 @@ import com.intellij.ide.BrowserUtil
 import com.intellij.ui.JBColor
 import com.intellij.ui.RoundedLineBorder
 import com.intellij.util.ui.JBUI
-import java.awt.*
+import java.awt.BorderLayout
+import java.awt.Component
+import java.awt.Cursor
+import java.awt.Dimension
+import java.awt.Font
 import javax.swing.*
 
 /**
@@ -74,58 +78,16 @@ object HytaleTheme {
     // ==================== FACTORY METHODS ====================
 
     /**
-     * Creates a standard button with pointer cursor and hover effect.
+     * Creates a standard IntelliJ button.
      *
      * @param text Button label text
      * @param icon Optional icon to display
-     * @return Configured JButton instance
+     * @return Configured JButton instance with native IntelliJ styling
      */
     @JvmStatic
     @JvmOverloads
     fun createButton(text: String, icon: Icon? = null): JButton {
-        return object : JButton(text, icon) {
-            private var isHovered = false
-
-            init {
-                cursor = Cursor.getPredefinedCursor(Cursor.HAND_CURSOR)
-                isOpaque = false
-                isFocusPainted = false
-                border = JBUI.Borders.empty(4, 10)
-
-                addMouseListener(object : java.awt.event.MouseAdapter() {
-                    override fun mouseEntered(e: java.awt.event.MouseEvent?) {
-                        isHovered = true
-                        repaint()
-                    }
-                    override fun mouseExited(e: java.awt.event.MouseEvent?) {
-                        isHovered = false
-                        repaint()
-                    }
-                })
-            }
-
-            override fun paintComponent(g: Graphics) {
-                val g2 = g.create() as Graphics2D
-                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
-
-                // Draw hover/pressed background
-                when {
-                    model.isPressed -> {
-                        g2.color = JBColor.namedColor("Button.pressedBackground",
-                            JBColor(Color(0, 0, 0, 40), Color(255, 255, 255, 40)))
-                        g2.fillRoundRect(0, 0, width, height, 6, 6)
-                    }
-                    isHovered -> {
-                        g2.color = JBColor.namedColor("Button.hoverBackground",
-                            JBColor(Color(0, 0, 0, 20), Color(255, 255, 255, 20)))
-                        g2.fillRoundRect(0, 0, width, height, 6, 6)
-                    }
-                }
-
-                g2.dispose()
-                super.paintComponent(g)
-            }
-        }
+        return JButton(text, icon)
     }
 
     /**

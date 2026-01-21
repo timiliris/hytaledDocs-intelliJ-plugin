@@ -3,6 +3,7 @@ package com.hytaledocs.intellij.assets.preview
 import com.hytaledocs.intellij.assets.AssetNode
 import com.hytaledocs.intellij.ui.HytaleTheme
 import com.intellij.icons.AllIcons
+import com.intellij.openapi.Disposable
 import com.intellij.ui.JBColor
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBPanel
@@ -19,10 +20,11 @@ import javax.swing.*
  * Panel for previewing audio files with playback controls.
  * Supports WAV files natively. OGG support requires java-vorbis-support library.
  */
-class AudioPreviewPanel : JBPanel<AudioPreviewPanel>(BorderLayout()) {
+class AudioPreviewPanel : JBPanel<AudioPreviewPanel>(BorderLayout()), Disposable {
 
     private var clip: Clip? = null
     private var currentFile: File? = null
+    private var tempFile: File? = null
     private var updateTimer: Timer? = null
 
     private val playButton = JButton(AllIcons.Actions.Execute)
@@ -128,11 +130,11 @@ class AudioPreviewPanel : JBPanel<AudioPreviewPanel>(BorderLayout()) {
 
         try {
             // Try to open the audio file
-            val audioInputStream = if (file.isInZip && file.zipSource != null) {
+            val audioInputStream = file.zipSource?.let { source ->
                 // Load from ZIP - need to get input stream
-                loadAudioFromZip(file.zipSource!!.zipFile, file.zipSource!!.entryPath, file.extension)
+                loadAudioFromZip(source.zipFile, source.entryPath, file.extension)
                     ?: throw UnsupportedAudioFileException("Cannot load audio from ZIP")
-            } else if (file.extension == "ogg") {
+            } ?: if (file.extension == "ogg") {
                 // OGG files need special handling with java-vorbis-support
                 file.file?.let { tryLoadOgg(it) }
                     ?: throw UnsupportedAudioFileException("OGG format requires java-vorbis-support library")
@@ -200,19 +202,19 @@ class AudioPreviewPanel : JBPanel<AudioPreviewPanel>(BorderLayout()) {
                 val inputStream = BufferedInputStream(zip.getInputStream(entry))
 
                 // Create temp file for audio playback
-                val tempFile = File.createTempFile("hytale_audio_", ".$extension")
-                tempFile.deleteOnExit()
-                tempFile.outputStream().use { out ->
+                val newTempFile = File.createTempFile("hytale_audio_", ".$extension")
+                newTempFile.outputStream().use { out ->
                     inputStream.copyTo(out)
                 }
 
-                // Store temp file reference for cleanup
-                currentFile = tempFile
+                // Store temp file reference for cleanup in dispose()
+                this@AudioPreviewPanel.tempFile = newTempFile
+                currentFile = newTempFile
 
                 if (extension == "ogg") {
-                    tryLoadOgg(tempFile)
+                    tryLoadOgg(newTempFile)
                 } else {
-                    AudioSystem.getAudioInputStream(tempFile)
+                    AudioSystem.getAudioInputStream(newTempFile)
                 }
             }
         } catch (e: Exception) {
@@ -304,6 +306,20 @@ class AudioPreviewPanel : JBPanel<AudioPreviewPanel>(BorderLayout()) {
         val mins = seconds / 60
         val secs = seconds % 60
         return String.format("%02d:%02d", mins, secs)
+    }
+
+    override fun dispose() {
+        stop()
+        tempFile?.let { file ->
+            try {
+                file.delete()
+            } catch (e: Exception) {
+                // ignore
+            }
+        }
+        tempFile = null
+        updateTimer?.stop()
+        updateTimer = null
     }
 
     /**

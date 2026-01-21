@@ -125,18 +125,18 @@ class AuthenticationService {
         // Authentication can be persisted with /auth persistence Encrypted, so we only prompt once
         // Log format: [2026/01/17 20:01:43   WARN]                   [HytaleServer] No server tokens configured...
         if (line.contains("WARN") && line.contains("[HytaleServer]") && line.contains("No server tokens configured")) {
-            LOG.info("[HDDT Auth] Auth required detected: $line")
+            LOG.info("[HytaleDocs] Auth required detected: $line")
 
             // Only start session and trigger auth if not already authenticating
             if (!isAuthenticating()) {
                 startSession(AuthSource.SERVER, project)
                 // Auto-trigger the auth command with longer delay to ensure server is fully ready
                 if (project != null) {
-                    LOG.info("[HDDT Auth] Auto-triggering /auth login device (waiting ${AUTH_TRIGGER_DELAY_MS}ms)")
+                    LOG.info("[HytaleDocs] Auto-triggering /auth login device (waiting ${AUTH_TRIGGER_DELAY_MS}ms)")
                     ApplicationManager.getApplication().executeOnPooledThread {
                         Thread.sleep(AUTH_TRIGGER_DELAY_MS)
                         if (isAuthenticating()) {
-                            LOG.info("[HDDT Auth] Sending /auth login device command")
+                            LOG.info("[HytaleDocs] Sending /auth login device command")
                             triggerServerAuth(project)
                         }
                     }
@@ -150,7 +150,7 @@ class AuthenticationService {
         urlWithCodePattern.find(line)?.let { match ->
             val fullUrl = match.groupValues[1]
             val code = match.groupValues[2]
-            LOG.info("[HDDT Auth] Device code from URL: $code")
+            LOG.info("[HytaleDocs] Device code from URL: $code")
             handleDeviceCode(code, fullUrl, AuthSource.SERVER, project)
             return true
         }
@@ -171,7 +171,7 @@ class AuthenticationService {
                 val code = match.groupValues[1]
                 if (code.length >= 6) {
                     val url = "$VERIFICATION_URL?user_code=$code"
-                    LOG.info("[HDDT Auth] Device code detected: $code")
+                    LOG.info("[HytaleDocs] Device code detected: $code")
                     handleDeviceCode(code, url, AuthSource.SERVER, project)
                     return true
                 }
@@ -196,7 +196,7 @@ class AuthenticationService {
             )
 
             if (successPatterns.any { line.contains(it, ignoreCase = true) }) {
-                LOG.info("[HDDT Auth] Auth success detected: $line")
+                LOG.info("[HytaleDocs] Auth success detected: $line")
                 handleAuthSuccess(AuthSource.SERVER, project)
                 return true
             }
@@ -213,7 +213,7 @@ class AuthenticationService {
         )
 
         if (failurePatterns.any { line.contains(it, ignoreCase = true) }) {
-            LOG.info("[HDDT Auth] Auth failure detected: $line")
+            LOG.info("[HytaleDocs] Auth failure detected: $line")
             handleAuthFailed(line, AuthSource.SERVER, project)
             return true
         }
@@ -340,7 +340,7 @@ class AuthenticationService {
                 Thread.sleep(1000) // Wait a bit for auth to be fully processed
                 val launchService = ServerLaunchService.getInstance(project)
                 if (launchService.isServerRunning()) {
-                    LOG.info("[HDDT Auth] Persisting authentication with /auth persistence Encrypted")
+                    LOG.info("[HytaleDocs] Persisting authentication with /auth persistence Encrypted")
                     launchService.sendCommand("/auth persistence Encrypted")
                 }
             }
@@ -421,7 +421,7 @@ class AuthenticationService {
                 try {
                     callback.onStateChange.accept(session)
                 } catch (e: Exception) {
-                    // Ignore callback errors
+                    LOG.warn("Error notifying auth callback for project ${callback.project?.name}", e)
                 }
             }
         }
@@ -437,7 +437,7 @@ class AuthenticationService {
                 .createNotification(title, content, type)
                 .notify(project)
         } catch (e: Exception) {
-            // Ignore notification errors
+            LOG.warn("Failed to show notification: $title - $content", e)
         }
     }
 }

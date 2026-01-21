@@ -26,6 +26,7 @@ import com.intellij.util.ui.JBUI
 import com.intellij.util.ui.UIUtil
 import java.awt.*
 import java.nio.file.Paths
+import java.util.concurrent.TimeUnit
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
 import javax.swing.*
@@ -95,9 +96,9 @@ class HytaleToolWindowPanel(
         tabbedPane.addTab("Server", createServerTab())
         tabbedPane.addTab("Console", createConsoleTab())
         tabbedPane.addTab("Assets", AssetsExplorerPanel(project))
-        tabbedPane.addTab("Resources", createResourcesTab())
         tabbedPane.addTab("Docs", DocumentationPanel(project))
         tabbedPane.addTab("AI", AIAssistantPanel(project))
+        tabbedPane.addTab("Infos", createResourcesTab())
 
         add(tabbedPane, BorderLayout.CENTER)
 
@@ -333,11 +334,7 @@ class HytaleToolWindowPanel(
         return card
     }
 
-    private fun createStatLabel(text: String): JLabel {
-        return JLabel(text).apply {
-            foreground = HytaleTheme.mutedText
-        }
-    }
+    private fun createStatLabel(text: String): JLabel = PanelUtils.createStatLabel(text)
 
     private fun createQuickSettingsCard(): JPanel {
         val card = HytaleTheme.createCard("Quick Settings")
@@ -498,10 +495,11 @@ class HytaleToolWindowPanel(
     }
 
     private fun createLinksCard(): JPanel {
-        val card = HytaleTheme.createCard("Documentation")
-        card.maximumSize = Dimension(Int.MAX_VALUE, JBUI.scale(180))
+        val card = HytaleTheme.createCard("Documentation & Community")
+        card.maximumSize = Dimension(Int.MAX_VALUE, JBUI.scale(220))
 
         val links = listOf(
+            Triple("Discord", "Join the HytaleDocs community", "https://discord.gg/yAjaFBH4Y8"),
             Triple("Hytale Docs", "Community documentation", "https://hytale-docs.com"),
             Triple("API Reference", "Server API documentation", "https://hytale-docs.com/api"),
             Triple("Plugin Guide", "Getting started with plugins", "https://hytale-docs.com/modding/plugins/project-setup"),
@@ -713,7 +711,7 @@ class HytaleToolWindowPanel(
                         notify("Failed to install Java: ${e.message}", NotificationType.ERROR)
                     }
                     null
-                }.get()
+                }.get(120, TimeUnit.SECONDS)
             }
         })
     }
@@ -773,7 +771,7 @@ class HytaleToolWindowPanel(
                         notify("Download failed: ${e.message}", NotificationType.ERROR)
                     }
                     null
-                }.get()
+                }.get(300, TimeUnit.SECONDS)
             }
         })
     }
@@ -917,16 +915,13 @@ class HytaleToolWindowPanel(
         doc.insertString(doc.length, text, colorStyle)
     }
 
-    private fun notify(message: String, type: NotificationType) {
-        NotificationGroupManager.getInstance()
-            .getNotificationGroup("Hytale Plugin")
-            .createNotification("Hytale", message, type)
-            .notify(project)
-    }
+    private fun notify(message: String, type: NotificationType) =
+        PanelUtils.notify(project, "Hytale", message, type)
 
     override fun dispose() {
         statsTimer?.stop()
         statsTimer = null
+        authPanel.dispose()
         authService.unregisterCallbacks(project)
     }
 }

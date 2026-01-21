@@ -14,18 +14,11 @@ import com.intellij.util.ProcessingContext
 /**
  * Provides completion for Hytale plugin lifecycle methods.
  * Suggests override methods like setup(), start(), shutdown() in plugin classes.
+ *
+ * Note: This provider is only invoked when the containing class extends JavaPlugin or PluginBase,
+ * as filtered by the pattern condition in HytaleCompletionContributor.
  */
 class PluginMethodCompletionProvider : CompletionProvider<CompletionParameters>() {
-
-    companion object {
-        private const val JAVA_PLUGIN_CLASS = "com.hypixel.hytale.server.core.plugin.JavaPlugin"
-        private const val PLUGIN_BASE_CLASS = "com.hypixel.hytale.server.core.plugin.PluginBase"
-
-        private val PLUGIN_CLASS_NAMES = setOf(
-            "JavaPlugin",
-            "PluginBase"
-        )
-    }
 
     override fun addCompletions(
         parameters: CompletionParameters,
@@ -35,10 +28,8 @@ class PluginMethodCompletionProvider : CompletionProvider<CompletionParameters>(
         val position = parameters.position
         val containingClass = PsiTreeUtil.getParentOfType(position, PsiClass::class.java) ?: return
 
-        // Check if the class extends JavaPlugin or PluginBase
-        if (!isPluginClass(containingClass)) {
-            return
-        }
+        // Note: Plugin class check is already done at pattern level in HytaleCompletionContributor
+        // via pluginClassCondition(), so we don't need to check again here.
 
         val dataService = ServerDataService.getInstance()
         val lifecycleMethods = dataService.getLifecycleMethods()
@@ -61,30 +52,6 @@ class PluginMethodCompletionProvider : CompletionProvider<CompletionParameters>(
     }
 
     /**
-     * Check if the class extends JavaPlugin or PluginBase.
-     */
-    private fun isPluginClass(psiClass: PsiClass): Boolean {
-        var currentClass: PsiClass? = psiClass
-
-        while (currentClass != null) {
-            val superClass = currentClass.superClass
-            if (superClass != null) {
-                val superName = superClass.qualifiedName
-                if (superName == JAVA_PLUGIN_CLASS || superName == PLUGIN_BASE_CLASS) {
-                    return true
-                }
-                if (PLUGIN_CLASS_NAMES.contains(superClass.name)) {
-                    return true
-                }
-            }
-            currentClass = superClass
-        }
-
-        // Also check interface implementations (unlikely but possible)
-        return false
-    }
-
-    /**
      * Create a lookup element for a lifecycle method with full override implementation.
      */
     private fun createLifecycleMethodLookupElement(
@@ -93,7 +60,6 @@ class PluginMethodCompletionProvider : CompletionProvider<CompletionParameters>(
     ): LookupElement {
         val signature = method.signature
         val returnType = extractReturnType(signature)
-        val params = extractParameters(signature)
         val methodName = method.name
 
         val description = method.description ?: "Plugin lifecycle method"
@@ -128,8 +94,6 @@ class PluginMethodCompletionProvider : CompletionProvider<CompletionParameters>(
         // Generate the override method code
         val returnType = extractReturnType(method.signature)
         val methodName = method.name
-        val isVoid = returnType == "void"
-        val hasReturn = returnType.contains("CompletableFuture")
 
         val methodCode = buildString {
             append("\n    @Override\n")

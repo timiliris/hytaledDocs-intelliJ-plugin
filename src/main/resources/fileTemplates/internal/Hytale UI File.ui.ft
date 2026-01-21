@@ -1,0 +1,22 @@
+// Hytale UI Definition: ${NAME}
+// Controller: ${NAME}Controller.java
+
+Group #${NAME}Root {
+  Anchor: (Width: 400, Height: 300);
+  Background: #1a1a2e(0.95);
+  LayoutMode: Top;
+  Padding: (Full: 16);
+
+  Label #Title {
+    Text: "${NAME}";
+    Anchor: (Height: 32);
+    Style: (
+      FontSize: 18,
+      TextColor: #ffffff,
+      RenderBold: true,
+      HorizontalAlignment: Center
+    );
+  }
+
+  // Add your UI components here
+}

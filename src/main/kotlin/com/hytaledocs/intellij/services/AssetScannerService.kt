@@ -1,12 +1,15 @@
 package com.hytaledocs.intellij.services
 
 import com.hytaledocs.intellij.assets.*
-import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.vfs.LocalFileSystem
 import com.intellij.openapi.vfs.VirtualFile
+import com.intellij.psi.util.CachedValue
+import com.intellij.psi.util.CachedValueProvider
+import com.intellij.psi.util.CachedValuesManager
+import com.intellij.util.concurrency.annotations.RequiresReadLock
 import java.io.File
 import java.util.concurrent.CompletableFuture
 import java.util.zip.ZipFile
@@ -56,11 +59,37 @@ class AssetScannerService(private val project: Project) {
     @Volatile
     private var cachedStats: AssetStats = AssetStats.EMPTY
 
-    @Volatile
-    private var cachedByType: AssetNode.RootNode? = null
+    /**
+     * Data class to hold both tree views and stats from a single scan operation.
+     */
+    private data class ScanResult(
+        val byType: AssetNode.RootNode,
+        val byFolder: AssetNode.RootNode,
+        val stats: AssetStats,
+        val allFiles: List<AssetNode.FileNode>
+    )
 
+    /**
+     * Cached scan result using IntelliJ's CachedValue for automatic invalidation.
+     * The cache is invalidated when clearCache() is called by setting a new modification tracker.
+     */
     @Volatile
-    private var cachedByFolder: AssetNode.RootNode? = null
+    private var cacheModificationCount = 0L
+
+    private val cachedScanResult: CachedValue<ScanResult?> = CachedValuesManager.getManager(project).createCachedValue {
+        val result = performSynchronousScan()
+        if (result != null) {
+            cachedStats = result.stats
+        }
+        CachedValueProvider.Result.create(result, ModificationTracker { cacheModificationCount })
+    }
+
+    /**
+     * Simple modification tracker that can be incremented to invalidate the cache.
+     */
+    private fun interface ModificationTracker : com.intellij.openapi.util.ModificationTracker {
+        override fun getModificationCount(): Long
+    }
 
     /**
      * Check if a scan is currently in progress.
@@ -90,56 +119,109 @@ class AssetScannerService(private val project: Project) {
 
     /**
      * Scan assets and return a tree organized by type.
+     * Uses CachedValue for efficient caching with automatic invalidation.
      */
     fun scanByType(
         forceRefresh: Boolean = false,
         onProgress: ((Int, String) -> Unit)? = null
     ): CompletableFuture<AssetNode.RootNode> {
-        if (!forceRefresh && cachedByType != null) {
-            return CompletableFuture.completedFuture(cachedByType!!)
+        if (forceRefresh) {
+            clearCache()
         }
 
-        return scanAssets(AssetViewMode.BY_TYPE, onProgress).thenApply { root ->
-            cachedByType = root
-            root
+        // Check if we have a cached result
+        val cached = cachedScanResult.value
+        if (cached != null) {
+            onProgress?.invoke(100, "Found ${cached.allFiles.size} assets (cached)")
+            return CompletableFuture.completedFuture(cached.byType)
+        }
+
+        // Perform async scan with progress reporting
+        return scanAssetsAsync(onProgress).thenApply { result ->
+            result?.byType ?: AssetNode.RootNode()
         }
     }
 
     /**
      * Scan assets and return a tree organized by folder.
+     * Uses CachedValue for efficient caching with automatic invalidation.
      */
     fun scanByFolder(
         forceRefresh: Boolean = false,
         onProgress: ((Int, String) -> Unit)? = null
     ): CompletableFuture<AssetNode.RootNode> {
-        if (!forceRefresh && cachedByFolder != null) {
-            return CompletableFuture.completedFuture(cachedByFolder!!)
+        if (forceRefresh) {
+            clearCache()
         }
 
-        return scanAssets(AssetViewMode.BY_FOLDER, onProgress).thenApply { root ->
-            cachedByFolder = root
-            root
+        // Check if we have a cached result
+        val cached = cachedScanResult.value
+        if (cached != null) {
+            onProgress?.invoke(100, "Found ${cached.allFiles.size} assets (cached)")
+            return CompletableFuture.completedFuture(cached.byFolder)
+        }
+
+        // Perform async scan with progress reporting
+        return scanAssetsAsync(onProgress).thenApply { result ->
+            result?.byFolder ?: AssetNode.RootNode()
         }
     }
 
     /**
-     * Clear the cached scan results.
+     * Clear the cached scan results by incrementing the modification counter.
      */
     fun clearCache() {
-        cachedByType = null
-        cachedByFolder = null
+        cacheModificationCount++
         cachedStats = AssetStats.EMPTY
     }
 
     /**
-     * Main scan method that populates the asset tree.
+     * Perform a synchronous scan of assets. Called by the CachedValue provider.
      */
-    private fun scanAssets(
-        viewMode: AssetViewMode,
+    @RequiresReadLock
+    private fun performSynchronousScan(): ScanResult? {
+        val resourcesDir = getResourcesDirectory() ?: return null
+
+        val allFiles = mutableListOf<AssetNode.FileNode>()
+
+        // Collect all asset files from directory
+        collectAssetFiles(resourcesDir, resourcesDir, allFiles, null)
+
+        // Scan ZIP files for assets
+        val zipFiles = findAssetZipFiles(resourcesDir)
+        for (zipFile in zipFiles) {
+            collectAssetsFromZip(zipFile, allFiles, null)
+        }
+
+        // Build both trees
+        val byTypeRoot = AssetNode.RootNode()
+        val byFolderRoot = AssetNode.RootNode()
+
+        buildByTypeTree(byTypeRoot, allFiles)
+        buildByFolderTree(byFolderRoot, allFiles, resourcesDir)
+
+        // Calculate statistics
+        val byType = allFiles.groupBy { it.assetType }.mapValues { it.value.size }
+        val stats = AssetStats(
+            totalFiles = allFiles.size,
+            totalSize = allFiles.sumOf { it.size },
+            byType = byType
+        )
+
+        LOG.info("Scanned ${allFiles.size} assets in ${resourcesDir.path}")
+
+        return ScanResult(byTypeRoot, byFolderRoot, stats, allFiles)
+    }
+
+    /**
+     * Perform an asynchronous scan with progress reporting.
+     * This populates the CachedValue and returns the result.
+     */
+    private fun scanAssetsAsync(
         onProgress: ((Int, String) -> Unit)?
-    ): CompletableFuture<AssetNode.RootNode> {
+    ): CompletableFuture<ScanResult?> {
         if (isScanning) {
-            return CompletableFuture.completedFuture(AssetNode.RootNode())
+            return CompletableFuture.completedFuture(cachedScanResult.value)
         }
 
         isScanning = true
@@ -150,12 +232,11 @@ class AssetScannerService(private val project: Project) {
                 if (resourcesDir == null) {
                     LOG.info("No resources directory found")
                     onProgress?.invoke(100, "No resources directory found")
-                    return@supplyAsync AssetNode.RootNode()
+                    return@supplyAsync null
                 }
 
                 onProgress?.invoke(0, "Scanning ${resourcesDir.name}...")
 
-                val root = AssetNode.RootNode()
                 val allFiles = mutableListOf<AssetNode.FileNode>()
 
                 // Collect all asset files from directory
@@ -171,28 +252,34 @@ class AssetScannerService(private val project: Project) {
 
                 onProgress?.invoke(70, "Building tree...")
 
-                // Build tree based on view mode
-                when (viewMode) {
-                    AssetViewMode.BY_TYPE -> buildByTypeTree(root, allFiles)
-                    AssetViewMode.BY_FOLDER -> buildByFolderTree(root, allFiles, resourcesDir)
-                }
+                // Build both trees
+                val byTypeRoot = AssetNode.RootNode()
+                val byFolderRoot = AssetNode.RootNode()
+
+                buildByTypeTree(byTypeRoot, allFiles)
+                buildByFolderTree(byFolderRoot, allFiles, resourcesDir)
 
                 // Calculate statistics
                 val byType = allFiles.groupBy { it.assetType }.mapValues { it.value.size }
-                cachedStats = AssetStats(
+                val stats = AssetStats(
                     totalFiles = allFiles.size,
                     totalSize = allFiles.sumOf { it.size },
                     byType = byType
                 )
+                cachedStats = stats
 
                 onProgress?.invoke(100, "Found ${allFiles.size} assets")
 
                 LOG.info("Scanned ${allFiles.size} assets in ${resourcesDir.path}")
-                root
+
+                val result = ScanResult(byTypeRoot, byFolderRoot, stats, allFiles)
+                // Force cache refresh by incrementing and then allowing CachedValue to recompute
+                cacheModificationCount++
+                result
             } catch (e: Exception) {
                 LOG.error("Error scanning assets", e)
                 onProgress?.invoke(100, "Error: ${e.message}")
-                AssetNode.RootNode()
+                null
             } finally {
                 isScanning = false
             }

@@ -1,9 +1,10 @@
 package com.hytaledocs.intellij.services
 
+import com.intellij.openapi.Disposable
 import com.intellij.openapi.components.Service
+import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.project.Project
 import java.io.BufferedReader
-import java.io.File
 import java.io.InputStreamReader
 import java.nio.file.Files
 import java.nio.file.Path
@@ -11,14 +12,31 @@ import java.time.Duration
 import java.time.Instant
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CompletableFuture
+import java.util.concurrent.ExecutorService
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.function.Consumer
 
 @Service(Service.Level.PROJECT)
-class ServerLaunchService(private val project: Project) {
+class ServerLaunchService(private val project: Project) : Disposable {
+
+    /**
+     * ExecutorService with daemon threads for background server monitoring tasks.
+     * Using a cached thread pool since we typically have 2 threads (log reader + process monitor).
+     */
+    private val executorService: ExecutorService = Executors.newCachedThreadPool { runnable ->
+        Thread(runnable).apply {
+            isDaemon = true
+            name = "HytaleServer-${threadCount.incrementAndGet()}"
+        }
+    }
 
     companion object {
+        private val LOG = Logger.getInstance(ServerLaunchService::class.java)
+        private val threadCount = AtomicInteger(0)
+
         const val DEFAULT_MIN_MEMORY = "2G"
         const val DEFAULT_MAX_MEMORY = "8G"
         const val DEFAULT_PORT = 5520
@@ -93,42 +111,13 @@ class ServerLaunchService(private val project: Project) {
     fun getConnectedPlayers(): Set<String> = connectedPlayers.toSet()
 
     fun getStats(): ServerStats {
-        val memoryMB = try {
-            serverProcess?.toHandle()?.info()?.let { info ->
-                // Try to get memory from process - this is limited on some platforms
-                null // Java ProcessHandle doesn't provide memory directly
-            }
-        } catch (e: Exception) {
-            null
-        }
-
         return ServerStats(
             status = status,
             uptime = startTime?.let { Duration.between(it, Instant.now()) },
             playerCount = playerCount.get(),
-            memoryUsageMB = memoryMB,
+            memoryUsageMB = null, // Java ProcessHandle doesn't provide memory directly
             cpuUsagePercent = null
         )
-    }
-
-    // Deprecated: Use AuthenticationService instead
-    @Deprecated("Use AuthenticationService.registerCallback instead")
-    fun setAuthCallback(callback: Consumer<AuthEvent>?) {
-        // No-op, kept for compatibility
-    }
-
-    data class AuthEvent(
-        val type: AuthEventType,
-        val deviceCode: String? = null,
-        val verificationUrl: String? = null,
-        val message: String? = null
-    )
-
-    enum class AuthEventType {
-        AUTH_REQUIRED,
-        DEVICE_CODE,
-        AUTH_SUCCESS,
-        AUTH_FAILED
     }
 
     fun needsAuthentication(): Boolean {
@@ -226,32 +215,45 @@ class ServerLaunchService(private val project: Project) {
                 playerCount.set(0)
                 connectedPlayers.clear()
 
-                // Start log reader thread
-                Thread {
+                // Capture process reference for safe access in background threads
+                val process = serverProcess
+                if (process == null) {
+                    logCallback?.accept("Failed to start server: process is null")
+                    status = ServerStatus.ERROR
+                    statusCallback?.accept(status)
+                    isRunning.set(false)
+                    return@supplyAsync false
+                }
+
+                // Start log reader task using ExecutorService with daemon threads
+                executorService.submit {
                     try {
-                        BufferedReader(InputStreamReader(serverProcess!!.inputStream)).use { reader ->
+                        BufferedReader(InputStreamReader(process.inputStream)).use { reader ->
                             var line: String?
                             while (reader.readLine().also { line = it } != null) {
-                                logCallback?.accept(line!!)
-                                parseLogForPlayers(line!!)
+                                val currentLine = line ?: continue
+                                logCallback?.accept(currentLine)
+                                parseLogForPlayers(currentLine)
 
                                 // Detect server boot
-                                if (line!!.contains("Hytale Server Booted!") ||
-                                    line!!.contains("Server started")) {
+                                if (currentLine.contains("Hytale Server Booted!") ||
+                                    currentLine.contains("Server started")) {
                                     status = ServerStatus.RUNNING
                                     statusCallback?.accept(status)
                                 }
                             }
                         }
                     } catch (e: Exception) {
-                        logCallback?.accept("Error reading logs: ${e.message}")
+                        if (isRunning.get()) {
+                            logCallback?.accept("Error reading logs: ${e.message}")
+                        }
                     }
-                }.start()
+                }
 
-                // Wait for process to complete (in background)
-                Thread {
+                // Wait for process to complete (in background) using ExecutorService
+                executorService.submit {
                     try {
-                        val exitCode = serverProcess?.waitFor() ?: -1
+                        val exitCode = process.waitFor()
                         isRunning.set(false)
                         status = ServerStatus.STOPPED
                         startTime = null
@@ -260,6 +262,11 @@ class ServerLaunchService(private val project: Project) {
                         statusCallback?.accept(status)
                         logCallback?.accept("")
                         logCallback?.accept("Server stopped with exit code: $exitCode")
+                    } catch (e: InterruptedException) {
+                        Thread.currentThread().interrupt()
+                        isRunning.set(false)
+                        status = ServerStatus.STOPPED
+                        startTime = null
                     } catch (e: Exception) {
                         isRunning.set(false)
                         status = ServerStatus.ERROR
@@ -267,7 +274,7 @@ class ServerLaunchService(private val project: Project) {
                         statusCallback?.accept(status)
                         logCallback?.accept("Server error: ${e.message}")
                     }
-                }.start()
+                }
 
                 true
             } catch (e: Exception) {
@@ -327,15 +334,22 @@ class ServerLaunchService(private val project: Project) {
      * Sends a command to the running server's stdin.
      */
     fun sendCommand(command: String): Boolean {
-        if (!isRunning.get()) return false
+        if (!isRunning.get()) {
+            LOG.warn("Cannot send command '$command': server is not running")
+            return false
+        }
 
         return try {
             serverProcess?.outputStream?.let { stream ->
                 stream.write("$command\n".toByteArray())
                 stream.flush()
                 true
-            } ?: false
+            } ?: run {
+                LOG.warn("Cannot send command '$command': server process output stream is null")
+                false
+            }
         } catch (e: Exception) {
+            LOG.warn("Failed to send command '$command' to server", e)
             false
         }
     }
@@ -404,5 +418,40 @@ class ServerLaunchService(private val project: Project) {
             serverPath = serverPath,
             javaPath = javaPath
         )
+    }
+
+    /**
+     * Cleans up resources when the service is disposed.
+     * Stops the server if running and shuts down the executor service.
+     */
+    override fun dispose() {
+        // Stop the server if it's running
+        if (isRunning.get()) {
+            serverProcess?.let { process ->
+                try {
+                    process.outputStream.write("stop\n".toByteArray())
+                    process.outputStream.flush()
+                    if (!process.waitFor(5, TimeUnit.SECONDS)) {
+                        process.destroyForcibly()
+                    }
+                } catch (e: Exception) {
+                    process.destroyForcibly()
+                }
+            }
+            isRunning.set(false)
+            status = ServerStatus.STOPPED
+        }
+
+        // Shutdown the executor service gracefully
+        executorService.shutdown()
+        try {
+            if (!executorService.awaitTermination(5, TimeUnit.SECONDS)) {
+                executorService.shutdownNow()
+                executorService.awaitTermination(2, TimeUnit.SECONDS)
+            }
+        } catch (e: InterruptedException) {
+            executorService.shutdownNow()
+            Thread.currentThread().interrupt()
+        }
     }
 }

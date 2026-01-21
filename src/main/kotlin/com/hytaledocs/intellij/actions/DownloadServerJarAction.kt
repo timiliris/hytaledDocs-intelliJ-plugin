@@ -9,6 +9,7 @@ import com.intellij.openapi.progress.ProgressIndicator
 import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.progress.Task
 import java.nio.file.Paths
+import java.util.concurrent.TimeUnit
 
 class DownloadServerJarAction : AnAction() {
 
@@ -33,7 +34,9 @@ class DownloadServerJarAction : AnAction() {
                     downloadService.downloadServerJar(serverPath) { progress ->
                         indicator.fraction = progress.progress / 100.0
                         indicator.text = progress.message
-                    }.get()
+                    }.exceptionally { e ->
+                        throw RuntimeException("Download failed: ${e.message}", e)
+                    }.get(60, TimeUnit.SECONDS)
 
                     NotificationGroupManager.getInstance()
                         .getNotificationGroup("Hytale Plugin")

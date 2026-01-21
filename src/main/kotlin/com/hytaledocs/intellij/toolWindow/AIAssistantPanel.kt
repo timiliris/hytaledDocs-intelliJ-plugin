@@ -12,6 +12,7 @@ import com.intellij.ui.RoundedLineBorder
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBPanel
 import com.intellij.ui.components.JBScrollPane
+import com.intellij.ui.dsl.builder.panel
 import com.intellij.util.ui.JBUI
 import com.intellij.util.ui.UIUtil
 import java.awt.*
@@ -242,12 +243,7 @@ class AIAssistantPanel(private val project: Project) : JBPanel<AIAssistantPanel>
         return card
     }
 
-    private fun createStatLabel(text: String): JLabel {
-        return JLabel(text).apply {
-            foreground = HytaleTheme.mutedText
-            preferredSize = Dimension(JBUI.scale(80), preferredSize.height)
-        }
-    }
+    private fun createStatLabel(text: String): JLabel = PanelUtils.createStatLabel(text, 80)
 
     private fun refreshCacheStatus() {
         val status = docsService.getCacheStatus()
@@ -798,10 +794,6 @@ class AIAssistantPanel(private val project: Project) : JBPanel<AIAssistantPanel>
 
     // ==================== UTILITY ====================
 
-    private fun notify(message: String, type: NotificationType) {
-        NotificationGroupManager.getInstance()
-            .getNotificationGroup("Hytale Plugin")
-            .createNotification("Hytale AI", message, type)
-            .notify(project)
-    }
+    private fun notify(message: String, type: NotificationType) =
+        PanelUtils.notify(project, "Hytale AI", message, type)
 }

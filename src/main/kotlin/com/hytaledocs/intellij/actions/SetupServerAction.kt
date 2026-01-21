@@ -17,6 +17,7 @@ import com.intellij.ui.components.JBLabel
 import com.intellij.util.ui.JBUI
 import java.awt.BorderLayout
 import java.nio.file.Paths
+import java.util.concurrent.TimeUnit
 import javax.swing.BoxLayout
 import javax.swing.JComponent
 import javax.swing.JPanel
@@ -59,7 +60,9 @@ class SetupServerAction : AnAction() {
                             val scaledProgress = (progress.progress / 100.0) * (javaWeight / totalWeight)
                             indicator.fraction = scaledProgress
                             indicator.text = progress.message
-                        }.get()
+                        }.exceptionally { e ->
+                            throw RuntimeException("Java installation failed: ${e.message}", e)
+                        }.get(120, TimeUnit.SECONDS)
 
                         currentProgress = javaWeight / totalWeight
                         notify(project, "Java 25 installed successfully!", NotificationType.INFORMATION)
@@ -105,7 +108,9 @@ class SetupServerAction : AnAction() {
                                     indicator.text = status.message
                                 }
                             }
-                        }.get()
+                        }.exceptionally { e ->
+                            throw RuntimeException("Server download failed: ${e.message}", e)
+                        }.get(120, TimeUnit.SECONDS)
 
                         notify(project, "Server files downloaded successfully!", NotificationType.INFORMATION)
                     }

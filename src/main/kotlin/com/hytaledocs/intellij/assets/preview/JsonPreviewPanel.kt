@@ -83,10 +83,10 @@ class JsonPreviewPanel : JBPanel<JsonPreviewPanel>(BorderLayout()) {
      */
     fun loadFile(file: AssetNode.FileNode) {
         try {
-            val content = if (file.isInZip && file.zipSource != null) {
+            val content = file.zipSource?.let { source ->
                 // Load from ZIP
-                loadTextFromZip(file.zipSource!!.zipFile, file.zipSource!!.entryPath)
-            } else {
+                loadTextFromZip(source.zipFile, source.entryPath)
+            } ?: run {
                 // Load from file system
                 file.file?.readText() ?: ""
             }

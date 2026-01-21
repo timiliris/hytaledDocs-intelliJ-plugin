@@ -49,7 +49,15 @@ class HytaleServerSettings : PersistentStateComponent<HytaleServerSettings.State
         // Console settings
         var maxLogLines: Int = 5000,
         var autoScroll: Boolean = true,
-        var showTimestamps: Boolean = true
+        var showTimestamps: Boolean = true,
+
+        // Asset sync settings
+        var serverAssetPath: String = "assets",      // Relative path to server assets folder
+        var syncExcludePatterns: String = "",        // Glob patterns to exclude (comma-separated)
+        var lastSyncTimestamp: Long = 0,             // Timestamp of last sync
+
+        // Feature toggles
+        var uiFileSupportEnabled: Boolean = true     // Enable/disable .ui file support (syntax highlighting, completion, etc.)
     )
 
     private var myState = State()
@@ -120,6 +128,22 @@ class HytaleServerSettings : PersistentStateComponent<HytaleServerSettings.State
     var showTimestamps: Boolean
         get() = myState.showTimestamps
         set(value) { myState.showTimestamps = value }
+
+    var serverAssetPath: String
+        get() = myState.serverAssetPath
+        set(value) { myState.serverAssetPath = value }
+
+    var syncExcludePatterns: String
+        get() = myState.syncExcludePatterns
+        set(value) { myState.syncExcludePatterns = value }
+
+    var lastSyncTimestamp: Long
+        get() = myState.lastSyncTimestamp
+        set(value) { myState.lastSyncTimestamp = value }
+
+    var uiFileSupportEnabled: Boolean
+        get() = myState.uiFileSupportEnabled
+        set(value) { myState.uiFileSupportEnabled = value }
 
     companion object {
         fun getInstance(project: Project): HytaleServerSettings {

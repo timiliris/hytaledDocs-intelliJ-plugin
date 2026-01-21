@@ -3,22 +3,31 @@ package ${PACKAGE_NAME};
 import com.hypixel.hytale.event.EventRegistry;
 import com.hypixel.hytale.server.core.event.events.player.PlayerConnectEvent;
 import com.hypixel.hytale.server.core.event.events.player.PlayerDisconnectEvent;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import com.hypixel.hytale.logger.HytaleLogger;
 
+import java.util.logging.Level;
+
+/**
+ * ${NAME} - Event listener for player events.
+ */
 public class ${NAME} {
 
-    private static final Logger LOGGER = LoggerFactory.getLogger(${NAME}.class);
+    private static final HytaleLogger LOGGER = HytaleLogger.forEnclosingClass();
 
-    public static void register(EventRegistry eventBus) {
-        eventBus.register(PlayerConnectEvent.class, event -> {
+    /**
+     * Registers all event listeners.
+     *
+     * @param eventRegistry The event registry to register listeners with
+     */
+    public static void register(EventRegistry eventRegistry) {
+        eventRegistry.register(PlayerConnectEvent.class, event -> {
             String playerName = event.getPlayerRef().getUsername();
-            LOGGER.info("Player connected: {}", playerName);
+            LOGGER.at(Level.INFO).log("Player connected: %s", playerName);
         });
 
-        eventBus.register(PlayerDisconnectEvent.class, event -> {
+        eventRegistry.register(PlayerDisconnectEvent.class, event -> {
             String playerName = event.getPlayerRef().getUsername();
-            LOGGER.info("Player disconnected: {}", playerName);
+            LOGGER.at(Level.INFO).log("Player disconnected: %s", playerName);
         });
     }
 }

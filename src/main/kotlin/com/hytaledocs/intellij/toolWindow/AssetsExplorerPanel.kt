@@ -8,6 +8,7 @@ import com.intellij.icons.AllIcons
 import com.intellij.notification.NotificationGroupManager
 import com.intellij.notification.NotificationType
 import com.intellij.openapi.application.ApplicationManager
+import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.fileEditor.FileEditorManager
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.vfs.LocalFileSystem
@@ -29,6 +30,8 @@ import java.awt.event.KeyEvent
 import java.awt.event.MouseAdapter
 import java.awt.event.MouseEvent
 import java.io.File
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.TimeoutException
 import javax.swing.*
 import javax.swing.event.TreeSelectionEvent
 import javax.swing.tree.DefaultMutableTreeNode
@@ -40,6 +43,12 @@ import javax.swing.tree.TreePath
  * Provides a tree-based file browser for game assets with preview capabilities.
  */
 class AssetsExplorerPanel(private val project: Project) : JBPanel<AssetsExplorerPanel>(BorderLayout()) {
+
+    companion object {
+        private val LOG = Logger.getInstance(AssetsExplorerPanel::class.java)
+        private const val EXPLORER_VIEW = "explorer"
+        private const val SYNC_VIEW = "sync"
+    }
 
     private val scannerService = AssetScannerService.getInstance(project)
 
@@ -58,10 +67,19 @@ class AssetsExplorerPanel(private val project: Project) : JBPanel<AssetsExplorer
     private val collapseButton = JButton(AllIcons.Actions.Collapseall)
     private val expandButton = JButton(AllIcons.Actions.Expandall)
     private val filterCombo = JComboBox<String>()
+    private val syncButton = JButton(AllIcons.Actions.Diff)
+
+    // Card layout for switching between explorer and sync views
+    private val cardLayout = CardLayout()
+    private val cardPanel = JPanel(cardLayout)
 
     init {
         background = JBColor.namedColor("ToolWindow.background", UIUtil.getPanelBackground())
         border = JBUI.Borders.empty()
+
+        // Explorer view
+        val explorerPanel = JPanel(BorderLayout())
+        explorerPanel.isOpaque = false
 
         // Main split pane
         val splitPane = JSplitPane(JSplitPane.HORIZONTAL_SPLIT)
@@ -76,13 +94,52 @@ class AssetsExplorerPanel(private val project: Project) : JBPanel<AssetsExplorer
         // Right panel (preview)
         splitPane.rightComponent = createPreviewPanel()
 
-        add(splitPane, BorderLayout.CENTER)
+        explorerPanel.add(splitPane, BorderLayout.CENTER)
+
+        // Sync view (created lazily when first shown)
+        val syncPanel = AssetSyncPanel(project) { showExplorerView() }
+
+        // Add views to card panel
+        cardPanel.add(explorerPanel, EXPLORER_VIEW)
+        cardPanel.add(syncPanel, SYNC_VIEW)
+
+        add(cardPanel, BorderLayout.CENTER)
 
         // Status bar
         add(createStatusBar(), BorderLayout.SOUTH)
 
         // Initial scan
         refreshAssets()
+    }
+
+    /**
+     * Show the explorer view.
+     */
+    private fun showExplorerView() {
+        cardLayout.show(cardPanel, EXPLORER_VIEW)
+        syncButton.icon = AllIcons.Actions.Diff
+        syncButton.toolTipText = "Open Asset Sync"
+    }
+
+    /**
+     * Show the sync view.
+     */
+    private fun showSyncView() {
+        cardLayout.show(cardPanel, SYNC_VIEW)
+        syncButton.icon = AllIcons.Actions.Back
+        syncButton.toolTipText = "Back to Explorer"
+    }
+
+    /**
+     * Toggle between explorer and sync views.
+     */
+    private fun toggleSyncView() {
+        // Track state via the button icon
+        if (syncButton.icon == AllIcons.Actions.Diff) {
+            showSyncView()
+        } else {
+            showExplorerView()
+        }
     }
 
     /**
@@ -155,6 +212,11 @@ class AssetsExplorerPanel(private val project: Project) : JBPanel<AssetsExplorer
             applyFilter()
         }
         buttonRow.add(filterCombo)
+
+        // Sync button
+        syncButton.toolTipText = "Open Asset Sync"
+        syncButton.addActionListener { toggleSyncView() }
+        buttonRow.add(syncButton)
 
         toolbar.add(buttonRow, BorderLayout.NORTH)
 
@@ -316,12 +378,26 @@ class AssetsExplorerPanel(private val project: Project) : JBPanel<AssetsExplorer
         }
 
         ApplicationManager.getApplication().executeOnPooledThread {
-            val root = scanFuture.get()
-            SwingUtilities.invokeLater {
-                buildTree(root)
-                updateStats()
-                statusLabel.text = "Ready"
-                statusLabel.foreground = HytaleTheme.successColor
+            try {
+                val root = scanFuture.get(30, TimeUnit.SECONDS)
+                SwingUtilities.invokeLater {
+                    buildTree(root)
+                    updateStats()
+                    statusLabel.text = "Ready"
+                    statusLabel.foreground = HytaleTheme.successColor
+                }
+            } catch (e: TimeoutException) {
+                LOG.warn("Asset scan timed out", e)
+                SwingUtilities.invokeLater {
+                    statusLabel.text = "Scan timed out"
+                    statusLabel.foreground = HytaleTheme.errorColor
+                }
+            } catch (e: Exception) {
+                LOG.warn("Asset scan failed", e)
+                SwingUtilities.invokeLater {
+                    statusLabel.text = "Scan failed: ${e.message}"
+                    statusLabel.foreground = HytaleTheme.errorColor
+                }
             }
         }
     }
@@ -397,12 +473,22 @@ class AssetsExplorerPanel(private val project: Project) : JBPanel<AssetsExplorer
      */
     private fun applyFilter() {
         // Re-scan with cached data and apply filter
-        val root = when (currentViewMode) {
-            AssetViewMode.BY_TYPE -> scannerService.scanByType(false).get()
-            AssetViewMode.BY_FOLDER -> scannerService.scanByFolder(false).get()
+        try {
+            val root = when (currentViewMode) {
+                AssetViewMode.BY_TYPE -> scannerService.scanByType(false).get(30, TimeUnit.SECONDS)
+                AssetViewMode.BY_FOLDER -> scannerService.scanByFolder(false).get(30, TimeUnit.SECONDS)
+            }
+            buildTree(root)
+            updateStats()
+        } catch (e: TimeoutException) {
+            LOG.warn("Filter scan timed out", e)
+            statusLabel.text = "Filter timed out"
+            statusLabel.foreground = HytaleTheme.errorColor
+        } catch (e: Exception) {
+            LOG.warn("Filter scan failed", e)
+            statusLabel.text = "Filter failed: ${e.message}"
+            statusLabel.foreground = HytaleTheme.errorColor
         }
-        buildTree(root)
-        updateStats()
     }
 
     /**
@@ -542,11 +628,9 @@ class AssetsExplorerPanel(private val project: Project) : JBPanel<AssetsExplorer
      * Copy the absolute path to clipboard.
      */
     private fun copyPath(file: AssetNode.FileNode) {
-        val path = if (file.isInZip && file.zipSource != null) {
-            "${file.zipSource!!.zipFile.absolutePath}!/${file.zipSource!!.entryPath}"
-        } else {
-            file.file?.absolutePath ?: file.relativePath
-        }
+        val path = file.zipSource?.let { source ->
+            "${source.zipFile.absolutePath}!/${source.entryPath}"
+        } ?: file.file?.absolutePath ?: file.relativePath
         val clipboard = Toolkit.getDefaultToolkit().systemClipboard
         clipboard.setContents(StringSelection(path), null)
         notify("Path copied to clipboard", NotificationType.INFORMATION)
@@ -584,15 +668,17 @@ class AssetsExplorerPanel(private val project: Project) : JBPanel<AssetsExplorer
             return
         }
 
+        val zipSource = file.zipSource ?: return
+
         try {
-            java.util.zip.ZipFile(file.zipSource!!.zipFile).use { zip ->
-                val entry = zip.getEntry(file.zipSource!!.entryPath) ?: run {
+            java.util.zip.ZipFile(zipSource.zipFile).use { zip ->
+                val entry = zip.getEntry(zipSource.entryPath) ?: run {
                     notify("Entry not found in ZIP", NotificationType.ERROR)
                     return
                 }
 
                 // Determine destination path (preserve folder structure)
-                val destPath = file.zipSource!!.entryPath
+                val destPath = zipSource.entryPath
                 val destFile = File(resourcesDir.path, destPath)
 
                 // Create parent directories if needed
@@ -626,6 +712,8 @@ class AssetsExplorerPanel(private val project: Project) : JBPanel<AssetsExplorer
         }
 
         var imported = 0
+        val failed = mutableListOf<String>()
+
         for (file in files) {
             try {
                 val dest = File(resourcesDir.path, file.name)
@@ -634,7 +722,8 @@ class AssetsExplorerPanel(private val project: Project) : JBPanel<AssetsExplorer
                     imported++
                 }
             } catch (e: Exception) {
-                // Skip failed files
+                failed.add(file.name)
+                LOG.warn("Failed to import ${file.name}", e)
             }
         }
 
@@ -642,12 +731,11 @@ class AssetsExplorerPanel(private val project: Project) : JBPanel<AssetsExplorer
             notify("Imported $imported file(s)", NotificationType.INFORMATION)
             refreshAssets(forceRefresh = true)
         }
+        if (failed.isNotEmpty()) {
+            notify("Failed to import: ${failed.joinToString(", ")}", NotificationType.WARNING)
+        }
     }
 
-    private fun notify(message: String, type: NotificationType) {
-        NotificationGroupManager.getInstance()
-            .getNotificationGroup("Hytale Plugin")
-            .createNotification("Assets Explorer", message, type)
-            .notify(project)
-    }
+    private fun notify(message: String, type: NotificationType) =
+        PanelUtils.notify(project, "Assets Explorer", message, type)
 }

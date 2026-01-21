@@ -4,6 +4,7 @@ import com.hytaledocs.intellij.HytaleIcons
 import com.intellij.ide.util.projectWizard.ModuleWizardStep
 import com.intellij.ide.util.projectWizard.WizardContext
 import com.intellij.openapi.fileChooser.FileChooserDescriptorFactory
+import com.intellij.openapi.ui.TextBrowseFolderListener
 import com.intellij.openapi.ui.TextFieldWithBrowseButton
 import com.intellij.ui.JBColor
 import com.intellij.ui.components.JBLabel
@@ -66,10 +67,11 @@ class HytaleWizardStep(
         projectLocationField.text = defaultPath
 
         projectLocationField.addBrowseFolderListener(
-            "Select Project Location",
-            "Choose where to create the project",
-            null,
-            FileChooserDescriptorFactory.createSingleFolderDescriptor()
+            TextBrowseFolderListener(
+                FileChooserDescriptorFactory.createSingleFolderDescriptor()
+                    .withTitle("Select Project Location")
+                    .withDescription("Choose where to create the project")
+            )
         )
 
         // Update project name when mod name changes
@@ -157,10 +159,11 @@ class HytaleWizardStep(
 
     private fun setupServerPathBrowser() {
         serverPathField.addBrowseFolderListener(
-            "Select Server Folder",
-            "Select the folder containing HytaleServer.jar",
-            null,
-            FileChooserDescriptorFactory.createSingleFolderDescriptor()
+            TextBrowseFolderListener(
+                FileChooserDescriptorFactory.createSingleFolderDescriptor()
+                    .withTitle("Select Server Folder")
+                    .withDescription("Select the folder containing HytaleServer.jar")
+            )
         )
     }
 
@@ -277,6 +280,9 @@ class HytaleWizardStep(
 
         addFormRow(panel, gbc, row++, "Mod Name:", modNameField,
             "Display name of your mod (e.g., 'My Cool Mod')")
+
+        addHintRow(panel, gbc, row++,
+            "Note: Names without spaces (e.g., 'MyCoolMod') enable hot reload support")
 
         addFormRow(panel, gbc, row++, "Mod ID:", modIdField,
             "Unique identifier, auto-generated (e.g., 'my-cool-mod')")
@@ -424,6 +430,21 @@ class HytaleWizardStep(
             field.columns = 25
         }
         panel.add(field, gbc)
+    }
+
+    private fun addHintRow(panel: JPanel, gbc: GridBagConstraints, row: Int, hintText: String) {
+        gbc.gridx = 1
+        gbc.gridy = row
+        gbc.gridwidth = 1
+        gbc.fill = GridBagConstraints.HORIZONTAL
+        gbc.anchor = GridBagConstraints.WEST
+        gbc.insets = JBUI.insets(0, 0, 4, 0)
+        gbc.weightx = 1.0
+
+        val hintLabel = JBLabel(hintText)
+        hintLabel.font = hintLabel.font.deriveFont(11f)
+        hintLabel.foreground = JBColor(Color(120, 120, 120), Color(150, 150, 150))
+        panel.add(hintLabel, gbc)
     }
 
     override fun updateDataModel() {

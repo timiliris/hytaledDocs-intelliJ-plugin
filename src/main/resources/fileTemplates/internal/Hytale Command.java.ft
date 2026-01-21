@@ -7,6 +7,12 @@ import com.hypixel.hytale.server.core.Message;
 
 import javax.annotation.Nonnull;
 
+/**
+ * ${NAME} - Command collection for /${COMMAND_NAME}.
+ *
+ * Usage:
+ * - /${COMMAND_NAME} help - Show available commands
+ */
 public class ${NAME} extends AbstractCommandCollection {
 
     public ${NAME}() {
@@ -14,14 +20,32 @@ public class ${NAME} extends AbstractCommandCollection {
         this.addSubCommand(new HelpSubCommand());
     }
 
+    @Override
+    protected boolean canGeneratePermission() {
+        return false; // No permission required for base command
+    }
+
+    /**
+     * /${COMMAND_NAME} help - Show available commands
+     */
     private static class HelpSubCommand extends CommandBase {
+
         public HelpSubCommand() {
-            super("help", "Show help");
+            super("help", "Show available commands");
+            this.setPermissionGroup(null);
+        }
+
+        @Override
+        protected boolean canGeneratePermission() {
+            return false;
         }
 
         @Override
         protected void executeSync(@Nonnull CommandContext context) {
-            context.sendMessage(Message.raw("=== Help ==="));
+            context.sendMessage(Message.raw(""));
+            context.sendMessage(Message.raw("=== ${COMMAND_NAME} Commands ==="));
+            context.sendMessage(Message.raw("/${COMMAND_NAME} help - Show this help message"));
+            context.sendMessage(Message.raw("========================"));
         }
     }
 }

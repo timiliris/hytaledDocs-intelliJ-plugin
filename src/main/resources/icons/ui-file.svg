@@ -1,0 +1,7 @@
+<svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background rounded rectangle -->
+  <rect x="1" y="1" width="14" height="14" rx="2" fill="#4A90D9"/>
+
+  <!-- UI text -->
+  <text x="8" y="11.5" font-family="Arial, sans-serif" font-size="8" font-weight="bold" fill="white" text-anchor="middle">UI</text>
+</svg>
