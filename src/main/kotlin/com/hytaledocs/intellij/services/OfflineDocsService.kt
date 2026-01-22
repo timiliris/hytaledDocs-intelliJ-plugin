@@ -4,7 +4,6 @@ import com.google.gson.Gson
 import com.google.gson.GsonBuilder
 import com.hytaledocs.intellij.util.HttpClientPool
 import com.intellij.openapi.application.ApplicationManager
-import com.intellij.openapi.application.WriteAction
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.diagnostic.Logger
 import java.io.*
@@ -12,6 +11,7 @@ import java.net.URI
 import java.net.http.HttpRequest
 import java.net.http.HttpResponse
 import java.nio.file.Files
+import java.nio.file.Paths
 import java.time.Duration
 import java.time.Instant
 import java.util.concurrent.CompletableFuture
@@ -56,7 +56,7 @@ class OfflineDocsService {
          */
         fun getCacheDir(): File {
             val userHome = System.getProperty("user.home")
-            return File(userHome, ".hytale-intellij/docs-cache")
+            return Paths.get(userHome, ".hytale-intellij", "docs-cache").toFile()
         }
     }
 
@@ -204,14 +204,12 @@ class OfflineDocsService {
                 ))
 
                 // Clear old docs
-                WriteAction.run<Throwable> {
-                    try {
-                        docsDir.deleteRecursively()
-                    } catch (e: Exception) {
-                        LOG.warn("Failed to delete old docs directory", e)
-                    }
-                    docsDir.mkdirs()
+                try {
+                    docsDir.deleteRecursively()
+                } catch (e: Exception) {
+                    LOG.warn("Failed to delete old docs directory", e)
                 }
+                docsDir.mkdirs()
 
                 val extractedFiles = extractDocsFromZip(zipData, docsDir) { current, total ->
                     val percent = if (total > 0) (current * 100) / total else 0
@@ -256,9 +254,7 @@ class OfflineDocsService {
                 )
 
                 val indexFile = File(cacheDir, "index.json")
-                WriteAction.run<Throwable> {
-                    indexFile.writeText(gson.toJson(docsIndex))
-                }
+                indexFile.writeText(gson.toJson(docsIndex))
 
                 // Refresh VFS to make downloaded docs visible to IntelliJ
                 LocalFileSystem.getInstance().refreshAndFindFileByPath(cacheDir.absolutePath)
@@ -382,13 +378,7 @@ class OfflineDocsService {
      */
     fun clearCache() {
         try {
-            WriteAction.run<Throwable> {
-                try {
-                    getCacheDir().deleteRecursively()
-                } catch (e: Exception) {
-                    LOG.warn("Failed to delete cache directory", e)
-                }
-            }
+            getCacheDir().deleteRecursively()
             docsIndex = null
             docsCache.clear()
             LOG.info("Cache cleared")

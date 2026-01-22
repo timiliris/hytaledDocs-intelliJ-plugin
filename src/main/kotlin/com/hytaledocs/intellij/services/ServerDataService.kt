@@ -30,7 +30,8 @@ class ServerDataService {
     companion object {
         private val LOG = Logger.getInstance(ServerDataService::class.java)
 
-        private const val LOCAL_DATA_DIR = ".hytale-intellij/server-data"
+        private const val LOCAL_BASE_DIR = ".hytale-intellij"
+        private const val LOCAL_DATA_SUBDIR = "server-data"
         private const val BUNDLED_DATA_PATH = "/data"
 
         private const val EVENTS_FILE = "events.json"
@@ -60,7 +61,7 @@ class ServerDataService {
 
     private fun getLocalDataDir(): Path {
         val userHome = System.getProperty("user.home")
-        return Path.of(userHome, LOCAL_DATA_DIR)
+        return Path.of(userHome, LOCAL_BASE_DIR, LOCAL_DATA_SUBDIR)
     }
 
     @Synchronized

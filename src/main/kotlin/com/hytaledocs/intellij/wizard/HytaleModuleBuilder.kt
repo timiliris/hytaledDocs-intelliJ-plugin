@@ -704,6 +704,11 @@ class HytaleModuleBuilder : ModuleBuilder() {
                 }
             }
 
+            // Disable the default jar task to avoid conflicts with shadowJar
+            tasks.named('jar') {
+                enabled = false
+            }
+
             tasks.named('build') {
                 dependsOn shadowJar
             }

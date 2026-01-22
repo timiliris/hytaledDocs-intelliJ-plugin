@@ -63,7 +63,7 @@ class HytaleWizardStep(
 
     private fun setupProjectLocation() {
         // Set default project location
-        val defaultPath = System.getProperty("user.home") + "/IdeaProjects"
+        val defaultPath = System.getProperty("user.home") + File.separator + "IdeaProjects"
         projectLocationField.text = defaultPath
 
         projectLocationField.addBrowseFolderListener(

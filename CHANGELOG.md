@@ -2,6 +2,29 @@
 
 ## [Unreleased]
 
+## [1.3.5] - 2026-01-22
+
+### Fixed
+
+- **Offline Docs Download**: Fixed threading error when downloading documentation (WriteAction was called from background thread) ([#7](https://github.com/timiliris/hytaledDocs-intelliJ-plugin/issues/7))
+- **deployToServer Gradle Task**: Fixed conflict between default `jar` task and `shadowJar` by disabling the default jar task ([#7](https://github.com/timiliris/hytaledDocs-intelliJ-plugin/issues/7))
+- **Cross-Platform Paths**: Improved path handling for better Windows/macOS/Linux compatibility
+  - Fixed hardcoded slashes in cache directory paths
+  - Now uses `Paths.get()` and `File.separator` consistently
+
+## [1.3.4] - 2026-01-19
+
+### Added
+
+- **Mac & Linux Support**: Full cross-platform compatibility
+  - OS-specific paths for Hytale launcher detection
+  - Architecture detection (amd64/aarch64) for Java downloads
+  - Platform-specific executable handling
+
+### Contributors
+
+- [@maartenpeels](https://github.com/maartenpeels) - Mac/Linux support
+
 ## [1.3.1] - 2026-01-18
 
 ### Added
@@ -95,7 +118,9 @@
 - Supports IntelliJ IDEA 2024.3+
 - Requires Java 25 for Hytale development
 
-[Unreleased]: https://github.com/HytaleDocs/hytale-intellij-plugin/compare/v1.3.1...HEAD
+[Unreleased]: https://github.com/HytaleDocs/hytale-intellij-plugin/compare/v1.3.5...HEAD
+[1.3.5]: https://github.com/HytaleDocs/hytale-intellij-plugin/compare/v1.3.4...v1.3.5
+[1.3.4]: https://github.com/HytaleDocs/hytale-intellij-plugin/compare/v1.3.1...v1.3.4
 [1.3.1]: https://github.com/HytaleDocs/hytale-intellij-plugin/compare/v1.3.0...v1.3.1
 [1.3.0]: https://github.com/HytaleDocs/hytale-intellij-plugin/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/HytaleDocs/hytale-intellij-plugin/compare/v1.1.0...v1.2.0
