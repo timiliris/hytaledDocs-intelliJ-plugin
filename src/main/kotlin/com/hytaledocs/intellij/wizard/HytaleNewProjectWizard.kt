@@ -1,9 +1,12 @@
 package com.hytaledocs.intellij.wizard
 
 import com.hytaledocs.intellij.HytaleIcons
+import com.hytaledocs.intellij.settings.HytaleAppSettings
 import com.intellij.ide.wizard.AbstractNewProjectWizardStep
 import com.intellij.ide.wizard.NewProjectWizardStep
 import com.intellij.ide.wizard.language.LanguageGeneratorNewProjectWizard
+import com.intellij.openapi.fileChooser.FileChooser
+import com.intellij.openapi.fileChooser.FileChooserDescriptorFactory
 import com.intellij.openapi.project.Project
 import com.intellij.ui.JBColor
 import com.intellij.ui.components.JBLabel
@@ -52,9 +55,14 @@ class HytaleProjectWizardStep(parent: NewProjectWizardStep) : AbstractNewProject
     private lateinit var languageSegmentedButton: SegmentedButton<String>
     private lateinit var buildSystemSegmentedButton: SegmentedButton<String>
 
-    // Game detection
-    private val hytaleInstallation = HytaleModuleBuilder.detectHytaleInstallation()
+    // Game detection - mutable to allow manual selection
+    private var hytaleInstallation = HytaleModuleBuilder.detectHytaleInstallation()
     private val copyFromGameCheckbox = JCheckBox("Copy server files automatically", hytaleInstallation != null)
+
+    // Server panel reference for dynamic updates
+    private var serverPanel: JPanel? = null
+    private var serverStatusLabel: JBLabel? = null
+    private var serverStatusIcon: JBLabel? = null
 
     // Track manual edits
     private var modIdManuallyEdited = false
@@ -540,15 +548,11 @@ class HytaleProjectWizardStep(parent: NewProjectWizardStep) : AbstractNewProject
     private fun createServerPanel(): JPanel {
         val panel = JPanel(BorderLayout())
         panel.alignmentX = Component.LEFT_ALIGNMENT
-        panel.maximumSize = Dimension(420, 80)
+        panel.maximumSize = Dimension(450, 120)
         panel.border = JBUI.Borders.empty(12)
+        serverPanel = panel
 
-        val detected = hytaleInstallation != null
-        panel.background = if (detected) {
-            JBColor(Color(240, 255, 245), Color(35, 55, 45))
-        } else {
-            JBColor(Color(255, 252, 240), Color(55, 50, 40))
-        }
+        updateServerPanelBackground()
 
         val contentPanel = JPanel()
         contentPanel.layout = BoxLayout(contentPanel, BoxLayout.Y_AXIS)
@@ -558,18 +562,107 @@ class HytaleProjectWizardStep(parent: NewProjectWizardStep) : AbstractNewProject
         statusRow.isOpaque = false
         statusRow.alignmentX = Component.LEFT_ALIGNMENT
 
-        val statusIcon = if (detected) "✓" else "○"
-        val iconLabel = JBLabel(statusIcon)
+        val detected = hytaleInstallation != null
+        val statusIconChar = if (detected) "✓" else "○"
+        val iconLabel = JBLabel(statusIconChar)
         iconLabel.font = iconLabel.font.deriveFont(Font.BOLD, 16f)
-        iconLabel.foreground = if (detected) {
-            JBColor(Color(40, 160, 80), Color(80, 200, 120))
-        } else {
-            JBColor(Color(180, 140, 60), Color(200, 160, 80))
-        }
+        serverStatusIcon = iconLabel
+        updateServerStatusIconColor()
         statusRow.add(iconLabel)
         statusRow.add(Box.createHorizontalStrut(10))
 
-        val statusText = hytaleInstallation?.let { installation ->
+        val textLabel = JBLabel(getServerStatusText())
+        textLabel.font = textLabel.font.deriveFont(Font.BOLD, 13f)
+        serverStatusLabel = textLabel
+        statusRow.add(textLabel)
+
+        contentPanel.add(statusRow)
+        contentPanel.add(Box.createVerticalStrut(8))
+
+        // Checkbox and Browse button row
+        val controlsRow = JPanel(FlowLayout(FlowLayout.LEFT, 0, 0))
+        controlsRow.isOpaque = false
+        controlsRow.alignmentX = Component.LEFT_ALIGNMENT
+
+        copyFromGameCheckbox.isOpaque = false
+        controlsRow.add(copyFromGameCheckbox)
+
+        controlsRow.add(Box.createHorizontalStrut(16))
+
+        val browseButton = JButton("Browse...")
+        browseButton.toolTipText = "Select Hytale installation directory manually"
+        browseButton.addActionListener {
+            browseForInstallation()
+        }
+        controlsRow.add(browseButton)
+
+        contentPanel.add(controlsRow)
+
+        // Path hint when installation is found
+        hytaleInstallation?.let { installation ->
+            contentPanel.add(Box.createVerticalStrut(6))
+            val pathLabel = JBLabel(installation.basePath.toString())
+            pathLabel.font = pathLabel.font.deriveFont(10f)
+            pathLabel.foreground = JBColor.GRAY
+            pathLabel.alignmentX = Component.LEFT_ALIGNMENT
+            contentPanel.add(pathLabel)
+        }
+
+        panel.add(contentPanel, BorderLayout.CENTER)
+        return panel
+    }
+
+    private fun browseForInstallation() {
+        val descriptor = FileChooserDescriptorFactory.createSingleFolderDescriptor()
+            .withTitle("Select Hytale Installation Directory")
+            .withDescription("Select the folder containing Server/HytaleServer.jar")
+
+        val selectedFolder = FileChooser.chooseFile(descriptor, null, null)
+        if (selectedFolder != null) {
+            val customPath = selectedFolder.path
+            val installation = HytaleModuleBuilder.fromCustomPath(customPath)
+
+            if (installation != null) {
+                hytaleInstallation = installation
+                copyFromGameCheckbox.isEnabled = true
+                copyFromGameCheckbox.isSelected = true
+
+                // Save to application settings for future projects
+                try {
+                    val appSettings = HytaleAppSettings.getInstance()
+                    appSettings.hytaleInstallationPath = customPath
+                } catch (e: Exception) {
+                    // Ignore if settings not available
+                }
+
+                updateServerStatus()
+            } else {
+                // Show error - invalid path
+                JOptionPane.showMessageDialog(
+                    serverPanel,
+                    "The selected folder does not contain a valid Hytale installation.\n\n" +
+                    "Expected structure:\n" +
+                    "  <selected folder>/\n" +
+                    "  └── Server/\n" +
+                    "      └── HytaleServer.jar\n\n" +
+                    "Please select the correct folder.",
+                    "Invalid Installation Path",
+                    JOptionPane.WARNING_MESSAGE
+                )
+            }
+        }
+    }
+
+    private fun updateServerStatus() {
+        updateServerPanelBackground()
+        updateServerStatusIconColor()
+        serverStatusLabel?.text = getServerStatusText()
+        serverPanel?.revalidate()
+        serverPanel?.repaint()
+    }
+
+    private fun getServerStatusText(): String {
+        return hytaleInstallation?.let { installation ->
             val hasJar = installation.hasServerJar()
             val hasAssets = installation.hasAssets()
             buildString {
@@ -578,21 +671,26 @@ class HytaleProjectWizardStep(parent: NewProjectWizardStep) : AbstractNewProject
                 else if (hasJar) append(" • Server only")
                 else if (hasAssets) append(" • Assets only")
             }
-        } ?: "Hytale installation not found"
+        } ?: "Hytale installation not found - click Browse to select"
+    }
 
-        val textLabel = JBLabel(statusText)
-        textLabel.font = textLabel.font.deriveFont(Font.BOLD, 13f)
-        statusRow.add(textLabel)
+    private fun updateServerPanelBackground() {
+        val detected = hytaleInstallation != null
+        serverPanel?.background = if (detected) {
+            JBColor(Color(240, 255, 245), Color(35, 55, 45))
+        } else {
+            JBColor(Color(255, 252, 240), Color(55, 50, 40))
+        }
+    }
 
-        contentPanel.add(statusRow)
-        contentPanel.add(Box.createVerticalStrut(8))
-
-        copyFromGameCheckbox.isOpaque = false
-        copyFromGameCheckbox.alignmentX = Component.LEFT_ALIGNMENT
-        contentPanel.add(copyFromGameCheckbox)
-
-        panel.add(contentPanel, BorderLayout.CENTER)
-        return panel
+    private fun updateServerStatusIconColor() {
+        val detected = hytaleInstallation != null
+        serverStatusIcon?.text = if (detected) "✓" else "○"
+        serverStatusIcon?.foreground = if (detected) {
+            JBColor(Color(40, 160, 80), Color(80, 200, 120))
+        } else {
+            JBColor(Color(180, 140, 60), Color(200, 160, 80))
+        }
     }
 
     private fun createNavigationPanel(): JPanel {

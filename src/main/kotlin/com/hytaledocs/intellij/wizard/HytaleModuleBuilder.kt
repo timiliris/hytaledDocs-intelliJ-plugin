@@ -1,6 +1,7 @@
 package com.hytaledocs.intellij.wizard
 
 import com.hytaledocs.intellij.HytaleIcons
+import com.hytaledocs.intellij.settings.HytaleAppSettings
 import com.intellij.ide.util.projectWizard.ModuleBuilder
 import com.intellij.ide.util.projectWizard.ModuleWizardStep
 import com.intellij.ide.util.projectWizard.WizardContext
@@ -13,6 +14,7 @@ import com.intellij.openapi.util.io.FileUtil
 import com.intellij.openapi.vfs.LocalFileSystem
 import java.io.File
 import java.nio.file.Files
+import java.nio.file.Path
 import java.nio.file.Paths
 import java.nio.file.StandardCopyOption
 import javax.swing.Icon
@@ -26,10 +28,65 @@ class HytaleModuleBuilder : ModuleBuilder() {
 
     companion object {
         /**
-         * Detects if Hytale game is installed and returns the installation path.
-         * Checks multiple common installation locations.
+         * Detects Hytale installation, first checking user-configured path, then auto-detecting.
+         * @return HytaleInstallation if found, null otherwise
          */
         fun detectHytaleInstallation(): HytaleInstallation? {
+            // Priority 0: Check user-configured path in application settings
+            try {
+                val appSettings = HytaleAppSettings.getInstance()
+                if (appSettings.hasCustomInstallationPath()) {
+                    val customPath = Paths.get(appSettings.hytaleInstallationPath)
+                    val installation = checkInstallationPath(customPath)
+                    if (installation != null) {
+                        return installation
+                    }
+                }
+            } catch (e: Exception) {
+                // Settings might not be available yet (e.g., during startup)
+            }
+
+            // Priority 1+: Auto-detect
+            return autoDetectHytaleInstallation()
+        }
+
+        /**
+         * Creates a HytaleInstallation from a custom path.
+         * @param customPath The path to check for Hytale installation
+         * @return HytaleInstallation if valid, null otherwise
+         */
+        fun fromCustomPath(customPath: String): HytaleInstallation? {
+            if (customPath.isBlank()) return null
+            return checkInstallationPath(Paths.get(customPath))
+        }
+
+        /**
+         * Check if a given path contains a valid Hytale installation.
+         */
+        private fun checkInstallationPath(basePath: Path): HytaleInstallation? {
+            if (!Files.exists(basePath)) return null
+
+            val serverJar = basePath.resolve("Server/HytaleServer.jar")
+            val assetsZip = basePath.resolve("Assets.zip")
+
+            val hasServerJar = Files.exists(serverJar)
+            val hasAssets = Files.exists(assetsZip)
+
+            if (hasServerJar || hasAssets) {
+                return HytaleInstallation(
+                    basePath = basePath,
+                    serverJarPath = if (hasServerJar) serverJar else null,
+                    assetsPath = if (hasAssets) assetsZip else null
+                )
+            }
+
+            return null
+        }
+
+        /**
+         * Auto-detects Hytale game installation by checking common locations.
+         */
+        fun autoDetectHytaleInstallation(): HytaleInstallation? {
             val userHome = System.getProperty("user.home")
             val osName = System.getProperty("os.name").lowercase()
             val isWindows = osName.contains("win")
