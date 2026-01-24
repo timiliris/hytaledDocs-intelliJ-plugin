@@ -6,3 +6,5 @@
 .qodana
 build
 .claude/
+
+local.properties

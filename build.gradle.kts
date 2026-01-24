@@ -1,6 +1,7 @@
 import org.jetbrains.changelog.Changelog
 import org.jetbrains.changelog.markdownToHTML
 import org.jetbrains.intellij.platform.gradle.TestFrameworkType
+import java.util.Properties
 
 plugins {
     id("java") // Java support
@@ -153,6 +154,18 @@ tasks {
                 "-Duser.country=FR",
                 "-Dide.locale=fr_FR"
             )
+        }
+
+        // Allow overwriting the IDE runtime with local JBR for testing/compatibility
+        val localProperties = project.rootProject.file("local.properties")
+        if (localProperties.exists()) {
+            val p = Properties().apply { load(localProperties.inputStream()) }
+            val jbrPath = p.getProperty("idea.runtimeDir")
+
+            if (jbrPath != null) {
+                logger.info("Using overridden JBR path: $jbrPath")
+                runtimeDirectory.set(file(jbrPath))
+            }
         }
     }
 }
