@@ -708,7 +708,7 @@ class HytaleModuleBuilder : ModuleBuilder() {
 
     private fun generateBuildGradle(basePath: String) {
         val isKotlin = language == "Kotlin"
-        val kotlinPlugin = if (isKotlin) "\n    id 'org.jetbrains.kotlin.jvm' version '2.1.0'" else ""
+        val kotlinPlugin = if (isKotlin) "\n    id 'org.jetbrains.kotlin.jvm' version '2.3.0'" else ""
         val kotlinDeps = if (isKotlin) "\n            implementation 'org.jetbrains.kotlin:kotlin-stdlib'" else ""
         val compileTask = if (isKotlin) "compileKotlin" else "compileJava"
 
