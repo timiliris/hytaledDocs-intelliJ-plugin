@@ -209,6 +209,7 @@ class HytaleModuleBuilder : ModuleBuilder() {
     var buildSystem: String = "Gradle"  // "Gradle" or "Maven"
     var hytaleInstallation: HytaleInstallation? = detectHytaleInstallation()
     var copyFromGame: Boolean = hytaleInstallation != null
+    var useGradlePlugin: Boolean = true  // Default to Gradle plugin mode
 
     override fun getModuleType(): ModuleType<*> = JavaModuleType.getModuleType()
 
@@ -244,10 +245,14 @@ class HytaleModuleBuilder : ModuleBuilder() {
             // Create base directories
             val baseDirs = mutableListOf(
                 "src/main/$srcLang/$packagePath",
-                "src/main/resources",
-                "libs",
-                "server"
+                "src/main/resources"
             )
+
+            // Only create libs/server directories for legacy mode
+            if (!useGradlePlugin) {
+                baseDirs.add("libs")
+                baseDirs.add("server")
+            }
 
             // Add template-specific directories
             when (templateType) {
@@ -270,20 +275,30 @@ class HytaleModuleBuilder : ModuleBuilder() {
             when (buildSystem) {
                 "Maven" -> {
                     generatePomXml(basePath)
+                    copyServerFiles(basePath)
+                    generateManifestForMode(basePath, packagePath, modFolder)
                 }
                 else -> { // Gradle
-                    generateBuildGradle(basePath)
-                    generateSettingsGradle(basePath)
+                    if (useGradlePlugin) {
+                        generateBuildGradleKts(basePath)
+                        generateSettingsGradleKts(basePath)
+                        // No manifest - plugin generates it
+                        // No server files - plugin finds installation
+                    } else {
+                        generateBuildGradle(basePath)
+                        generateSettingsGradle(basePath)
+                        copyServerFiles(basePath)
+                        generateManifestForMode(basePath, packagePath, modFolder)
+                    }
                     generateGradleWrapper(basePath)
                 }
             }
 
             generateGitignore(basePath)
 
-            // Generate template-specific files
+            // Generate template-specific source files
             when (templateType) {
                 TemplateType.EMPTY -> {
-                    generateManifestEmpty(basePath)
                     if (language == "Kotlin") {
                         generateMainClassEmptyKotlin(basePath, packagePath)
                     } else {
@@ -291,7 +306,6 @@ class HytaleModuleBuilder : ModuleBuilder() {
                     }
                 }
                 TemplateType.FULL -> {
-                    generateManifest(basePath)
                     if (language == "Kotlin") {
                         generateMainClassKotlin(basePath, packagePath)
                         generateMainCommandKotlin(basePath, packagePath)
@@ -310,11 +324,17 @@ class HytaleModuleBuilder : ModuleBuilder() {
                 }
             }
 
-            // Copy server files from game installation or configured path
-            copyServerFiles(basePath)
+            // Only generate .hytale/project.json and run configurations for legacy mode
+            if (!useGradlePlugin) {
+                generateRunConfigurations(basePath)
+            }
+        }
+    }
 
-            // Generate IntelliJ run configurations
-            generateRunConfigurations(basePath)
+    private fun generateManifestForMode(basePath: String, packagePath: String, modFolder: String) {
+        when (templateType) {
+            TemplateType.EMPTY -> generateManifestEmpty(basePath)
+            TemplateType.FULL -> generateManifest(basePath)
         }
     }
 
@@ -399,6 +419,21 @@ class HytaleModuleBuilder : ModuleBuilder() {
     }
 
     private fun generateGitignore(basePath: String) {
+        val hytaleIgnores = if (useGradlePlugin) {
+            """
+            # Hytale Dev Plugin
+            run/
+            """.trimIndent()
+        } else {
+            """
+            # Hytale (Legacy)
+            libs/HytaleServer.jar
+            server/mods/
+            server/logs/
+            server/world/
+            """.trimIndent()
+        }
+
         File(basePath, ".gitignore").writeText("""
             # Gradle
             .gradle/
@@ -415,11 +450,7 @@ class HytaleModuleBuilder : ModuleBuilder() {
             !.idea/runConfigurations/
             *.iml
 
-            # Hytale
-            libs/HytaleServer.jar
-            server/mods/
-            server/logs/
-            server/world/
+            $hytaleIgnores
         """.trimIndent())
     }
 
@@ -787,6 +818,67 @@ class HytaleModuleBuilder : ModuleBuilder() {
 
     private fun generateSettingsGradle(basePath: String) {
         File(basePath, "settings.gradle").writeText("rootProject.name = '$modId'")
+    }
+
+    private fun generateBuildGradleKts(basePath: String) {
+        val isKotlin = language == "Kotlin"
+        val kotlinPlugin = if (isKotlin) "\n    kotlin(\"jvm\") version \"2.1.0\"" else ""
+        val kotlinDeps = if (isKotlin) "\n    implementation(kotlin(\"stdlib\"))" else ""
+
+        val className = modName.replace(" ", "") + "Plugin"
+        val escapedDescription = modDescription.replace("\"", "\\\"")
+        val groupId = packageName.substringBeforeLast('.')
+        val includesAssetPack = templateType == TemplateType.FULL
+
+        File(basePath, "build.gradle.kts").writeText("""
+plugins {
+    id("net.janrupf.hytale-dev") version "0.2.0"
+    java$kotlinPlugin
+}
+
+group = "$groupId"
+version = "$version"
+
+repositories {
+    mavenCentral()
+}
+
+hytale {
+    manifest {
+        main("$packageName.$className")
+        description("$escapedDescription")
+        author {
+            name("$author")
+        }
+        includesAssetPack($includesAssetPack)
+    }
+}
+
+dependencies {
+    compileOnly(hytaleServer())
+    compileOnly("com.google.code.findbugs:jsr305:3.0.2")
+    implementation("com.google.code.gson:gson:2.10.1")$kotlinDeps
+}
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(25)
+    }
+}
+        """.trimIndent())
+    }
+
+    private fun generateSettingsGradleKts(basePath: String) {
+        File(basePath, "settings.gradle.kts").writeText("""
+rootProject.name = "$modId"
+
+pluginManagement {
+    repositories {
+        gradlePluginPortal()
+        mavenCentral()
+    }
+}
+        """.trimIndent())
     }
 
     private fun generateManifestEmpty(basePath: String) {

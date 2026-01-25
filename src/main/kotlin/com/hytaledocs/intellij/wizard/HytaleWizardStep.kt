@@ -16,6 +16,7 @@ import com.intellij.util.ui.JBUI
 import java.awt.*
 import java.io.File
 import javax.swing.*
+import javax.swing.Box
 import javax.swing.event.DocumentEvent
 import javax.swing.event.DocumentListener
 
@@ -46,6 +47,9 @@ class HytaleWizardStep(
     // Game detection
     private val copyFromGameCheckbox = JCheckBox("Copy server files from game installation", builder.copyFromGame)
     private val gameStatusLabel = JBLabel()
+
+    // Gradle plugin mode
+    private val useGradlePluginCheckbox = JCheckBox("Use Gradle Dev Plugin (recommended)", builder.useGradlePlugin)
 
     // Track manual edits
     private var modIdManuallyEdited = false
@@ -275,6 +279,11 @@ class HytaleWizardStep(
         addFormRow(panel, gbc, row++, "Type:", createTemplatePanel(),
             "Choose between an empty mod or a full-featured template")
 
+        // === Build Configuration Section ===
+        addSectionHeader(panel, gbc, row++, "Build Configuration")
+
+        row = addBuildConfigurationSection(panel, gbc, row)
+
         // === Mod Information Section ===
         addSectionHeader(panel, gbc, row++, "Mod Information")
 
@@ -447,6 +456,40 @@ class HytaleWizardStep(
         panel.add(hintLabel, gbc)
     }
 
+    private fun addBuildConfigurationSection(panel: JPanel, gbc: GridBagConstraints, row: Int): Int {
+        gbc.gridx = 0
+        gbc.gridy = row
+        gbc.gridwidth = 2
+        gbc.fill = GridBagConstraints.HORIZONTAL
+        gbc.insets = JBUI.insets(4, 0, 4, 0)
+        gbc.weightx = 1.0
+
+        val configPanel = JPanel()
+        configPanel.layout = BoxLayout(configPanel, BoxLayout.Y_AXIS)
+        configPanel.border = JBUI.Borders.empty(6)
+        configPanel.background = JBColor(Color(240, 248, 255), Color(40, 45, 50))
+
+        useGradlePluginCheckbox.toolTipText =
+            "Uses net.janrupf.hytale-dev for automatic server detection and run configurations"
+        useGradlePluginCheckbox.isOpaque = false
+        useGradlePluginCheckbox.alignmentX = Component.LEFT_ALIGNMENT
+        configPanel.add(useGradlePluginCheckbox)
+
+        configPanel.add(Box.createVerticalStrut(4))
+
+        val desc = JBLabel("<html>The Gradle plugin handles server JAR detection, " +
+            "manifest generation, and IntelliJ run configurations automatically.</html>")
+        desc.font = desc.font.deriveFont(11f)
+        desc.foreground = JBColor.GRAY
+        desc.alignmentX = Component.LEFT_ALIGNMENT
+        configPanel.add(desc)
+
+        panel.add(configPanel, gbc)
+
+        gbc.gridwidth = 1
+        return row + 1
+    }
+
     override fun updateDataModel() {
         // Update builder
         builder.modName = modNameField.text.trim()
@@ -463,6 +506,7 @@ class HytaleWizardStep(
             HytaleModuleBuilder.TemplateType.FULL
         }
         builder.copyFromGame = copyFromGameCheckbox.isSelected
+        builder.useGradlePlugin = useGradlePluginCheckbox.isSelected
 
         // Update wizard context with project location
         val projectPath = projectLocationField.text.trim() + "/" + projectNameField.text.trim()
