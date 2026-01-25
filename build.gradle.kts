@@ -10,6 +10,7 @@ plugins {
     alias(libs.plugins.changelog) // Gradle Changelog Plugin
     alias(libs.plugins.qodana) // Gradle Qodana Plugin
     alias(libs.plugins.kover) // Gradle Kover Plugin
+    alias(libs.plugins.protobuf) // Protocol Buffers
 }
 
 group = providers.gradleProperty("pluginGroup").get()
@@ -40,6 +41,10 @@ dependencies {
     implementation("com.google.code.gson:gson:2.11.0")
     // OGG Vorbis audio support for asset preview
     implementation("com.github.trilarion:java-vorbis-support:1.2.1")
+    // WebSocket server for Dev Bridge
+    implementation(libs.javaWebsocket)
+    // Protocol Buffers runtime
+    implementation(libs.protobuf)
 
     testImplementation(libs.junit)
     testImplementation(libs.opentest4j)
@@ -133,6 +138,22 @@ kover {
             xml {
                 onCheck = true
             }
+        }
+    }
+}
+
+// Configure Protocol Buffers - read more: https://github.com/google/protobuf-gradle-plugin
+protobuf {
+    protoc {
+        artifact = "com.google.protobuf:protoc:${libs.versions.protobuf.get()}"
+    }
+}
+
+// Ensure generated protobuf sources are included in the source set
+sourceSets {
+    main {
+        java {
+            srcDirs(layout.buildDirectory.dir("generated/source/proto/main/java"))
         }
     }
 }

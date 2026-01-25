@@ -297,6 +297,8 @@
                 serviceImplementation="com.hytaledocs.intellij.services.AssetSyncService"/>
         <projectService
                 serviceImplementation="com.hytaledocs.intellij.services.ServerProfiler"/>
+        <projectService
+                serviceImplementation="com.hytaledocs.intellij.bridge.DevBridgeServer"/>
 
         <applicationService
                 serviceImplementation="com.hytaledocs.intellij.settings.HytaleAppSettings"/>
@@ -344,6 +346,10 @@
         <!-- Auto-setup Run Configuration for Hytale projects -->
         <postStartupActivity
                 implementation="com.hytaledocs.intellij.run.HytaleRunConfigurationSetup"/>
+
+        <!-- Run Configuration Extension for Dev Bridge env var injection -->
+        <runConfigurationExtension
+                implementation="com.hytaledocs.intellij.run.HytaleRunConfigurationExtension"/>
     </extensions>
 
     <actions>

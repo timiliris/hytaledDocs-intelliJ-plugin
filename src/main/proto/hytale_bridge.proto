@@ -1,0 +1,149 @@
+syntax = "proto3";
+
+package com.hytaledocs.intellij.bridge.protocol;
+
+option java_package = "com.hytaledocs.intellij.bridge.protocol";
+option java_outer_classname = "HytaleBridgeProto";
+
+// =============================================================================
+// Root message types for bidirectional communication
+// =============================================================================
+
+// Messages from Agent/Bridge to IDE
+message AgentMessage {
+    oneof payload {
+        AgentHello hello = 1;
+        LogEvent log_event = 2;
+        CommandRegistryResponse command_registry = 3;
+        SuggestionsResponse suggestions = 4;
+        AssetPathsEvent asset_paths = 5;
+        ServerStateEvent server_state = 6;
+    }
+}
+
+// Messages from IDE to Agent/Bridge
+message IdeMessage {
+    oneof payload {
+        IdeHello hello = 1;
+        GetCommandsRequest get_commands = 2;
+        GetSuggestionsRequest get_suggestions = 3;
+        ExecuteCommandRequest execute_command = 4;
+    }
+}
+
+// =============================================================================
+// Handshake Messages
+// =============================================================================
+
+message AgentHello {
+    int32 protocol_version = 1;
+    string agent_version = 2;
+    repeated string capabilities = 3;  // e.g., "logs", "commands", "assets"
+    string server_version = 4;
+}
+
+message IdeHello {
+    int32 protocol_version = 1;
+    string plugin_version = 2;
+    repeated string requested_capabilities = 3;
+}
+
+// =============================================================================
+// Log Messages
+// =============================================================================
+
+message LogEvent {
+    int64 timestamp = 1;
+    LogLevel level = 2;
+    string logger_name = 3;
+    string message = 4;
+    string throwable = 5;  // Stack trace if present
+    string thread_name = 6;
+}
+
+enum LogLevel {
+    LOG_LEVEL_UNKNOWN = 0;
+    LOG_LEVEL_TRACE = 1;
+    LOG_LEVEL_DEBUG = 2;
+    LOG_LEVEL_INFO = 3;
+    LOG_LEVEL_WARNING = 4;
+    LOG_LEVEL_ERROR = 5;
+    LOG_LEVEL_FATAL = 6;
+}
+
+// =============================================================================
+// Command Messages
+// =============================================================================
+
+message GetCommandsRequest {
+    // Empty - request full command registry
+}
+
+message CommandRegistryResponse {
+    repeated CommandInfo commands = 1;
+}
+
+message CommandInfo {
+    string name = 1;
+    string description = 2;  // Translation key
+    repeated string aliases = 3;
+    string permission = 4;
+    repeated ArgumentInfo required_args = 5;
+    repeated ArgumentInfo optional_args = 6;
+    repeated CommandInfo sub_commands = 7;
+}
+
+message ArgumentInfo {
+    string name = 1;
+    string description = 2;
+    string type_name = 3;
+    repeated string examples = 4;
+    bool is_list = 5;
+    bool is_required = 6;
+}
+
+// =============================================================================
+// Suggestions Messages
+// =============================================================================
+
+message GetSuggestionsRequest {
+    string partial_command = 1;
+    int32 cursor_position = 2;
+}
+
+message SuggestionsResponse {
+    repeated string suggestions = 1;
+    int32 start_position = 2;  // Where suggestion replaces from
+}
+
+// =============================================================================
+// Command Execution
+// =============================================================================
+
+message ExecuteCommandRequest {
+    string command = 1;
+}
+
+// =============================================================================
+// Asset Messages
+// =============================================================================
+
+message AssetPathsEvent {
+    repeated string paths = 1;  // Absolute paths to plugin asset directories
+}
+
+// =============================================================================
+// Server State
+// =============================================================================
+
+message ServerStateEvent {
+    ServerState state = 1;
+}
+
+enum ServerState {
+    SERVER_STATE_UNKNOWN = 0;
+    SERVER_STATE_STARTING = 1;
+    SERVER_STATE_READY = 2;
+    SERVER_STATE_STOPPING = 3;
+    SERVER_STATE_STOPPED = 4;
+}
