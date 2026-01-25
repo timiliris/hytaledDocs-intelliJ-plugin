@@ -723,25 +723,20 @@ class HytaleModuleBuilder : ModuleBuilder() {
 
             repositories {
                 mavenCentral()
+                // Official Hytale Maven repository
+                maven {
+                    name = 'hytale-release'
+                    url = 'https://maven.hytale.com/release'
+                }
+                maven {
+                    name = 'hytale-pre-release'
+                    url = 'https://maven.hytale.com/pre-release'
+                }
             }
 
-            // Server JAR location - update this path if needed
-            def serverJarPath = file('libs/HytaleServer.jar')
-            def projectServerJar = file('server/HytaleServer.jar')
-            def siblingServerJar = file('../server/HytaleServer.jar')
-
             dependencies {
-                // Use HytaleServer.jar from libs folder, or fallback to server folders
-                if (serverJarPath.exists()) {
-                    compileOnly files(serverJarPath)
-                } else if (projectServerJar.exists()) {
-                    compileOnly files(projectServerJar)
-                } else if (siblingServerJar.exists()) {
-                    compileOnly files(siblingServerJar)
-                } else {
-                    // If none exists, still reference libs for error message clarity
-                    compileOnly files('libs/HytaleServer.jar')
-                }
+                // Hytale Server API from official Maven repository
+                compileOnly 'com.hypixel.hytale:Server:2026.01.24-6e2d4fc36'
                 // JSR305 annotations (@Nonnull, @Nullable)
                 compileOnly 'com.google.code.findbugs:jsr305:3.0.2'
                 implementation 'com.google.code.gson:gson:2.10.1'$kotlinDeps
@@ -768,29 +763,6 @@ class HytaleModuleBuilder : ModuleBuilder() {
 
             tasks.named('build') {
                 dependsOn shadowJar
-            }
-
-            // Task to copy server JAR to libs folder if not present
-            tasks.register('copyServerJar') {
-                doLast {
-                    def destJar = file('libs/HytaleServer.jar')
-                    if (!destJar.exists()) {
-                        def sources = [file('server/HytaleServer.jar'), file('../server/HytaleServer.jar')]
-                        for (src in sources) {
-                            if (src.exists()) {
-                                copy {
-                                    from src
-                                    into 'libs'
-                                }
-                                break
-                            }
-                        }
-                    }
-                }
-            }
-
-            tasks.named('$compileTask') {
-                dependsOn 'copyServerJar'
             }
 
             // Deploy plugin JAR to server mods folder

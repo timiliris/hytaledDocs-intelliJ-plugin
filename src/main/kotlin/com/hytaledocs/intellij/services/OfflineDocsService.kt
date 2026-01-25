@@ -14,7 +14,9 @@ import java.nio.file.Files
 import java.nio.file.Paths
 import java.time.Duration
 import java.time.Instant
+import java.util.Collections
 import java.util.concurrent.CompletableFuture
+import java.util.concurrent.atomic.AtomicBoolean
 import java.util.zip.ZipInputStream
 import com.intellij.openapi.vfs.LocalFileSystem
 
@@ -47,6 +49,9 @@ class OfflineDocsService {
 
         private const val CACHE_VERSION = "1.0.0"
 
+        // Maximum in-memory cache size for parsed documents
+        private const val MAX_DOCS_CACHE_SIZE = 200
+
         fun getInstance(): OfflineDocsService {
             return ApplicationManager.getApplication().getService(OfflineDocsService::class.java)
         }
@@ -62,12 +67,17 @@ class OfflineDocsService {
 
     private val gson: Gson = GsonBuilder().setPrettyPrinting().create()
 
-    @Volatile
-    private var isDownloading = false
+    private val isDownloading = AtomicBoolean(false)
 
     // In-memory cache of parsed docs
     private var docsIndex: DocsIndex? = null
-    private val docsCache = mutableMapOf<String, ParsedDoc>()
+    private val docsCache = Collections.synchronizedMap(
+        object : LinkedHashMap<String, ParsedDoc>(MAX_DOCS_CACHE_SIZE, 0.75f, true) {
+            override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, ParsedDoc>?): Boolean {
+                return size > MAX_DOCS_CACHE_SIZE
+            }
+        }
+    )
 
     // ==================== Data Classes ====================
 
@@ -125,7 +135,7 @@ class OfflineDocsService {
 
     // ==================== Public API ====================
 
-    fun isDownloading(): Boolean = isDownloading
+    fun isDownloading(): Boolean = isDownloading.get()
 
     /**
      * Get current cache status
@@ -149,11 +159,10 @@ class OfflineDocsService {
     fun downloadDocs(
         onProgress: ((DownloadProgress) -> Unit)? = null
     ): CompletableFuture<Boolean> {
-        if (isDownloading) {
+        // Use atomic compareAndSet to prevent race condition
+        if (!isDownloading.compareAndSet(false, true)) {
             return CompletableFuture.completedFuture(false)
         }
-
-        isDownloading = true
 
         return CompletableFuture.supplyAsync {
             try {
@@ -277,7 +286,7 @@ class OfflineDocsService {
                 ))
                 false
             } finally {
-                isDownloading = false
+                isDownloading.set(false)
             }
         }
     }

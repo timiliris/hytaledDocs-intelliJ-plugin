@@ -3,6 +3,7 @@ package com.hytaledocs.intellij.completion.providers
 import com.hytaledocs.intellij.HytaleIcons
 import com.hytaledocs.intellij.completion.data.LifecycleMethodInfo
 import com.hytaledocs.intellij.services.ServerDataService
+import com.hytaledocs.intellij.settings.HytaleAppSettings
 import com.intellij.codeInsight.completion.*
 import com.intellij.codeInsight.lookup.LookupElement
 import com.intellij.codeInsight.lookup.LookupElementBuilder
@@ -25,6 +26,12 @@ class PluginMethodCompletionProvider : CompletionProvider<CompletionParameters>(
         context: ProcessingContext,
         result: CompletionResultSet
     ) {
+        // Check if Hytale completion is enabled
+        val settings = HytaleAppSettings.getInstance()
+        if (!settings.enableCodeCompletion) {
+            return
+        }
+
         val position = parameters.position
         val containingClass = PsiTreeUtil.getParentOfType(position, PsiClass::class.java) ?: return
 
@@ -72,7 +79,11 @@ class PluginMethodCompletionProvider : CompletionProvider<CompletionParameters>(
             .withInsertHandler { insertContext, _ ->
                 insertOverrideMethod(insertContext, method, containingClass)
             }
-            .let { PrioritizedLookupElement.withPriority(it, 150.0) } // High priority for lifecycle methods
+            .let {
+                val settings = HytaleAppSettings.getInstance()
+                // Lifecycle methods get +50 boost on top of base priority
+                PrioritizedLookupElement.withPriority(it, settings.completionPriority.toDouble() + 50)
+            }
     }
 
     /**
@@ -148,7 +159,8 @@ class PluginMethodCompletionProvider : CompletionProvider<CompletionParameters>(
                     insertContext.editor.caretModel.moveToOffset(insertContext.tailOffset)
                 }
 
-            result.addElement(PrioritizedLookupElement.withPriority(lookupElement, 80.0))
+            val settings = HytaleAppSettings.getInstance()
+            result.addElement(PrioritizedLookupElement.withPriority(lookupElement, settings.completionPriority.toDouble() - 20))
         }
     }
 

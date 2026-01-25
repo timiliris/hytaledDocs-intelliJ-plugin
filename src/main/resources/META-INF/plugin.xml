@@ -134,6 +134,15 @@
     ]]></description>
 
     <change-notes><![CDATA[
+        <h3>1.3.7</h3>
+        <ul>
+            <li><b>Maven Repository Support</b> - Download server JARs directly from maven.hytale.com</li>
+            <li><b>Version Selection</b> - Choose specific server versions or auto-update to latest</li>
+            <li><b>Version Cache</b> - Downloaded versions are cached in ~/.hytale-intellij/servers/</li>
+            <li><b>Settings UI</b> - New "Server Version" section in Settings > Tools > HytaleDocs</li>
+            <li><b>Tool Window</b> - Server version now displayed in the status card</li>
+        </ul>
+
         <h3>1.3.6</h3>
         <ul>
             <li><b>Hytale Installation Path Setting</b> - New global settings page (Settings > Tools > HytaleDocs) to configure Hytale installation path</li>
@@ -286,9 +295,15 @@
                 serviceImplementation="com.hytaledocs.intellij.services.AssetScannerService"/>
         <projectService
                 serviceImplementation="com.hytaledocs.intellij.services.AssetSyncService"/>
+        <projectService
+                serviceImplementation="com.hytaledocs.intellij.services.ServerProfiler"/>
 
         <applicationService
                 serviceImplementation="com.hytaledocs.intellij.settings.HytaleAppSettings"/>
+        <applicationService
+                serviceImplementation="com.hytaledocs.intellij.services.MavenMetadataService"/>
+        <applicationService
+                serviceImplementation="com.hytaledocs.intellij.services.ServerVersionCacheService"/>
         <applicationService
                 serviceImplementation="com.hytaledocs.intellij.services.JavaInstallService"/>
         <applicationService
@@ -370,8 +385,8 @@
 
             <action id="HytaleDocs.DownloadServerJar"
                     class="com.hytaledocs.intellij.actions.DownloadServerJarAction"
-                    text="Download Server JAR"
-                    description="Download the latest HytaleServer.jar from CDN"/>
+                    text="Download Server JAR (Maven)"
+                    description="Download HytaleServer.jar from Maven repository with version selection"/>
 
             <separator/>
 

@@ -1,8 +1,10 @@
 package com.hytaledocs.intellij.services
 
+import com.hytaledocs.intellij.settings.HytaleAppSettings
 import com.hytaledocs.intellij.util.HttpClientPool
 import com.hytaledocs.intellij.util.RetryUtil
 import com.intellij.openapi.components.Service
+import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.project.Project
 import java.io.File
 import java.io.FileOutputStream
@@ -20,8 +22,9 @@ import com.intellij.openapi.vfs.LocalFileSystem
 class ServerDownloadService(private val project: Project) {
 
     companion object {
-        // Note: CDN may not be publicly available yet - returns 404
-        // Users need to use the Hytale downloader with authentication or manually place the JAR
+        private val LOG = Logger.getInstance(ServerDownloadService::class.java)
+
+        // Legacy CDN URL (may not be publicly available)
         const val SERVER_JAR_URL = "https://cdn.hytale.com/HytaleServer.jar"
         const val SERVER_JAR_NAME = "HytaleServer.jar"
         const val ASSETS_NAME = "Assets.zip"
@@ -40,9 +43,111 @@ class ServerDownloadService(private val project: Project) {
     )
 
     /**
-     * Downloads the Hytale server JAR directly from CDN.
-     * This is the simple method that doesn't require authentication.
+     * Downloads the Hytale server JAR from Maven repository.
+     * This is the primary download method using versioned artifacts.
+     *
+     * @param targetDir Directory to save the JAR
+     * @param version Specific version to download, or null for latest
+     * @param progressCallback Optional progress callback
+     * @return CompletableFuture containing the path to the downloaded JAR
      */
+    fun downloadServerJarFromMaven(
+        targetDir: Path,
+        version: String? = null,
+        progressCallback: Consumer<DownloadProgress>? = null
+    ): CompletableFuture<Path> {
+        return CompletableFuture.supplyAsync {
+            progressCallback?.accept(DownloadProgress("maven", 0, "Checking Maven repository..."))
+
+            val mavenService = MavenMetadataService.getInstance()
+            val cacheService = ServerVersionCacheService.getInstance()
+            val settings = HytaleAppSettings.getInstance()
+
+            // Determine which version to download
+            val targetVersion = version
+                ?: settings.preferredServerVersion.takeIf { it.isNotBlank() }
+                ?: mavenService.getLatestVersion().get()?.version
+                ?: throw RuntimeException("No server version available from Maven repository")
+
+            LOG.info("Target server version: $targetVersion")
+            progressCallback?.accept(DownloadProgress("maven", 10, "Version: $targetVersion"))
+
+            val targetPath = targetDir.resolve(SERVER_JAR_NAME)
+
+            // Check if version is already cached
+            if (cacheService.isVersionCached(targetVersion)) {
+                progressCallback?.accept(DownloadProgress("maven", 50, "Using cached version $targetVersion"))
+                LOG.info("Using cached version: $targetVersion")
+
+                // Copy from cache to target
+                cacheService.copyToDirectory(targetVersion, targetDir, SERVER_JAR_NAME)
+
+                // Update last used version
+                settings.lastUsedServerVersion = targetVersion
+
+                progressCallback?.accept(DownloadProgress("maven", 100, "Server JAR ready!"))
+                LocalFileSystem.getInstance().refreshAndFindFileByPath(targetPath.toString())
+                return@supplyAsync targetPath
+            }
+
+            // Download and cache the version
+            progressCallback?.accept(DownloadProgress("maven", 20, "Downloading version $targetVersion..."))
+
+            val downloadUrl = MavenMetadataService.getJarDownloadUrl(targetVersion)
+            LOG.info("Downloading from: $downloadUrl")
+
+            cacheService.downloadAndCacheVersion(
+                version = targetVersion,
+                downloadUrl = downloadUrl,
+                progressCallback = { cacheProgress ->
+                    // Map cache progress to our progress (20-90%)
+                    val mappedProgress = 20 + (cacheProgress.progress * 70 / 100)
+                    progressCallback?.accept(DownloadProgress("maven", mappedProgress, cacheProgress.message))
+                }
+            ).get()
+
+            // Copy from cache to target
+            progressCallback?.accept(DownloadProgress("maven", 95, "Copying to project..."))
+            cacheService.copyToDirectory(targetVersion, targetDir, SERVER_JAR_NAME)
+
+            // Update last used version
+            settings.lastUsedServerVersion = targetVersion
+
+            progressCallback?.accept(DownloadProgress("maven", 100, "Server JAR ready!"))
+            LocalFileSystem.getInstance().refreshAndFindFileByPath(targetPath.toString())
+
+            targetPath
+        }
+    }
+
+    /**
+     * Gets available server versions from Maven.
+     */
+    fun getAvailableVersions(): CompletableFuture<List<MavenMetadataService.ServerVersion>> {
+        return MavenMetadataService.getInstance().getAvailableVersions()
+    }
+
+    /**
+     * Gets the latest server version from Maven.
+     */
+    fun getLatestVersion(): CompletableFuture<MavenMetadataService.ServerVersion?> {
+        return MavenMetadataService.getInstance().getLatestVersion()
+    }
+
+    /**
+     * Checks if a specific version is cached locally.
+     */
+    fun isVersionCached(version: String): Boolean {
+        return ServerVersionCacheService.getInstance().isVersionCached(version)
+    }
+
+    /**
+     * Downloads the Hytale server JAR directly from CDN.
+     * This is the legacy method - prefer downloadServerJarFromMaven() instead.
+     *
+     * @deprecated Use downloadServerJarFromMaven() for versioned downloads
+     */
+    @Deprecated("Use downloadServerJarFromMaven() for versioned downloads from Maven repository")
     fun downloadServerJar(
         targetDir: Path,
         progressCallback: Consumer<DownloadProgress>? = null
@@ -240,9 +345,11 @@ class ServerDownloadService(private val project: Project) {
     }
 
     private fun findExecutable(dir: Path, name: String): Path? {
-        return Files.walk(dir)
-            .filter { it.fileName.toString() == name }
-            .findFirst()
-            .orElse(null)
+        return Files.walk(dir).use { stream ->
+            stream
+                .filter { it.fileName.toString() == name }
+                .findFirst()
+                .orElse(null)
+        }
     }
 }

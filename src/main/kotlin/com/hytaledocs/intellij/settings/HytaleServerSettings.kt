@@ -1,6 +1,8 @@
 package com.hytaledocs.intellij.settings
 
-import com.intellij.openapi.components.*
+import com.intellij.openapi.components.PersistentStateComponent
+import com.intellij.openapi.components.State
+import com.intellij.openapi.components.Storage
 import com.intellij.openapi.project.Project
 import com.intellij.util.xmlb.XmlSerializerUtil
 
@@ -35,10 +37,6 @@ class HytaleServerSettings : PersistentStateComponent<HytaleServerSettings.State
         var authMode: String = AuthMode.AUTHENTICATED.value,
         var allowOp: Boolean = true,
         var acceptEarlyPlugins: Boolean = true,
-
-        // Backup settings
-        var backupEnabled: Boolean = false,
-        var backupFrequency: Int = 30,
 
         // Additional JVM arguments
         var jvmArgs: String = "",
@@ -79,15 +77,30 @@ class HytaleServerSettings : PersistentStateComponent<HytaleServerSettings.State
 
     var minMemory: String
         get() = myState.minMemory
-        set(value) { myState.minMemory = value }
+        set(value) {
+            require(isValidMemoryFormat(value)) {
+                "Invalid memory format: $value. Must match pattern like '2G', '512M', '4096M'"
+            }
+            myState.minMemory = value
+        }
 
     var maxMemory: String
         get() = myState.maxMemory
-        set(value) { myState.maxMemory = value }
+        set(value) {
+            require(isValidMemoryFormat(value)) {
+                "Invalid memory format: $value. Must match pattern like '2G', '512M', '4096M'"
+            }
+            myState.maxMemory = value
+        }
 
     var port: Int
         get() = myState.port
-        set(value) { myState.port = value }
+        set(value) {
+            require(value in 1024..65535) {
+                "Port must be between 1024 and 65535, got: $value"
+            }
+            myState.port = value
+        }
 
     var authMode: AuthMode
         get() = AuthMode.entries.find { it.value == myState.authMode } ?: AuthMode.AUTHENTICATED
@@ -101,14 +114,6 @@ class HytaleServerSettings : PersistentStateComponent<HytaleServerSettings.State
         get() = myState.acceptEarlyPlugins
         set(value) { myState.acceptEarlyPlugins = value }
 
-    var backupEnabled: Boolean
-        get() = myState.backupEnabled
-        set(value) { myState.backupEnabled = value }
-
-    var backupFrequency: Int
-        get() = myState.backupFrequency
-        set(value) { myState.backupFrequency = value }
-
     var jvmArgs: String
         get() = myState.jvmArgs
         set(value) { myState.jvmArgs = value }
@@ -119,7 +124,12 @@ class HytaleServerSettings : PersistentStateComponent<HytaleServerSettings.State
 
     var maxLogLines: Int
         get() = myState.maxLogLines
-        set(value) { myState.maxLogLines = value }
+        set(value) {
+            require(value > 0) {
+                "Max log lines must be greater than 0, got: $value"
+            }
+            myState.maxLogLines = value
+        }
 
     var autoScroll: Boolean
         get() = myState.autoScroll
@@ -144,6 +154,15 @@ class HytaleServerSettings : PersistentStateComponent<HytaleServerSettings.State
     var uiFileSupportEnabled: Boolean
         get() = myState.uiFileSupportEnabled
         set(value) { myState.uiFileSupportEnabled = value }
+
+    /**
+     * Validates memory format (e.g., "2G", "512M", "4096M").
+     * @param value The memory string to validate
+     * @return true if valid, false otherwise
+     */
+    private fun isValidMemoryFormat(value: String): Boolean {
+        return value.matches(Regex("^\\d+[MG]$"))
+    }
 
     companion object {
         fun getInstance(project: Project): HytaleServerSettings {

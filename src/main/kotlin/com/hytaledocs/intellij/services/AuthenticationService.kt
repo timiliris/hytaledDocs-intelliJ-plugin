@@ -9,6 +9,7 @@ import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.project.Project
 import java.time.Instant
 import java.util.concurrent.CopyOnWriteArrayList
+import java.util.concurrent.Future
 import java.util.concurrent.atomic.AtomicReference
 import java.util.function.Consumer
 
@@ -88,6 +89,9 @@ class AuthenticationService {
     // Browser opened flag to prevent multiple browser tabs
     private var browserOpenedForSession: String? = null
 
+    // Background task tracking for cleanup
+    private val backgroundTasks = CopyOnWriteArrayList<Future<*>>()
+
     /**
      * Register a callback to receive authentication state changes.
      */
@@ -133,13 +137,14 @@ class AuthenticationService {
                 // Auto-trigger the auth command with longer delay to ensure server is fully ready
                 if (project != null) {
                     LOG.info("[HytaleDocs] Auto-triggering /auth login device (waiting ${AUTH_TRIGGER_DELAY_MS}ms)")
-                    ApplicationManager.getApplication().executeOnPooledThread {
+                    val task = ApplicationManager.getApplication().executeOnPooledThread {
                         Thread.sleep(AUTH_TRIGGER_DELAY_MS)
                         if (isAuthenticating()) {
                             LOG.info("[HytaleDocs] Sending /auth login device command")
                             triggerServerAuth(project)
                         }
                     }
+                    backgroundTasks.add(task)
                 }
             }
             return true
@@ -336,7 +341,7 @@ class AuthenticationService {
 
         // Persist authentication so we don't need to re-authenticate on next server start
         if (source == AuthSource.SERVER && project != null) {
-            ApplicationManager.getApplication().executeOnPooledThread {
+            val persistTask = ApplicationManager.getApplication().executeOnPooledThread {
                 Thread.sleep(1000) // Wait a bit for auth to be fully processed
                 val launchService = ServerLaunchService.getInstance(project)
                 if (launchService.isServerRunning()) {
@@ -344,15 +349,16 @@ class AuthenticationService {
                     launchService.sendCommand("/auth persistence Encrypted")
                 }
             }
+            backgroundTasks.add(persistTask)
         }
 
         // Clear session after a delay
-        ApplicationManager.getApplication().executeOnPooledThread {
+        val clearTask = ApplicationManager.getApplication().executeOnPooledThread {
             Thread.sleep(3000)
-            if (currentSession.get()?.state == AuthState.SUCCESS) {
-                currentSession.set(null)
-            }
+            // Use atomic compareAndSet to avoid race condition
+            currentSession.compareAndSet(session, null)
         }
+        backgroundTasks.add(clearTask)
     }
 
     /**
@@ -382,12 +388,12 @@ class AuthenticationService {
         )
 
         // Clear session after a delay
-        ApplicationManager.getApplication().executeOnPooledThread {
+        val clearTask = ApplicationManager.getApplication().executeOnPooledThread {
             Thread.sleep(5000)
-            if (currentSession.get()?.state == AuthState.FAILED) {
-                currentSession.set(null)
-            }
+            // Use atomic compareAndSet to avoid race condition
+            currentSession.compareAndSet(session, null)
         }
+        backgroundTasks.add(clearTask)
     }
 
     /**
@@ -398,6 +404,19 @@ class AuthenticationService {
         browserOpenedForSession = null
         lastCode = null
         lastCodeTime = Instant.MIN
+    }
+
+    /**
+     * Cancel all background tasks and cleanup resources.
+     * Should be called on service disposal.
+     */
+    fun dispose() {
+        // Cancel all pending background tasks
+        backgroundTasks.forEach { task ->
+            task.cancel(true)
+        }
+        backgroundTasks.clear()
+        resetSession()
     }
 
     /**

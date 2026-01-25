@@ -126,6 +126,15 @@ class HytaleServerProcessHandler(
             return
         }
 
+        val serverAlreadyRunning = launchService.isServerRunning()
+        val useHotReload = config.hotReloadEnabled && serverAlreadyRunning
+
+        if (useHotReload) {
+            printInfo("=== Hot Reload Mode ===")
+            printInfo("Server is already running - will rebuild and redeploy without restart")
+            println("")
+        }
+
         // Step 1: Build (if enabled)
         if (config.buildBeforeRun && config.buildTask.isNotBlank()) {
             printInfo("=== Building plugin ===")
@@ -138,8 +147,8 @@ class HytaleServerProcessHandler(
             println("")
         }
 
-        // Step 2: Stop server if running (so we can replace the JAR)
-        if (launchService.isServerRunning()) {
+        // Step 2: Stop server if running (only if NOT using hot reload)
+        if (serverAlreadyRunning && !useHotReload) {
             printInfo("=== Stopping server for redeploy ===")
             launchService.stopServer { line -> println(line) }
                 .get(30, java.util.concurrent.TimeUnit.SECONDS)
@@ -154,7 +163,10 @@ class HytaleServerProcessHandler(
             printInfo("=== Deploying plugin ===")
 
             // Kill any lingering HytaleServer processes that might be holding files
-            killLingeringServerProcesses()
+            // (only if not using hot reload - we don't want to kill our running server!)
+            if (!useHotReload) {
+                killLingeringServerProcesses()
+            }
 
             if (!deployPlugin(projectBasePath)) {
                 printError("Deploy failed!")
@@ -166,11 +178,20 @@ class HytaleServerProcessHandler(
             println("")
         }
 
-        printInfo("=== Starting Hytale Server ===")
-        if (isDebugMode) {
-            printInfo("Debug mode enabled on port $debugPort")
+        // Step 4: Start server (only if NOT using hot reload)
+        if (useHotReload) {
+            printInfo("=== Hot Reload Complete ===")
+            printInfo("Plugin deployed - server will reload automatically")
+            printSuccess("Hot reload successful!")
+            // Don't call notifyProcessTerminated - keep the process handler alive
+            // to show logs and allow stopping later
+        } else {
+            printInfo("=== Starting Hytale Server ===")
+            if (isDebugMode) {
+                printInfo("Debug mode enabled on port $debugPort")
+            }
+            startServer(projectBasePath)
         }
-        startServer(projectBasePath)
     }
 
     private fun executeBuild(projectBasePath: String): Boolean {
@@ -246,7 +267,7 @@ class HytaleServerProcessHandler(
             } else {
                 ProcessBuilder("which", "gradle").start()
             }
-            val result = process.inputStream.bufferedReader().readLine()
+            val result = process.inputStream.bufferedReader().use { it.readLine() }
             process.waitFor()
             if (process.exitValue() == 0 && result != null && result.isNotBlank()) result else null
         } catch (e: Exception) {
@@ -262,7 +283,7 @@ class HytaleServerProcessHandler(
             } else {
                 ProcessBuilder("which", "mvn").start()
             }
-            val result = process.inputStream.bufferedReader().readLine()
+            val result = process.inputStream.bufferedReader().use { it.readLine() }
             process.waitFor()
             if (process.exitValue() == 0 && result != null && result.isNotBlank()) result else null
         } catch (e: Exception) {
@@ -281,45 +302,23 @@ class HytaleServerProcessHandler(
 
     /**
      * Kill any lingering HytaleServer Java processes that might be holding file locks.
+     * Uses modern ProcessHandle API (Java 9+) instead of deprecated WMIC.
      */
     private fun killLingeringServerProcesses() {
-        val isWindows = System.getProperty("os.name").lowercase().contains("windows")
-
         try {
-            if (isWindows) {
-                // Find and kill Java processes running HytaleServer.jar
-                val findProcess = ProcessBuilder("wmic", "process", "where",
-                    "commandline like '%HytaleServer.jar%'", "get", "processid")
-                    .redirectErrorStream(true)
-                    .start()
-
-                val pids = findProcess.inputStream.bufferedReader().readLines()
-                    .filter { it.trim().matches(Regex("\\d+")) }
-                    .map { it.trim() }
-
-                findProcess.waitFor(5, TimeUnit.SECONDS)
-
-                for (pid in pids) {
-                    printInfo("Killing lingering server process: $pid")
-                    ProcessBuilder("taskkill", "/PID", pid, "/F")
-                        .redirectErrorStream(true)
-                        .start()
-                        .waitFor(5, TimeUnit.SECONDS)
+            ProcessHandle.allProcesses()
+                .filter { handle ->
+                    handle.info().commandLine()
+                        .map { cmd -> cmd.contains("HytaleServer.jar") }
+                        .orElse(false)
                 }
-
-                if (pids.isNotEmpty()) {
-                    // Wait for processes to fully terminate
-                    Thread.sleep(2000)
+                .forEach { handle ->
+                    printInfo("Killing lingering server process: ${handle.pid()}")
+                    handle.destroyForcibly()
                 }
-            } else {
-                // Unix: pkill java processes with HytaleServer
-                ProcessBuilder("pkill", "-f", "HytaleServer.jar")
-                    .start()
-                    .waitFor(5, TimeUnit.SECONDS)
-                Thread.sleep(1000)
-            }
+            Thread.sleep(2000) // Wait for processes to terminate
         } catch (e: Exception) {
-            // Ignore - best effort cleanup
+            LOG.warn("Failed to kill lingering processes", e)
         }
     }
 
@@ -528,18 +527,38 @@ class HytaleServerProcessHandler(
 
     override fun destroyProcessImpl() {
         isTerminating = true
-        // If hot reload is enabled, DON'T stop the server - just detach
-        // This allows re-running to do hot reload instead of restart
-        if (config.hotReloadEnabled && launchService.isServerRunning()) {
-            // Don't stop the server, just detach this process handler
-            notifyProcessTerminated(0)
-        } else if (launchService.isServerRunning()) {
-            // Hot reload disabled - actually stop the server
-            launchService.stopServer { line -> println(line) }
-                .orTimeout(30, TimeUnit.SECONDS)
-                .whenComplete { _, _ ->
-                    notifyProcessTerminated(0)
+
+        // Always stop the server when the stop button is pressed
+        // Hot reload only applies during re-run (handled in execute())
+        if (launchService.isServerRunning()) {
+            printInfo("Stopping server...")
+            launchService.stopServer(
+                logCallback = { line ->
+                    try {
+                        println(line)
+                    } catch (e: Exception) {
+                        // Ignore - console may be closing
+                    }
+                },
+                statusCallback = { status ->
+                    if (status == ServerLaunchService.ServerStatus.STOPPED) {
+                        printInfo("Server stopped successfully")
+                        notifyProcessTerminated(0)
+                    }
                 }
+            ).exceptionally { e ->
+                LOG.warn("Error stopping server", e)
+                // Force notify termination even on error
+                notifyProcessTerminated(1)
+                false
+            }.orTimeout(45, TimeUnit.SECONDS)
+            .exceptionally { e ->
+                // Timeout occurred - force kill and notify
+                LOG.warn("Stop server timed out, forcing termination", e)
+                printError("Server stop timed out - forcing shutdown")
+                notifyProcessTerminated(1)
+                false
+            }
         } else {
             notifyProcessTerminated(0)
         }

@@ -1,6 +1,7 @@
 package com.hytaledocs.intellij.actions
 
 import com.hytaledocs.intellij.services.ServerLaunchService
+import com.hytaledocs.intellij.util.PluginInfoDetector
 import com.intellij.notification.NotificationGroupManager
 import com.intellij.notification.NotificationType
 import com.intellij.openapi.actionSystem.AnAction
@@ -45,10 +46,17 @@ class HotReloadPluginAction : AnAction() {
         }
 
         // Detect plugin info
-        val pluginInfo = detectPluginInfo(basePath, project.name) ?: run {
+        val detectedInfo = PluginInfoDetector.detect(basePath, project.name) ?: run {
             showNotification(project, "Could not detect plugin info. Check your project configuration.", NotificationType.ERROR)
             return
         }
+
+        // Convert to local PluginInfo format
+        val pluginInfo = PluginInfo(
+            pluginName = "${detectedInfo.groupId}:${detectedInfo.modName}",
+            jarPath = detectedInfo.jarPath,
+            buildTask = detectedInfo.buildTask
+        )
 
         try {
             // Step 1: Build
@@ -172,64 +180,15 @@ class HotReloadPluginAction : AnAction() {
             .notify(project)
     }
 
+    /**
+     * Internal plugin info for hot reload operations.
+     * Contains the plugin name in "group:name" format for server commands.
+     */
     private data class PluginInfo(
         val pluginName: String,
         val jarPath: String,
         val buildTask: String
     )
-
-    private fun detectPluginInfo(basePath: String, projectName: String): PluginInfo? {
-        // Try .hytale/project.json
-        val hytaleProject = File(basePath, ".hytale/project.json")
-        if (hytaleProject.exists()) {
-            try {
-                val content = hytaleProject.readText()
-                val groupRegex = """"groupId"\s*:\s*"([^"]+)"""".toRegex()
-                val artifactRegex = """"artifactId"\s*:\s*"([^"]+)"""".toRegex()
-                val modNameRegex = """"modName"\s*:\s*"([^"]+)"""".toRegex()
-                val jarPathRegex = """"jarPath"\s*:\s*"([^"]+)"""".toRegex()
-                val buildTaskRegex = """"buildTask"\s*:\s*"([^"]+)"""".toRegex()
-
-                val groupId = groupRegex.find(content)?.groupValues?.get(1)
-                val artifactId = artifactRegex.find(content)?.groupValues?.get(1)
-                // modName is the actual plugin name (with spaces/caps)
-                val modName = modNameRegex.find(content)?.groupValues?.get(1) ?: artifactId
-                val jarPath = jarPathRegex.find(content)?.groupValues?.get(1) ?: "build/libs/$artifactId-1.0.0.jar"
-                val buildTask = buildTaskRegex.find(content)?.groupValues?.get(1) ?: "shadowJar"
-
-                if (groupId != null && modName != null) {
-                    return PluginInfo("$groupId:$modName", jarPath, buildTask)
-                }
-            } catch (e: Exception) {
-                // Fall through to other methods
-            }
-        }
-
-        // Try manifest.json
-        val manifest = File(basePath, "src/main/resources/manifest.json")
-        if (manifest.exists()) {
-            try {
-                val content = manifest.readText()
-                val groupRegex = """"Group"\s*:\s*"([^"]+)"""".toRegex()
-                val nameRegex = """"Name"\s*:\s*"([^"]+)"""".toRegex()
-
-                val group = groupRegex.find(content)?.groupValues?.get(1)
-                val name = nameRegex.find(content)?.groupValues?.get(1)
-
-                if (group != null && name != null) {
-                    // Plugin name keeps original format: "Group:Name" (with spaces/caps)
-                    val jarArtifactId = name.lowercase().replace(" ", "-")
-                    return PluginInfo("$group:$name", "build/libs/$jarArtifactId-1.0.0.jar", "shadowJar")
-                }
-            } catch (e: Exception) {
-                // Fall through
-            }
-        }
-
-        // Fallback to project name
-        val artifactId = projectName.lowercase().replace(" ", "-")
-        return PluginInfo("com.example:$artifactId", "build/libs/$artifactId-1.0.0.jar", "shadowJar")
-    }
 
     override fun update(e: AnActionEvent) {
         val project = e.project

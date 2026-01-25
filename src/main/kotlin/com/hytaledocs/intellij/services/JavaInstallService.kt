@@ -3,7 +3,13 @@ package com.hytaledocs.intellij.services
 import com.hytaledocs.intellij.util.HttpClientPool
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.components.Service
-import java.io.*
+import java.io.BufferedInputStream
+import java.io.BufferedOutputStream
+import java.io.BufferedReader
+import java.io.File
+import java.io.FileOutputStream
+import java.io.IOException
+import java.io.InputStreamReader
 import java.net.URI
 import java.net.http.HttpRequest
 import java.net.http.HttpResponse
@@ -117,10 +123,12 @@ class JavaInstallService {
         // Check managed installations
         val managedDir = getManagedJavaDir()
         if (Files.exists(managedDir)) {
-            Files.list(managedDir).forEach { javaDir ->
-                if (Files.isDirectory(javaDir)) {
-                    getJavaVersion(javaDir)?.let { version ->
-                        installations.add(JavaInstallation(version, javaDir, true))
+            Files.list(managedDir).use { stream ->
+                stream.forEach { javaDir ->
+                    if (Files.isDirectory(javaDir)) {
+                        getJavaVersion(javaDir)?.let { version ->
+                            installations.add(JavaInstallation(version, javaDir, true))
+                        }
                     }
                 }
             }
@@ -229,11 +237,13 @@ class JavaInstallService {
                 progressCallback?.accept(DownloadProgress("verify", 90, "Verifying installation..."))
 
                 // Find the actual JDK directory (it's usually nested)
-                val jdkDir = Files.list(installDir)
-                    .filter { Files.isDirectory(it) }
-                    .filter { it.fileName.toString().startsWith("jdk") }
-                    .findFirst()
-                    .orElse(installDir)
+                val jdkDir = Files.list(installDir).use { stream ->
+                    stream
+                        .filter { Files.isDirectory(it) }
+                        .filter { it.fileName.toString().startsWith("jdk") }
+                        .findFirst()
+                        .orElse(installDir)
+                }
 
                 // Verify installation
                 val installedVersion = getJavaVersion(jdkDir)

@@ -2,6 +2,33 @@
 
 ## [Unreleased]
 
+## [1.3.7] - 2026-01-25
+
+### Added
+
+- **Multi-Language Support**: Plugin UI now supports 8 languages
+  - English (default), Français, Deutsch, Español, Italiano, Português (Brasil), Polski, Русский
+  - Language selector in Settings > Tools > HytaleDocs
+  - Restart prompt when changing language
+- **MCP Multi-Assistant Support**: Install MCP server for multiple AI tools
+  - Claude Code (project .mcp.json)
+  - Claude Desktop
+  - Cursor (~/.cursor/mcp.json)
+  - Windsurf (~/.codeium/windsurf/mcp_config.json)
+  - GitHub Copilot (.vscode/mcp.json)
+  - Continue (~/.continue/config.json)
+
+### Changed
+
+- English is now the default language regardless of system locale
+- MCP configuration is now saved immediately to XML
+
+## [1.3.6] - 2026-01-24
+
+### Added
+
+- **Hytale Installation Path Settings**: Configure custom Hytale installation path in Settings > Tools > HytaleDocs
+
 ## [1.3.5] - 2026-01-22
 
 ### Fixed
@@ -118,7 +145,9 @@
 - Supports IntelliJ IDEA 2024.3+
 - Requires Java 25 for Hytale development
 
-[Unreleased]: https://github.com/HytaleDocs/hytale-intellij-plugin/compare/v1.3.5...HEAD
+[Unreleased]: https://github.com/HytaleDocs/hytale-intellij-plugin/compare/v1.3.7...HEAD
+[1.3.7]: https://github.com/HytaleDocs/hytale-intellij-plugin/compare/v1.3.6...v1.3.7
+[1.3.6]: https://github.com/HytaleDocs/hytale-intellij-plugin/compare/v1.3.5...v1.3.6
 [1.3.5]: https://github.com/HytaleDocs/hytale-intellij-plugin/compare/v1.3.4...v1.3.5
 [1.3.4]: https://github.com/HytaleDocs/hytale-intellij-plugin/compare/v1.3.1...v1.3.4
 [1.3.1]: https://github.com/HytaleDocs/hytale-intellij-plugin/compare/v1.3.0...v1.3.1

@@ -290,7 +290,10 @@ class ServerLaunchService(private val project: Project) : Disposable {
     /**
      * Stops the running server gracefully.
      */
-    fun stopServer(logCallback: Consumer<String>? = null): CompletableFuture<Boolean> {
+    fun stopServer(
+        logCallback: Consumer<String>? = null,
+        statusCallback: Consumer<ServerStatus>? = null
+    ): CompletableFuture<Boolean> {
         if (!isRunning.get()) {
             return CompletableFuture.completedFuture(false)
         }
@@ -298,33 +301,50 @@ class ServerLaunchService(private val project: Project) : Disposable {
         return CompletableFuture.supplyAsync {
             try {
                 status = ServerStatus.STOPPING
+                statusCallback?.accept(status)
                 logCallback?.accept("Stopping server...")
 
                 serverProcess?.let { process ->
                     // Try graceful shutdown first
-                    process.outputStream.write("stop\n".toByteArray())
-                    process.outputStream.flush()
+                    try {
+                        process.outputStream.write("stop\n".toByteArray())
+                        process.outputStream.flush()
+                    } catch (e: Exception) {
+                        LOG.warn("Failed to send stop command, will force kill", e)
+                    }
 
                     // Wait up to 30 seconds for graceful shutdown
-                    val exited = process.waitFor(30, java.util.concurrent.TimeUnit.SECONDS)
+                    val exited = process.waitFor(30, TimeUnit.SECONDS)
 
                     if (!exited) {
                         logCallback?.accept("Server did not stop gracefully, forcing...")
                         process.destroyForcibly()
-                        process.waitFor(10, java.util.concurrent.TimeUnit.SECONDS)
+                        // Wait for force kill to complete
+                        if (!process.waitFor(10, TimeUnit.SECONDS)) {
+                            LOG.error("Failed to kill server process after force destroy")
+                        }
                     }
                 }
 
                 isRunning.set(false)
+                serverProcess = null
                 status = ServerStatus.STOPPED
+                startTime = null
+                playerCount.set(0)
+                connectedPlayers.clear()
+                statusCallback?.accept(status)
                 logCallback?.accept("Server stopped.")
                 true
             } catch (e: Exception) {
+                LOG.error("Error stopping server", e)
                 logCallback?.accept("Error stopping server: ${e.message}")
                 // Force kill
                 serverProcess?.destroyForcibly()
+                serverProcess = null
                 isRunning.set(false)
                 status = ServerStatus.STOPPED
+                startTime = null
+                statusCallback?.accept(status)
                 false
             }
         }

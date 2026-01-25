@@ -1,6 +1,7 @@
 package com.hytaledocs.intellij.run
 
 import com.hytaledocs.intellij.services.JavaInstallService
+import com.hytaledocs.intellij.util.PluginInfoDetector
 import com.intellij.openapi.fileChooser.FileChooserDescriptorFactory
 import com.intellij.openapi.options.SettingsEditor
 import com.intellij.openapi.project.Project
@@ -8,9 +9,9 @@ import com.intellij.openapi.ui.ComboBox
 import com.intellij.openapi.ui.Messages
 import com.intellij.openapi.ui.TextFieldWithBrowseButton
 import com.intellij.ui.components.JBCheckBox
-import com.intellij.ui.dsl.builder.*
+import com.intellij.ui.dsl.builder.AlignX
+import com.intellij.ui.dsl.builder.panel
 import com.intellij.ui.dsl.listCellRenderer.textListCellRenderer
-import java.io.File
 import javax.swing.JComponent
 import javax.swing.JSpinner
 import javax.swing.JTextField
@@ -259,14 +260,14 @@ class HytaleServerSettingsEditor(private val project: Project) : SettingsEditor<
         if (info != null) {
             // Update UI fields directly
             pluginJarField?.text = info.jarPath
-            pluginNameField?.text = "${info.groupId}:${info.artifactId}"
+            pluginNameField?.text = "${info.groupId}:${info.modName}"
             buildTaskCombo?.selectedItem = info.buildTask
 
             fireEditorStateChanged()
 
             Messages.showInfoMessage(
                 project,
-                "Detected:\n- Plugin: ${info.groupId}:${info.artifactId}\n- JAR: ${info.jarPath}\n- Build task: ${info.buildTask}",
+                "Detected:\n- Plugin: ${info.groupId}:${info.modName}\n- JAR: ${info.jarPath}\n- Build task: ${info.buildTask}",
                 "Auto-detect Success"
             )
         } else {
@@ -278,140 +279,11 @@ class HytaleServerSettingsEditor(private val project: Project) : SettingsEditor<
         }
     }
 
-    private data class PluginInfo(
-        val groupId: String,
-        val artifactId: String,
-        val jarPath: String,
-        val buildTask: String
-    )
-
-    private fun detectPluginInfo(basePath: String): PluginInfo? {
-        // Priority 0: .hytale/project.json
-        readHytaleProjectJson(basePath)?.let { return it }
-
-        // Priority 1: manifest.json
-        readManifestJson(basePath)?.let { return it }
-
-        // Priority 2: Gradle files
-        readGradleFiles(basePath)?.let { return it }
-
-        // Priority 3: Project name fallback
-        val projectName = project.name
-        if (projectName.isNotBlank()) {
-            val artifactId = projectName.lowercase().replace(" ", "-")
-            return PluginInfo(
-                groupId = "com.example",
-                artifactId = artifactId,
-                jarPath = "build/libs/$artifactId-1.0.0.jar",
-                buildTask = "shadowJar"
-            )
-        }
-
-        return null
-    }
-
-    private fun readHytaleProjectJson(basePath: String): PluginInfo? {
-        val projectFile = File(basePath, ".hytale/project.json")
-        if (!projectFile.exists()) return null
-
-        return try {
-            val content = projectFile.readText()
-
-            val groupRegex = """"groupId"\s*:\s*"([^"]+)"""".toRegex()
-            val artifactRegex = """"artifactId"\s*:\s*"([^"]+)"""".toRegex()
-            val modNameRegex = """"modName"\s*:\s*"([^"]+)"""".toRegex()
-            val jarPathRegex = """"jarPath"\s*:\s*"([^"]+)"""".toRegex()
-            val buildTaskRegex = """"buildTask"\s*:\s*"([^"]+)"""".toRegex()
-
-            val groupId = groupRegex.find(content)?.groupValues?.get(1) ?: return null
-            val artifactId = artifactRegex.find(content)?.groupValues?.get(1) ?: return null
-            val modName = modNameRegex.find(content)?.groupValues?.get(1) ?: artifactId
-            val jarPath = jarPathRegex.find(content)?.groupValues?.get(1) ?: "build/libs/$artifactId-1.0.0.jar"
-            val buildTask = buildTaskRegex.find(content)?.groupValues?.get(1) ?: "shadowJar"
-
-            PluginInfo(groupId, modName, jarPath, buildTask)
-        } catch (e: Exception) {
-            null
-        }
-    }
-
-    private fun readManifestJson(basePath: String): PluginInfo? {
-        val manifestFile = File(basePath, "src/main/resources/manifest.json")
-        if (!manifestFile.exists()) return null
-
-        return try {
-            val content = manifestFile.readText()
-            val groupRegex = """"Group"\s*:\s*"([^"]+)"""".toRegex()
-            val nameRegex = """"Name"\s*:\s*"([^"]+)"""".toRegex()
-
-            val group = groupRegex.find(content)?.groupValues?.get(1)
-            val name = nameRegex.find(content)?.groupValues?.get(1)
-
-            if (group != null && name != null) {
-                val isGradle = File(basePath, "build.gradle").exists() ||
-                        File(basePath, "build.gradle.kts").exists()
-                val jarArtifactId = name.lowercase().replace(" ", "-")
-
-                PluginInfo(
-                    groupId = group,
-                    artifactId = name,
-                    jarPath = if (isGradle) "build/libs/$jarArtifactId-1.0.0.jar" else "target/$jarArtifactId-1.0.0.jar",
-                    buildTask = if (isGradle) "shadowJar" else "package"
-                )
-            } else null
-        } catch (e: Exception) {
-            null
-        }
-    }
-
-    private fun readGradleFiles(basePath: String): PluginInfo? {
-        val settingsGradle = File(basePath, "settings.gradle")
-        val settingsGradleKts = File(basePath, "settings.gradle.kts")
-
-        val projectName = when {
-            settingsGradle.exists() -> {
-                val content = settingsGradle.readText()
-                val regex = """rootProject\.name\s*=\s*['"]([^'"]+)['"]""".toRegex()
-                regex.find(content)?.groupValues?.get(1)
-            }
-            settingsGradleKts.exists() -> {
-                val content = settingsGradleKts.readText()
-                val regex = """rootProject\.name\s*=\s*"([^"]+)"""".toRegex()
-                regex.find(content)?.groupValues?.get(1)
-            }
-            else -> null
-        }
-
-        val buildGradle = File(basePath, "build.gradle")
-        val buildGradleKts = File(basePath, "build.gradle.kts")
-
-        val groupId = when {
-            buildGradle.exists() -> {
-                val content = buildGradle.readText()
-                val regex = """group\s*=\s*['"]([^'"]+)['"]""".toRegex()
-                regex.find(content)?.groupValues?.get(1)
-            }
-            buildGradleKts.exists() -> {
-                val content = buildGradleKts.readText()
-                val regex = """group\s*=\s*"([^"]+)"""".toRegex()
-                regex.find(content)?.groupValues?.get(1)
-            }
-            else -> null
-        }
-
-        if (projectName != null) {
-            val artifactId = projectName.lowercase().replace(" ", "-")
-            val baseGroup = groupId?.substringBeforeLast('.') ?: "com.example"
-
-            return PluginInfo(
-                groupId = baseGroup,
-                artifactId = artifactId,
-                jarPath = "build/libs/$artifactId-1.0.0.jar",
-                buildTask = "shadowJar"
-            )
-        }
-
-        return null
+    /**
+     * Detects plugin info from project files using the shared utility.
+     */
+    private fun detectPluginInfo(basePath: String): PluginInfoDetector.PluginInfo? {
+        return PluginInfoDetector.detect(basePath, project.name)
     }
 
     private fun createChangeListener(): DocumentListener {

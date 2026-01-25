@@ -5,7 +5,12 @@ import com.intellij.openapi.fileChooser.FileChooserDescriptorFactory
 import com.intellij.openapi.options.BoundConfigurable
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.DialogPanel
-import com.intellij.ui.dsl.builder.*
+import com.intellij.ui.dsl.builder.AlignX
+import com.intellij.ui.dsl.builder.bindIntValue
+import com.intellij.ui.dsl.builder.bindItem
+import com.intellij.ui.dsl.builder.bindSelected
+import com.intellij.ui.dsl.builder.bindText
+import com.intellij.ui.dsl.builder.panel
 import com.intellij.ui.dsl.listCellRenderer.textListCellRenderer
 import javax.swing.DefaultComboBoxModel
 
@@ -85,20 +90,6 @@ class HytaleSettingsConfigurable(private val project: Project) : BoundConfigurab
                     checkBox("Accept early plugins")
                         .bindSelected(settings::acceptEarlyPlugins)
                         .comment("Allow experimental plugin API usage")
-                }
-            }
-
-            group("Backup Settings") {
-                lateinit var backupCheckbox: com.intellij.ui.dsl.builder.Cell<javax.swing.JCheckBox>
-
-                row {
-                    backupCheckbox = checkBox("Enable automatic backups")
-                        .bindSelected(settings::backupEnabled)
-                }
-
-                row("Backup frequency (minutes):") {
-                    spinner(5..1440, 5)
-                        .bindIntValue(settings::backupFrequency)
                 }
             }
 

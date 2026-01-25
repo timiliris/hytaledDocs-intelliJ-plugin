@@ -1,5 +1,6 @@
 package com.hytaledocs.intellij.toolWindow
 
+import com.hytaledocs.intellij.HytaleBundle
 import com.hytaledocs.intellij.services.*
 import com.hytaledocs.intellij.settings.AuthMode
 import com.hytaledocs.intellij.settings.HytaleServerSettings
@@ -58,8 +59,8 @@ class HytaleToolWindowPanel(
     private lateinit var authPanel: AuthenticationPanel
 
     // Status labels
-    private val javaStatusLabel = JBLabel("Checking...")
-    private val serverJarStatusLabel = JBLabel("Checking...")
+    private val javaStatusLabel = JBLabel(HytaleBundle.message("status.checking"))
+    private val serverJarStatusLabel = JBLabel(HytaleBundle.message("status.checking"))
     private val serverStatusLabel = JBLabel("STOPPED")
     private val authModeLabel = JBLabel("")
 
@@ -72,15 +73,38 @@ class HytaleToolWindowPanel(
     // Stats update timer
     private var statsTimer: Timer? = null
 
+    // Profiler
+    private val profiler = ServerProfiler.getInstance(project)
+    private var profilerPanel: ProfilerPanel? = null
+
     // Buttons - using standard IntelliJ buttons with hover
-    private val installJavaButton = HytaleTheme.createButton("Install Java 25", AllIcons.Actions.Download)
-    private val downloadServerButton = HytaleTheme.createButton("Download Server", AllIcons.Actions.Download)
-    private val startServerButton = HytaleTheme.createButton("Start", AllIcons.Actions.Execute)
-    private val stopServerButton = HytaleTheme.createButton("Stop", AllIcons.Actions.Suspend)
+    private val installJavaButton = HytaleTheme.createButton(HytaleBundle.message("button.installJava"), AllIcons.Actions.Download)
+    private val downloadServerButton = HytaleTheme.createButton(HytaleBundle.message("button.downloadServer"), AllIcons.Actions.Download)
+    private val startServerButton = HytaleTheme.createButton(HytaleBundle.message("button.start"), AllIcons.Actions.Execute)
+    private val stopServerButton = HytaleTheme.createButton(HytaleBundle.message("button.stop"), AllIcons.Actions.Suspend)
 
     // Console
     private var consolePane: JTextPane? = null
     private val commandField = JBTextField()
+
+    // Command history
+    private val commandHistory = mutableListOf<String>()
+    private var historyIndex = -1
+    private val maxHistorySize = 100
+
+    // Log filtering
+    private val allLogs = mutableListOf<LogEntry>()
+    private val activeFilters = mutableSetOf(LogLevel.INFO, LogLevel.WARN, LogLevel.ERROR, LogLevel.SYSTEM)
+    private var filterToolbar: JPanel? = null
+
+    // Log search
+    private var searchField: JBTextField? = null
+    private var searchMatches = mutableListOf<Int>()
+    private var currentMatchIndex = -1
+    private var matchCountLabel: JLabel? = null
+
+    // Log counter
+    private var logCountLabel: JLabel? = null
 
     // ANSI escape code regex
     private val ansiRegex = Regex("\u001B\\[[0-9;]*[a-zA-Z]")
@@ -93,12 +117,14 @@ class HytaleToolWindowPanel(
         val tabbedPane = JBTabbedPane()
         tabbedPane.tabComponentInsets = JBUI.insets(0)
 
-        tabbedPane.addTab("Server", createServerTab())
-        tabbedPane.addTab("Console", createConsoleTab())
-        tabbedPane.addTab("Assets", AssetsExplorerPanel(project))
-        tabbedPane.addTab("Docs", DocumentationPanel(project))
-        tabbedPane.addTab("AI", AIAssistantPanel(project))
-        tabbedPane.addTab("Infos", createResourcesTab())
+        tabbedPane.addTab(HytaleBundle.message("tab.server"), createServerTab())
+        tabbedPane.addTab(HytaleBundle.message("tab.console"), createConsoleTab())
+        profilerPanel = ProfilerPanel(project)
+        tabbedPane.addTab(HytaleBundle.message("tab.profiler"), profilerPanel)
+        tabbedPane.addTab(HytaleBundle.message("tab.assets"), AssetsExplorerPanel(project))
+        tabbedPane.addTab(HytaleBundle.message("tab.docs"), DocumentationPanel(project))
+        tabbedPane.addTab(HytaleBundle.message("tab.ai"), AIAssistantPanel(project))
+        tabbedPane.addTab(HytaleBundle.message("tab.infos"), createResourcesTab())
 
         add(tabbedPane, BorderLayout.CENTER)
 
@@ -220,26 +246,26 @@ class HytaleToolWindowPanel(
     }
 
     private fun createStatusCard(): JPanel {
-        val card = HytaleTheme.createCard("Environment Status")
+        val card = HytaleTheme.createCard(HytaleBundle.message("card.environment.title"))
         card.maximumSize = Dimension(Int.MAX_VALUE, card.preferredSize.height)
 
         // Java Row
-        val javaRow = createStatusRow("Java 25", javaStatusLabel, installJavaButton)
+        val javaRow = createStatusRow(HytaleBundle.message("label.java"), javaStatusLabel, installJavaButton)
         card.add(javaRow)
         card.add(Box.createVerticalStrut(JBUI.scale(8)))
 
         // Server Row
-        val serverRow = createStatusRow("Server Files", serverJarStatusLabel, downloadServerButton)
+        val serverRow = createStatusRow(HytaleBundle.message("label.serverFiles"), serverJarStatusLabel, downloadServerButton)
         card.add(serverRow)
         card.add(Box.createVerticalStrut(JBUI.scale(8)))
 
         // Server Status Row
-        val statusRow = createStatusRow("Server Status", serverStatusLabel, null)
+        val statusRow = createStatusRow(HytaleBundle.message("label.serverStatus"), serverStatusLabel, null)
         card.add(statusRow)
         card.add(Box.createVerticalStrut(JBUI.scale(8)))
 
         // Auth Mode Row
-        val authRow = createStatusRow("Auth Mode", authModeLabel, null)
+        val authRow = createStatusRow(HytaleBundle.message("label.authMode"), authModeLabel, null)
         card.add(authRow)
 
         // Button actions
@@ -272,7 +298,7 @@ class HytaleToolWindowPanel(
     }
 
     private fun createControlsCard(): JPanel {
-        val card = HytaleTheme.createCard("Server Controls")
+        val card = HytaleTheme.createCard(HytaleBundle.message("card.controls.title"))
         card.maximumSize = Dimension(Int.MAX_VALUE, JBUI.scale(80))
 
         val buttonsPanel = JPanel(FlowLayout(FlowLayout.LEFT, JBUI.scale(8), 0))
@@ -281,13 +307,13 @@ class HytaleToolWindowPanel(
 
         buttonsPanel.add(startServerButton)
         buttonsPanel.add(stopServerButton)
-        buttonsPanel.add(HytaleTheme.createButton("Refresh", AllIcons.Actions.Refresh).apply {
+        buttonsPanel.add(HytaleTheme.createButton(HytaleBundle.message("button.refresh"), AllIcons.Actions.Refresh).apply {
             addActionListener {
                 refreshStatus()
-                notify("Status refreshed", NotificationType.INFORMATION)
+                notify(HytaleBundle.message("notification.statusRefreshed"), NotificationType.INFORMATION)
             }
         })
-        buttonsPanel.add(HytaleTheme.createButton("Settings", AllIcons.General.Settings).apply {
+        buttonsPanel.add(HytaleTheme.createButton(HytaleBundle.message("button.settings"), AllIcons.General.Settings).apply {
             addActionListener {
                 com.intellij.openapi.options.ShowSettingsUtil.getInstance()
                     .showSettingsDialog(project, "Hytale Server")
@@ -303,7 +329,7 @@ class HytaleToolWindowPanel(
     }
 
     private fun createStatsCard(): JPanel {
-        val card = HytaleTheme.createCard("Live Statistics")
+        val card = HytaleTheme.createCard(HytaleBundle.message("card.stats.title"))
         card.maximumSize = Dimension(Int.MAX_VALUE, JBUI.scale(140))
 
         val statsGrid = JPanel(GridLayout(4, 2, JBUI.scale(16), JBUI.scale(8)))
@@ -311,21 +337,21 @@ class HytaleToolWindowPanel(
         statsGrid.alignmentX = Component.LEFT_ALIGNMENT
 
         // Uptime
-        statsGrid.add(createStatLabel("Uptime"))
+        statsGrid.add(createStatLabel(HytaleBundle.message("label.uptime")))
         uptimeLabel.font = uptimeLabel.font.deriveFont(Font.BOLD)
         statsGrid.add(uptimeLabel)
 
         // Auth Status
-        statsGrid.add(createStatLabel("Auth"))
+        statsGrid.add(createStatLabel(HytaleBundle.message("label.auth")))
         statsGrid.add(authStatusLabel)
 
         // Players
-        statsGrid.add(createStatLabel("Players"))
+        statsGrid.add(createStatLabel(HytaleBundle.message("label.players")))
         playersLabel.font = playersLabel.font.deriveFont(Font.BOLD)
         statsGrid.add(playersLabel)
 
         // Online
-        statsGrid.add(createStatLabel("Online"))
+        statsGrid.add(createStatLabel(HytaleBundle.message("label.online")))
         playerListLabel.font = playerListLabel.font.deriveFont(Font.ITALIC)
         playerListLabel.foreground = HytaleTheme.mutedText
         statsGrid.add(playerListLabel)
@@ -337,7 +363,7 @@ class HytaleToolWindowPanel(
     private fun createStatLabel(text: String): JLabel = PanelUtils.createStatLabel(text)
 
     private fun createQuickSettingsCard(): JPanel {
-        val card = HytaleTheme.createCard("Quick Settings")
+        val card = HytaleTheme.createCard(HytaleBundle.message("card.settings.title"))
         card.maximumSize = Dimension(Int.MAX_VALUE, JBUI.scale(120))
 
         val settingsGrid = JPanel(GridBagLayout())
@@ -351,7 +377,7 @@ class HytaleToolWindowPanel(
 
         // Auth Mode
         gbc.gridx = 0; gbc.gridy = 0
-        settingsGrid.add(createStatLabel("Authentication"), gbc)
+        settingsGrid.add(createStatLabel(HytaleBundle.message("label.authentication")), gbc)
         gbc.gridx = 1
         gbc.insets = JBUI.insets(4, 12, 4, 0)
         val authCombo = JComboBox(AuthMode.entries.map { it.displayName }.toTypedArray())
@@ -365,7 +391,7 @@ class HytaleToolWindowPanel(
         // Memory
         gbc.gridx = 0; gbc.gridy = 1
         gbc.insets = JBUI.insets(4, 0)
-        settingsGrid.add(createStatLabel("Memory"), gbc)
+        settingsGrid.add(createStatLabel(HytaleBundle.message("label.memory")), gbc)
         gbc.gridx = 1
         gbc.insets = JBUI.insets(4, 12, 4, 0)
         val memoryLabel = JLabel("${settings.minMemory} - ${settings.maxMemory}")
@@ -375,7 +401,7 @@ class HytaleToolWindowPanel(
         // Port
         gbc.gridx = 0; gbc.gridy = 2
         gbc.insets = JBUI.insets(4, 0)
-        settingsGrid.add(createStatLabel("Port"), gbc)
+        settingsGrid.add(createStatLabel(HytaleBundle.message("label.port")), gbc)
         gbc.gridx = 1
         gbc.insets = JBUI.insets(4, 12, 4, 0)
         val portLabel = JLabel("${settings.port} (UDP/QUIC)")
@@ -398,6 +424,10 @@ class HytaleToolWindowPanel(
         consoleCard.background = HytaleTheme.cardBackground
         consoleCard.border = RoundedLineBorder(HytaleTheme.cardBorder, 8, 1)
 
+        // Top panel (toolbar + search + filters)
+        val topPanel = JPanel(BorderLayout())
+        topPanel.isOpaque = false
+
         // Toolbar
         val toolbar = JPanel(FlowLayout(FlowLayout.LEFT, JBUI.scale(4), JBUI.scale(4)))
         toolbar.isOpaque = false
@@ -405,10 +435,14 @@ class HytaleToolWindowPanel(
             BorderFactory.createMatteBorder(0, 0, 1, 0, HytaleTheme.cardBorder),
             JBUI.Borders.empty(4, 8)
         )
-        toolbar.add(HytaleTheme.createButton("Clear", AllIcons.Actions.GC).apply {
-            addActionListener { consolePane?.text = "" }
+        toolbar.add(HytaleTheme.createButton(HytaleBundle.message("button.clear"), AllIcons.Actions.GC).apply {
+            addActionListener {
+                consolePane?.text = ""
+                allLogs.clear()
+                updateLogCount()
+            }
         })
-        toolbar.add(HytaleTheme.createButton("Copy All", AllIcons.Actions.Copy).apply {
+        toolbar.add(HytaleTheme.createButton(HytaleBundle.message("button.copyAll"), AllIcons.Actions.Copy).apply {
             addActionListener {
                 consolePane?.let {
                     it.selectAll()
@@ -417,7 +451,17 @@ class HytaleToolWindowPanel(
                 }
             }
         })
-        consoleCard.add(toolbar, BorderLayout.NORTH)
+        topPanel.add(toolbar, BorderLayout.NORTH)
+
+        // Search bar
+        val searchPanel = createSearchBar()
+        topPanel.add(searchPanel, BorderLayout.CENTER)
+
+        // Filter toolbar
+        filterToolbar = createFilterToolbar()
+        topPanel.add(filterToolbar, BorderLayout.SOUTH)
+
+        consoleCard.add(topPanel, BorderLayout.NORTH)
 
         // Console text area
         val editorColors = EditorColorsManager.getInstance().globalScheme
@@ -448,14 +492,31 @@ class HytaleToolWindowPanel(
         commandPanel.add(promptLabel, BorderLayout.WEST)
 
         commandField.border = JBUI.Borders.empty(4, 8)
-        commandField.emptyText.text = "Enter server command..."
+        commandField.emptyText.text = HytaleBundle.message("console.commandPlaceholder")
         commandPanel.add(commandField, BorderLayout.CENTER)
 
-        val sendButton = HytaleTheme.createButton("Send", AllIcons.Actions.Execute)
+        val sendButton = HytaleTheme.createButton(HytaleBundle.message("button.send"), AllIcons.Actions.Execute)
         sendButton.addActionListener { sendCommand() }
         commandPanel.add(sendButton, BorderLayout.EAST)
 
         commandField.addActionListener { sendCommand() }
+
+        // Command history navigation with UP/DOWN arrows
+        commandField.addKeyListener(object : java.awt.event.KeyAdapter() {
+            override fun keyPressed(e: java.awt.event.KeyEvent) {
+                when (e.keyCode) {
+                    java.awt.event.KeyEvent.VK_UP -> {
+                        navigateHistory(-1)
+                        e.consume()
+                    }
+                    java.awt.event.KeyEvent.VK_DOWN -> {
+                        navigateHistory(1)
+                        e.consume()
+                    }
+                }
+            }
+        })
+
         consoleCard.add(commandPanel, BorderLayout.SOUTH)
 
         mainPanel.add(consoleCard, BorderLayout.CENTER)
@@ -499,7 +560,7 @@ class HytaleToolWindowPanel(
     }
 
     private fun createLinksCard(): JPanel {
-        val card = HytaleTheme.createCard("Documentation & Community")
+        val card = HytaleTheme.createCard(HytaleBundle.message("card.docs.title"))
         card.maximumSize = Dimension(Int.MAX_VALUE, JBUI.scale(220))
 
         val links = listOf(
@@ -519,7 +580,7 @@ class HytaleToolWindowPanel(
     }
 
     private fun createTemplatesCard(): JPanel {
-        val card = HytaleTheme.createCard("Live Templates")
+        val card = HytaleTheme.createCard(HytaleBundle.message("card.templates.title"))
         card.maximumSize = Dimension(Int.MAX_VALUE, JBUI.scale(160))
 
         val templates = listOf(
@@ -561,7 +622,7 @@ class HytaleToolWindowPanel(
     }
 
     private fun createCommandsCard(): JPanel {
-        val card = HytaleTheme.createCard("Useful Server Commands")
+        val card = HytaleTheme.createCard(HytaleBundle.message("card.commands.title"))
         card.maximumSize = Dimension(Int.MAX_VALUE, JBUI.scale(140))
 
         val commands = listOf(
@@ -599,11 +660,11 @@ class HytaleToolWindowPanel(
     }
 
     private fun createContributorsCard(): JPanel {
-        val card = HytaleTheme.createCard("Contributors")
+        val card = HytaleTheme.createCard(HytaleBundle.message("card.contributors.title"))
         card.maximumSize = Dimension(Int.MAX_VALUE, JBUI.scale(180))
 
         // Thank you message
-        val thankYouLabel = JLabel("Thanks to all contributors who help improve this plugin!")
+        val thankYouLabel = JLabel(HytaleBundle.message("contributors.thanks"))
         thankYouLabel.foreground = HytaleTheme.mutedText
         thankYouLabel.font = thankYouLabel.font.deriveFont(JBUI.scaleFontSize(12f))
         thankYouLabel.alignmentX = Component.LEFT_ALIGNMENT
@@ -624,8 +685,8 @@ class HytaleToolWindowPanel(
 
         // Link to all contributors
         card.add(HytaleTheme.createLinkRow(
-            "View all contributors",
-            "See everyone who contributed",
+            HytaleBundle.message("contributors.viewAll"),
+            HytaleBundle.message("contributors.seeEveryone"),
             "https://github.com/HytaleDocs/hytale-intellij-plugin/graphs/contributors"
         ))
 
@@ -681,7 +742,7 @@ class HytaleToolWindowPanel(
             javaStatusLabel.toolTipText = "Found: ${allJavaInstalls.joinToString("\n") { "${it.version} at ${it.path}" }}"
             installJavaButton.isVisible = true
         } else {
-            javaStatusLabel.text = "Not found"
+            javaStatusLabel.text = HytaleBundle.message("status.notFound")
             javaStatusLabel.foreground = HytaleTheme.errorColor
             javaStatusLabel.toolTipText = "Click 'Install Java 25' to download"
             installJavaButton.isVisible = true
@@ -693,12 +754,12 @@ class HytaleToolWindowPanel(
             val downloadService = ServerDownloadService.getInstance(project)
             val status = downloadService.hasServerFiles(serverPath)
             if (status.hasServerJar) {
-                serverJarStatusLabel.text = if (status.hasAssets) "Ready" else "JAR only"
+                serverJarStatusLabel.text = if (status.hasAssets) HytaleBundle.message("status.ready") else HytaleBundle.message("status.jarOnly")
                 serverJarStatusLabel.foreground = if (status.hasAssets) HytaleTheme.successColor else HytaleTheme.warningColor
                 serverJarStatusLabel.toolTipText = "Path: $serverPath"
                 downloadServerButton.isVisible = false
             } else {
-                serverJarStatusLabel.text = "Not found"
+                serverJarStatusLabel.text = HytaleBundle.message("status.notFound")
                 serverJarStatusLabel.foreground = HytaleTheme.errorColor
                 serverJarStatusLabel.toolTipText = "Click to download with Hytale account"
                 downloadServerButton.isVisible = true
@@ -768,11 +829,11 @@ class HytaleToolWindowPanel(
                 }.thenAccept {
                     SwingUtilities.invokeLater {
                         refreshStatus()
-                        notify("Java 25 installed successfully!", NotificationType.INFORMATION)
+                        notify(HytaleBundle.message("notification.javaInstalled"), NotificationType.INFORMATION)
                     }
                 }.exceptionally { e ->
                     SwingUtilities.invokeLater {
-                        notify("Failed to install Java: ${e.message}", NotificationType.ERROR)
+                        notify(HytaleBundle.message("notification.javaInstallFailed", e.message ?: ""), NotificationType.ERROR)
                     }
                     null
                 }.get(120, TimeUnit.SECONDS)
@@ -827,12 +888,12 @@ class HytaleToolWindowPanel(
                     SwingUtilities.invokeLater {
                         refreshStatus()
                         if (success) {
-                            notify("Server files downloaded!", NotificationType.INFORMATION)
+                            notify(HytaleBundle.message("notification.downloadComplete"), NotificationType.INFORMATION)
                         }
                     }
                 }.exceptionally { e ->
                     SwingUtilities.invokeLater {
-                        notify("Download failed: ${e.message}", NotificationType.ERROR)
+                        notify(HytaleBundle.message("notification.downloadFailed", e.message ?: ""), NotificationType.ERROR)
                     }
                     null
                 }.get(300, TimeUnit.SECONDS)
@@ -867,7 +928,10 @@ class HytaleToolWindowPanel(
         log("Auth mode: ${settings.authMode.displayName}", isSystemMessage = true)
         log("Memory: ${settings.minMemory} - ${settings.maxMemory}", isSystemMessage = true)
 
-        notify("Starting server...", NotificationType.INFORMATION)
+        // Record profiler event
+        profiler.recordEvent(ServerProfiler.EventType.SERVER_START)
+
+        notify(HytaleBundle.message("notification.serverStarting"), NotificationType.INFORMATION)
 
         launchService.startServer(config,
             logCallback = { line ->
@@ -888,16 +952,18 @@ class HytaleToolWindowPanel(
                     stopServerButton.isEnabled = status == ServerLaunchService.ServerStatus.RUNNING ||
                             status == ServerLaunchService.ServerStatus.STARTING
 
-                    // Show notifications for status changes
+                    // Show notifications and record profiler events for status changes
                     when (status) {
                         ServerLaunchService.ServerStatus.RUNNING -> {
-                            notify("Server is now running!", NotificationType.INFORMATION)
+                            profiler.recordEvent(ServerProfiler.EventType.SERVER_READY)
+                            notify(HytaleBundle.message("notification.serverRunning"), NotificationType.INFORMATION)
                         }
                         ServerLaunchService.ServerStatus.STOPPED -> {
-                            notify("Server stopped", NotificationType.INFORMATION)
+                            profiler.recordEvent(ServerProfiler.EventType.SERVER_STOP)
+                            notify(HytaleBundle.message("notification.serverStopped"), NotificationType.INFORMATION)
                         }
                         ServerLaunchService.ServerStatus.ERROR -> {
-                            notify("Server error occurred", NotificationType.ERROR)
+                            notify(HytaleBundle.message("notification.serverError"), NotificationType.ERROR)
                         }
                         else -> {}
                     }
@@ -909,10 +975,32 @@ class HytaleToolWindowPanel(
     private fun stopServer() {
         val launchService = ServerLaunchService.getInstance(project)
         log("Stopping server...", isSystemMessage = true)
-        notify("Stopping server...", NotificationType.INFORMATION)
-        launchService.stopServer { line ->
-            SwingUtilities.invokeLater { log(line, isSystemMessage = true) }
-        }
+        notify(HytaleBundle.message("notification.serverStopped"), NotificationType.INFORMATION)
+
+        // Disable buttons while stopping
+        startServerButton.isEnabled = false
+        stopServerButton.isEnabled = false
+
+        launchService.stopServer(
+            logCallback = { line ->
+                SwingUtilities.invokeLater { log(line, isSystemMessage = true) }
+            },
+            statusCallback = { status ->
+                SwingUtilities.invokeLater {
+                    when (status) {
+                        ServerLaunchService.ServerStatus.STOPPED -> {
+                            profiler.recordEvent(ServerProfiler.EventType.SERVER_STOP)
+                            serverStatusLabel.text = status.name
+                            serverStatusLabel.foreground = HytaleTheme.textPrimary
+                            startServerButton.isEnabled = true
+                            stopServerButton.isEnabled = false
+                            notify(HytaleBundle.message("notification.serverStopped"), NotificationType.INFORMATION)
+                        }
+                        else -> {}
+                    }
+                }
+            }
+        )
     }
 
     private fun sendCommand() {
@@ -920,54 +1008,298 @@ class HytaleToolWindowPanel(
         if (command.isNotEmpty()) {
             val launchService = ServerLaunchService.getInstance(project)
             if (launchService.sendCommand(command)) {
+                // Add to history (remove duplicate if exists, add to front)
+                commandHistory.remove(command)
+                commandHistory.add(0, command)
+                if (commandHistory.size > maxHistorySize) {
+                    commandHistory.removeAt(commandHistory.lastIndex)
+                }
+                historyIndex = -1
+
+                // Record profiler event
+                profiler.recordEvent(ServerProfiler.EventType.COMMAND_SENT, command)
+
                 log("> $command", isSystemMessage = true)
                 commandField.text = ""
             }
         }
     }
 
-    private fun log(message: String, isSystemMessage: Boolean = false) {
-        val cleanMessage = ansiRegex.replace(message, "")
+    private fun navigateHistory(direction: Int) {
+        if (commandHistory.isEmpty()) return
 
+        val newIndex = historyIndex + direction
+        if (newIndex < -1) return
+        if (newIndex >= commandHistory.size) return
+
+        historyIndex = newIndex
+        commandField.text = if (historyIndex >= 0) commandHistory[historyIndex] else ""
+        // Move caret to end
+        commandField.caretPosition = commandField.text.length
+    }
+
+    // ==================== SEARCH BAR ====================
+
+    private fun createSearchBar(): JPanel {
+        val panel = JPanel(BorderLayout(JBUI.scale(4), 0))
+        panel.isOpaque = false
+        panel.border = JBUI.Borders.empty(4, 8)
+
+        searchField = JBTextField().apply {
+            emptyText.text = HytaleBundle.message("console.searchPlaceholder")
+            border = JBUI.Borders.empty(4, 8)
+            document.addDocumentListener(object : javax.swing.event.DocumentListener {
+                override fun insertUpdate(e: javax.swing.event.DocumentEvent) = performSearch()
+                override fun removeUpdate(e: javax.swing.event.DocumentEvent) = performSearch()
+                override fun changedUpdate(e: javax.swing.event.DocumentEvent) = performSearch()
+            })
+        }
+        panel.add(searchField, BorderLayout.CENTER)
+
+        val navPanel = JPanel(FlowLayout(FlowLayout.RIGHT, 2, 0))
+        navPanel.isOpaque = false
+
+        navPanel.add(JButton(AllIcons.Actions.PreviousOccurence).apply {
+            toolTipText = "Previous match"
+            isBorderPainted = false
+            isContentAreaFilled = false
+            addActionListener { navigateSearch(-1) }
+        })
+        navPanel.add(JButton(AllIcons.Actions.NextOccurence).apply {
+            toolTipText = "Next match"
+            isBorderPainted = false
+            isContentAreaFilled = false
+            addActionListener { navigateSearch(1) }
+        })
+
+        matchCountLabel = JLabel("0/0")
+        matchCountLabel?.foreground = HytaleTheme.mutedText
+        navPanel.add(matchCountLabel)
+
+        panel.add(navPanel, BorderLayout.EAST)
+        return panel
+    }
+
+    private fun performSearch() {
+        val query = searchField?.text?.lowercase() ?: return
+        searchMatches.clear()
+        currentMatchIndex = -1
+
+        if (query.isEmpty()) {
+            matchCountLabel?.text = "0/0"
+            clearHighlights()
+            return
+        }
+
+        val text = consolePane?.text?.lowercase() ?: return
+        var index = text.indexOf(query)
+        while (index >= 0) {
+            searchMatches.add(index)
+            index = text.indexOf(query, index + 1)
+        }
+
+        matchCountLabel?.text = if (searchMatches.isEmpty()) "0/0" else "0/${searchMatches.size}"
+
+        if (searchMatches.isNotEmpty()) {
+            currentMatchIndex = 0
+            highlightMatches(query)
+            scrollToMatch(0)
+        }
+    }
+
+    private fun navigateSearch(direction: Int) {
+        if (searchMatches.isEmpty()) return
+
+        currentMatchIndex = (currentMatchIndex + direction).mod(searchMatches.size)
+        matchCountLabel?.text = "${currentMatchIndex + 1}/${searchMatches.size}"
+        scrollToMatch(currentMatchIndex)
+    }
+
+    private fun highlightMatches(query: String) {
+        val highlighter = consolePane?.highlighter ?: return
+        highlighter.removeAllHighlights()
+
+        val painter = javax.swing.text.DefaultHighlighter.DefaultHighlightPainter(
+            JBColor(Color(255, 255, 0, 100), Color(128, 128, 0, 100))
+        )
+
+        for (offset in searchMatches) {
+            try {
+                highlighter.addHighlight(offset, offset + query.length, painter)
+            } catch (e: Exception) {
+                // Ignore bad locations
+            }
+        }
+    }
+
+    private fun clearHighlights() {
+        consolePane?.highlighter?.removeAllHighlights()
+    }
+
+    private fun scrollToMatch(index: Int) {
+        if (index < 0 || index >= searchMatches.size) return
+        val offset = searchMatches[index]
+        consolePane?.caretPosition = offset
+        try {
+            val rect = consolePane?.modelToView2D(offset)
+            if (rect != null) {
+                consolePane?.scrollRectToVisible(java.awt.Rectangle(
+                    rect.x.toInt(), rect.y.toInt(),
+                    rect.width.toInt(), rect.height.toInt()
+                ))
+            }
+        } catch (e: Exception) {
+            // Ignore
+        }
+    }
+
+    // ==================== FILTER TOOLBAR ====================
+
+    private fun createFilterToolbar(): JPanel {
+        val panel = JPanel(BorderLayout())
+        panel.isOpaque = false
+        panel.border = BorderFactory.createCompoundBorder(
+            BorderFactory.createMatteBorder(0, 0, 1, 0, HytaleTheme.cardBorder),
+            JBUI.Borders.empty(4, 8)
+        )
+
+        val filtersPanel = JPanel(FlowLayout(FlowLayout.LEFT, JBUI.scale(4), 0))
+        filtersPanel.isOpaque = false
+        filtersPanel.add(JLabel(HytaleBundle.message("console.filter")).apply { foreground = HytaleTheme.mutedText })
+        filtersPanel.add(createFilterToggle("INFO", LogLevel.INFO, HytaleTheme.successColor))
+        filtersPanel.add(createFilterToggle("WARN", LogLevel.WARN, HytaleTheme.warningColor))
+        filtersPanel.add(createFilterToggle("ERROR", LogLevel.ERROR, HytaleTheme.errorColor))
+        filtersPanel.add(createFilterToggle("DEBUG", LogLevel.DEBUG, HytaleTheme.mutedText))
+        filtersPanel.add(createFilterToggle("SYSTEM", LogLevel.SYSTEM, HytaleTheme.accentColor))
+        panel.add(filtersPanel, BorderLayout.WEST)
+
+        // Log counter on the right
+        logCountLabel = JLabel("0 logs")
+        logCountLabel?.foreground = HytaleTheme.mutedText
+        logCountLabel?.border = JBUI.Borders.empty(0, 8)
+        panel.add(logCountLabel, BorderLayout.EAST)
+
+        return panel
+    }
+
+    private fun createFilterToggle(label: String, level: LogLevel, color: Color): JToggleButton {
+        return JToggleButton(label, activeFilters.contains(level)).apply {
+            foreground = color
+            font = font.deriveFont(Font.BOLD, 10f)
+            isFocusPainted = false
+            border = JBUI.Borders.empty(2, 6)
+            addActionListener {
+                if (isSelected) activeFilters.add(level) else activeFilters.remove(level)
+                refreshConsole()
+            }
+        }
+    }
+
+    private fun refreshConsole() {
+        consolePane?.text = ""
+        val filteredLogs = allLogs.filter { activeFilters.contains(it.level) }
+        filteredLogs.forEach { appendLogEntry(it) }
+        updateLogCount()
+        performSearch() // Re-apply search highlighting
+    }
+
+    private fun updateLogCount() {
+        val filteredCount = allLogs.count { activeFilters.contains(it.level) }
+        logCountLabel?.text = HytaleBundle.message("console.logs", filteredCount)
+    }
+
+    private fun parseLogEntry(message: String, isSystemMessage: Boolean): LogEntry {
+        val cleanMessage = ansiRegex.replace(message, "")
+        val timestamp = java.time.LocalDateTime.now()
+
+        if (isSystemMessage) {
+            return LogEntry(timestamp, LogLevel.SYSTEM, null, cleanMessage, message)
+        }
+
+        val match = serverLogRegex.find(cleanMessage)
+        if (match != null) {
+            val levelStr = match.groupValues[1].uppercase()
+            val rest = match.groupValues[2].trim()
+
+            val level = when (levelStr) {
+                "DEBUG" -> LogLevel.DEBUG
+                "INFO" -> LogLevel.INFO
+                "WARN", "WARNING" -> LogLevel.WARN
+                "ERROR", "SEVERE" -> LogLevel.ERROR
+                else -> LogLevel.INFO
+            }
+
+            // Try to extract plugin source from log (e.g., [PluginName] message)
+            val sourceMatch = Regex("""^\[([^\]]+)\]\s*(.*)$""").find(rest)
+            val source = sourceMatch?.groupValues?.get(1)
+            val finalMessage = sourceMatch?.groupValues?.get(2) ?: rest
+
+            return LogEntry(timestamp, level, source, finalMessage, message)
+        }
+
+        // Fallback parsing
+        val level = when {
+            cleanMessage.contains("ERROR", ignoreCase = true) -> LogLevel.ERROR
+            cleanMessage.contains("WARN", ignoreCase = true) -> LogLevel.WARN
+            cleanMessage.contains("DEBUG", ignoreCase = true) -> LogLevel.DEBUG
+            else -> LogLevel.INFO
+        }
+
+        return LogEntry(timestamp, level, null, cleanMessage, message)
+    }
+
+    private fun appendLogEntry(entry: LogEntry) {
         consolePane?.let { pane ->
             val doc = pane.styledDocument
 
-            if (isSystemMessage) {
-                val finalMessage = if (settings.showTimestamps) {
-                    "[${LocalTime.now().format(DateTimeFormatter.ofPattern("HH:mm:ss"))}] $cleanMessage"
-                } else {
-                    cleanMessage
-                }
-                appendStyled(doc, "$finalMessage\n", HytaleTheme.textPrimary)
-            } else {
-                val match = serverLogRegex.find(cleanMessage)
-                if (match != null) {
-                    val level = match.groupValues[1]
-                    val rest = match.groupValues[2].trim()
-
-                    val levelColor = when (level.uppercase()) {
-                        "INFO" -> HytaleTheme.successColor
-                        "WARN", "WARNING" -> HytaleTheme.warningColor
-                        "ERROR", "SEVERE" -> HytaleTheme.errorColor
-                        "DEBUG" -> HytaleTheme.mutedText
-                        else -> HytaleTheme.textPrimary
-                    }
-
-                    appendStyled(doc, "[${level.uppercase()}] ", levelColor)
-                    appendStyled(doc, "$rest\n", HytaleTheme.textPrimary)
-                } else {
-                    val color = when {
-                        cleanMessage.startsWith("WARNING:") -> HytaleTheme.warningColor
-                        cleanMessage.contains("ERROR", ignoreCase = true) -> HytaleTheme.errorColor
-                        else -> HytaleTheme.textPrimary
-                    }
-                    appendStyled(doc, "$cleanMessage\n", color)
-                }
+            val levelColor = when (entry.level) {
+                LogLevel.INFO -> HytaleTheme.successColor
+                LogLevel.WARN -> HytaleTheme.warningColor
+                LogLevel.ERROR -> HytaleTheme.errorColor
+                LogLevel.DEBUG -> HytaleTheme.mutedText
+                LogLevel.SYSTEM -> HytaleTheme.accentColor
             }
+
+            val prefix = if (settings.showTimestamps) {
+                "[${entry.timestamp.format(java.time.format.DateTimeFormatter.ofPattern("HH:mm:ss"))}] "
+            } else ""
+
+            appendStyled(doc, prefix, HytaleTheme.mutedText)
+            appendStyled(doc, "[${entry.level.name}] ", levelColor)
+
+            if (entry.source != null) {
+                appendStyled(doc, "[${entry.source}] ", HytaleTheme.accentColor)
+            }
+
+            appendStyled(doc, "${entry.message}\n", HytaleTheme.textPrimary)
 
             if (settings.autoScroll) {
                 pane.caretPosition = doc.length
             }
+        }
+    }
+
+    private fun log(message: String, isSystemMessage: Boolean = false) {
+        // Parse and store the log entry
+        val entry = parseLogEntry(message, isSystemMessage)
+        allLogs.add(entry)
+
+        // Enforce max log lines
+        if (allLogs.size > settings.maxLogLines) {
+            allLogs.removeAt(0)
+        }
+
+        // Only display if filter is active for this level
+        if (activeFilters.contains(entry.level)) {
+            appendLogEntry(entry)
+        }
+
+        // Update log counter
+        updateLogCount()
+
+        // Feed to profiler for event tracking (only non-system messages from server)
+        if (!isSystemMessage) {
+            profiler.parseLogLine(message)
         }
     }
 
@@ -986,6 +1318,8 @@ class HytaleToolWindowPanel(
         statsTimer?.stop()
         statsTimer = null
         authPanel.dispose()
+        profilerPanel?.dispose()
+        profilerPanel = null
         authService.unregisterCallbacks(project)
     }
 }

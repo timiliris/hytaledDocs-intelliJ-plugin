@@ -10,7 +10,13 @@ import java.awt.Component
 import java.awt.Cursor
 import java.awt.Dimension
 import java.awt.Font
-import javax.swing.*
+import javax.swing.BorderFactory
+import javax.swing.Box
+import javax.swing.BoxLayout
+import javax.swing.Icon
+import javax.swing.JButton
+import javax.swing.JLabel
+import javax.swing.JPanel
 
 /**
  * Shared theme colors and UI factory methods for Hytale IntelliJ plugin.

@@ -354,7 +354,7 @@ class AIAssistantPanel(private val project: Project) : JBPanel<AIAssistantPanel>
 
     private fun createMcpStatusCard(): JPanel {
         val card = HytaleTheme.createCard("MCP Server Configuration")
-        card.maximumSize = Dimension(Int.MAX_VALUE, JBUI.scale(220))
+        card.maximumSize = Dimension(Int.MAX_VALUE, JBUI.scale(320))
 
         // Status row
         val statusRow = JPanel(FlowLayout(FlowLayout.LEFT, JBUI.scale(8), 0))
@@ -380,20 +380,52 @@ class AIAssistantPanel(private val project: Project) : JBPanel<AIAssistantPanel>
         card.add(serverInstallRow)
         card.add(Box.createVerticalStrut(JBUI.scale(8)))
 
-        // Auto-install config buttons row
-        val installRow = JPanel(FlowLayout(FlowLayout.LEFT, JBUI.scale(8), 0))
-        installRow.isOpaque = false
-        installRow.alignmentX = Component.LEFT_ALIGNMENT
+        // Claude tools install row
+        val claudeInstallRow = JPanel(FlowLayout(FlowLayout.LEFT, JBUI.scale(8), 0))
+        claudeInstallRow.isOpaque = false
+        claudeInstallRow.alignmentX = Component.LEFT_ALIGNMENT
 
         val installClaudeCodeButton = HytaleTheme.createButton("Install for Claude Code", AllIcons.Actions.Install)
         installClaudeCodeButton.addActionListener { installMcpForClaudeCode() }
-        installRow.add(installClaudeCodeButton)
+        claudeInstallRow.add(installClaudeCodeButton)
 
         val installClaudeDesktopButton = HytaleTheme.createButton("Install for Claude Desktop", AllIcons.Actions.Install)
         installClaudeDesktopButton.addActionListener { installMcpForClaudeDesktop() }
-        installRow.add(installClaudeDesktopButton)
+        claudeInstallRow.add(installClaudeDesktopButton)
 
-        card.add(installRow)
+        card.add(claudeInstallRow)
+        card.add(Box.createVerticalStrut(JBUI.scale(8)))
+
+        // Other AI tools install row (Cursor, Windsurf)
+        val otherToolsRow = JPanel(FlowLayout(FlowLayout.LEFT, JBUI.scale(8), 0))
+        otherToolsRow.isOpaque = false
+        otherToolsRow.alignmentX = Component.LEFT_ALIGNMENT
+
+        val installCursorButton = HytaleTheme.createButton("Install for Cursor", AllIcons.Actions.Install)
+        installCursorButton.addActionListener { installMcpForCursor() }
+        otherToolsRow.add(installCursorButton)
+
+        val installWindsurfButton = HytaleTheme.createButton("Install for Windsurf", AllIcons.Actions.Install)
+        installWindsurfButton.addActionListener { installMcpForWindsurf() }
+        otherToolsRow.add(installWindsurfButton)
+
+        card.add(otherToolsRow)
+        card.add(Box.createVerticalStrut(JBUI.scale(8)))
+
+        // VS Code tools install row (Copilot, Continue)
+        val vscodeToolsRow = JPanel(FlowLayout(FlowLayout.LEFT, JBUI.scale(8), 0))
+        vscodeToolsRow.isOpaque = false
+        vscodeToolsRow.alignmentX = Component.LEFT_ALIGNMENT
+
+        val installCopilotButton = HytaleTheme.createButton("Install for Copilot", AllIcons.Actions.Install)
+        installCopilotButton.addActionListener { installMcpForCopilot() }
+        vscodeToolsRow.add(installCopilotButton)
+
+        val installContinueButton = HytaleTheme.createButton("Install for Continue", AllIcons.Actions.Install)
+        installContinueButton.addActionListener { installMcpForContinue() }
+        vscodeToolsRow.add(installContinueButton)
+
+        card.add(vscodeToolsRow)
         card.add(Box.createVerticalStrut(JBUI.scale(8)))
 
         // Manual config buttons row
@@ -581,18 +613,183 @@ class AIAssistantPanel(private val project: Project) : JBPanel<AIAssistantPanel>
     }
 
     private fun installMcpForClaudeDesktop() {
+        val isWindows = System.getProperty("os.name").lowercase().contains("win")
+        val isMac = System.getProperty("os.name").lowercase().contains("mac")
+
+        val configFile = when {
+            isWindows -> File(System.getenv("APPDATA"), "Claude/claude_desktop_config.json")
+            isMac -> File(System.getProperty("user.home"), "Library/Application Support/Claude/claude_desktop_config.json")
+            else -> File(System.getProperty("user.home"), ".config/Claude/claude_desktop_config.json")
+        }
+
+        installMcpConfig(configFile, "Claude Desktop")
+    }
+
+    private fun installMcpForCursor() {
+        val isWindows = System.getProperty("os.name").lowercase().contains("win")
+        val configFile = if (isWindows) {
+            File(System.getenv("USERPROFILE"), ".cursor/mcp.json")
+        } else {
+            File(System.getProperty("user.home"), ".cursor/mcp.json")
+        }
+
+        installMcpConfig(configFile, "Cursor")
+    }
+
+    private fun installMcpForWindsurf() {
+        val isWindows = System.getProperty("os.name").lowercase().contains("win")
+        val configFile = if (isWindows) {
+            File(System.getenv("USERPROFILE"), ".codeium/windsurf/mcp_config.json")
+        } else {
+            File(System.getProperty("user.home"), ".codeium/windsurf/mcp_config.json")
+        }
+
+        installMcpConfig(configFile, "Windsurf")
+    }
+
+    private fun installMcpForCopilot() {
+        try {
+            val cacheDir = OfflineDocsService.getCacheDir().absolutePath.replace("\\", "/")
+            val projectPath = project.basePath
+
+            if (projectPath == null) {
+                notify("No project open. Please open a project first.", NotificationType.WARNING)
+                return
+            }
+
+            // VS Code/Copilot uses .vscode/mcp.json with a different format
+            val vscodeDir = File(projectPath, ".vscode")
+            if (!vscodeDir.exists()) {
+                vscodeDir.mkdirs()
+            }
+
+            val configFile = File(vscodeDir, "mcp.json")
+            val isWindows = System.getProperty("os.name").lowercase().contains("win")
+
+            val existingConfig = if (configFile.exists()) {
+                try {
+                    com.google.gson.JsonParser.parseString(configFile.readText()).asJsonObject
+                } catch (e: Exception) {
+                    com.google.gson.JsonObject()
+                }
+            } else {
+                com.google.gson.JsonObject()
+            }
+
+            // VS Code uses "servers" instead of "mcpServers"
+            val servers = existingConfig.getAsJsonObject("servers") ?: com.google.gson.JsonObject()
+
+            val hytaleDocsConfig = com.google.gson.JsonObject().apply {
+                addProperty("type", "stdio")
+                if (isWindows) {
+                    addProperty("command", "cmd")
+                    add("args", com.google.gson.JsonArray().apply {
+                        add("/c")
+                        add("npx")
+                        add("hytaledocs-mcp-server")
+                    })
+                } else {
+                    addProperty("command", "npx")
+                    add("args", com.google.gson.JsonArray().apply { add("hytaledocs-mcp-server") })
+                }
+                add("env", com.google.gson.JsonObject().apply {
+                    addProperty("HYTALE_MCP_CACHE_DIR", cacheDir)
+                })
+            }
+
+            servers.add("hytale-docs", hytaleDocsConfig)
+            existingConfig.add("servers", servers)
+
+            val gson = com.google.gson.GsonBuilder().setPrettyPrinting().create()
+            configFile.writeText(gson.toJson(existingConfig))
+
+            notify("MCP server installed for Copilot in .vscode/mcp.json! Reload VS Code window to apply.", NotificationType.INFORMATION)
+        } catch (e: Exception) {
+            notify("Failed to install for Copilot: ${e.message}", NotificationType.ERROR)
+        }
+    }
+
+    private fun installMcpForContinue() {
         try {
             val cacheDir = OfflineDocsService.getCacheDir().absolutePath.replace("\\", "/")
             val isWindows = System.getProperty("os.name").lowercase().contains("win")
 
-            // Claude Desktop config location varies by OS
             val configFile = if (isWindows) {
-                File(System.getenv("APPDATA"), "Claude/claude_desktop_config.json")
-            } else if (System.getProperty("os.name").lowercase().contains("mac")) {
-                File(System.getProperty("user.home"), "Library/Application Support/Claude/claude_desktop_config.json")
+                File(System.getenv("USERPROFILE"), ".continue/config.json")
             } else {
-                File(System.getProperty("user.home"), ".config/Claude/claude_desktop_config.json")
+                File(System.getProperty("user.home"), ".continue/config.json")
             }
+
+            if (!configFile.parentFile.exists()) {
+                configFile.parentFile.mkdirs()
+            }
+
+            val existingConfig = if (configFile.exists()) {
+                try {
+                    com.google.gson.JsonParser.parseString(configFile.readText()).asJsonObject
+                } catch (e: Exception) {
+                    com.google.gson.JsonObject()
+                }
+            } else {
+                com.google.gson.JsonObject()
+            }
+
+            // Continue uses a different config format with experimental.modelContextProtocolServers
+            val experimental = existingConfig.getAsJsonObject("experimental") ?: com.google.gson.JsonObject()
+            val mcpServers = experimental.getAsJsonArray("modelContextProtocolServers") ?: com.google.gson.JsonArray()
+
+            // Create the MCP server config for Continue format
+            val serverConfig = com.google.gson.JsonObject().apply {
+                add("transport", com.google.gson.JsonObject().apply {
+                    addProperty("type", "stdio")
+                    if (isWindows) {
+                        addProperty("command", "cmd")
+                        add("args", com.google.gson.JsonArray().apply {
+                            add("/c")
+                            add("npx")
+                            add("hytaledocs-mcp-server")
+                        })
+                    } else {
+                        addProperty("command", "npx")
+                        add("args", com.google.gson.JsonArray().apply { add("hytaledocs-mcp-server") })
+                    }
+                    add("env", com.google.gson.JsonObject().apply {
+                        addProperty("HYTALE_MCP_CACHE_DIR", cacheDir)
+                    })
+                })
+            }
+
+            // Check if hytale-docs server already exists and remove it
+            val newMcpServers = com.google.gson.JsonArray()
+            for (i in 0 until mcpServers.size()) {
+                val server = mcpServers[i].asJsonObject
+                val transport = server.getAsJsonObject("transport")
+                val args = transport?.getAsJsonArray("args")
+                val isHytaleDocs = args?.any { it.asString.contains("hytaledocs-mcp-server") } ?: false
+                if (!isHytaleDocs) {
+                    newMcpServers.add(server)
+                }
+            }
+            newMcpServers.add(serverConfig)
+
+            experimental.add("modelContextProtocolServers", newMcpServers)
+            existingConfig.add("experimental", experimental)
+
+            val gson = com.google.gson.GsonBuilder().setPrettyPrinting().create()
+            configFile.writeText(gson.toJson(existingConfig))
+
+            notify("MCP server installed for Continue! Restart VS Code to apply.", NotificationType.INFORMATION)
+        } catch (e: Exception) {
+            notify("Failed to install for Continue: ${e.message}", NotificationType.ERROR)
+        }
+    }
+
+    /**
+     * Generic MCP config installer for tools using the standard mcpServers format.
+     */
+    private fun installMcpConfig(configFile: File, toolName: String) {
+        try {
+            val cacheDir = OfflineDocsService.getCacheDir().absolutePath.replace("\\", "/")
 
             if (!configFile.parentFile.exists()) {
                 configFile.parentFile.mkdirs()
@@ -610,33 +807,39 @@ class AIAssistantPanel(private val project: Project) : JBPanel<AIAssistantPanel>
 
             // Add or update mcpServers
             val mcpServers = existingConfig.getAsJsonObject("mcpServers") ?: com.google.gson.JsonObject()
-
-            // Windows requires cmd /c wrapper to execute npx
-            val hytaleDocsConfig = com.google.gson.JsonObject().apply {
-                if (isWindows) {
-                    addProperty("command", "cmd")
-                    add("args", com.google.gson.JsonArray().apply {
-                        add("/c")
-                        add("npx")
-                        add("hytaledocs-mcp-server")
-                    })
-                } else {
-                    addProperty("command", "npx")
-                    add("args", com.google.gson.JsonArray().apply { add("hytaledocs-mcp-server") })
-                }
-                add("env", com.google.gson.JsonObject().apply {
-                    addProperty("HYTALE_MCP_CACHE_DIR", cacheDir)
-                })
-            }
+            val hytaleDocsConfig = createMcpServerConfig(cacheDir)
             mcpServers.add("hytale-docs", hytaleDocsConfig)
             existingConfig.add("mcpServers", mcpServers)
 
             val gson = com.google.gson.GsonBuilder().setPrettyPrinting().create()
             configFile.writeText(gson.toJson(existingConfig))
 
-            notify("MCP server installed for Claude Desktop! Restart Claude Desktop to apply.", NotificationType.INFORMATION)
+            notify("MCP server installed for $toolName! Restart $toolName to apply.", NotificationType.INFORMATION)
         } catch (e: Exception) {
-            notify("Failed to install: ${e.message}", NotificationType.ERROR)
+            notify("Failed to install for $toolName: ${e.message}", NotificationType.ERROR)
+        }
+    }
+
+    /**
+     * Creates the standard MCP server config JSON object.
+     */
+    private fun createMcpServerConfig(cacheDir: String): com.google.gson.JsonObject {
+        val isWindows = System.getProperty("os.name").lowercase().contains("win")
+        return com.google.gson.JsonObject().apply {
+            if (isWindows) {
+                addProperty("command", "cmd")
+                add("args", com.google.gson.JsonArray().apply {
+                    add("/c")
+                    add("npx")
+                    add("hytaledocs-mcp-server")
+                })
+            } else {
+                addProperty("command", "npx")
+                add("args", com.google.gson.JsonArray().apply { add("hytaledocs-mcp-server") })
+            }
+            add("env", com.google.gson.JsonObject().apply {
+                addProperty("HYTALE_MCP_CACHE_DIR", cacheDir)
+            })
         }
     }
 

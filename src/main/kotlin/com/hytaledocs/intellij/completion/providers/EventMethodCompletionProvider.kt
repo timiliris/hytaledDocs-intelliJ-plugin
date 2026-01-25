@@ -5,6 +5,7 @@ import com.hytaledocs.intellij.completion.data.EventInfo
 import com.hytaledocs.intellij.completion.data.FieldInfo
 import com.hytaledocs.intellij.completion.data.MethodInfo
 import com.hytaledocs.intellij.services.ServerDataService
+import com.hytaledocs.intellij.settings.HytaleAppSettings
 import com.intellij.codeInsight.completion.*
 import com.intellij.codeInsight.lookup.LookupElement
 import com.intellij.codeInsight.lookup.LookupElementBuilder
@@ -30,6 +31,12 @@ class EventMethodCompletionProvider : CompletionProvider<CompletionParameters>()
         context: ProcessingContext,
         result: CompletionResultSet
     ) {
+        // Check if Hytale completion is enabled
+        val settings = HytaleAppSettings.getInstance()
+        if (!settings.enableCodeCompletion) {
+            return
+        }
+
         val position = parameters.position
 
         // Find the expression before the dot
@@ -237,7 +244,9 @@ class EventMethodCompletionProvider : CompletionProvider<CompletionParameters>()
             builder = builder.withStrikeoutness(true)
         }
 
-        return PrioritizedLookupElement.withPriority(builder, if (inherited) 90.0 else 100.0)
+        val settings = HytaleAppSettings.getInstance()
+        val basePriority = settings.completionPriority.toDouble()
+        return PrioritizedLookupElement.withPriority(builder, if (inherited) basePriority - 10 else basePriority)
     }
 
     /**
@@ -260,7 +269,9 @@ class EventMethodCompletionProvider : CompletionProvider<CompletionParameters>()
             builder = builder.withTailText("() - inherited accessor", true)
         }
 
-        return PrioritizedLookupElement.withPriority(builder, if (inherited) 85.0 else 95.0)
+        val settings = HytaleAppSettings.getInstance()
+        val basePriority = settings.completionPriority.toDouble()
+        return PrioritizedLookupElement.withPriority(builder, if (inherited) basePriority - 15 else basePriority - 5)
     }
 
     /**

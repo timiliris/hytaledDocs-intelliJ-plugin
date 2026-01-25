@@ -15,7 +15,7 @@ class NewPluginAction : CreateFileFromTemplateAction(
 
     override fun buildDialog(project: Project, directory: PsiDirectory, builder: CreateFileFromTemplateDialog.Builder) {
         builder.setTitle("New Hytale Plugin")
-            .addKind("Plugin Class", HytaleIcons.HYTALE, "Hytale Plugin")
+            .addKind("Plugin Class", HytaleIcons.HYTALE, "Hytale Mod")
     }
 
     override fun getActionName(directory: PsiDirectory, newName: String, templateName: String): String {

@@ -13,8 +13,8 @@ import java.net.URLEncoder
 import java.net.http.HttpRequest
 import java.net.http.HttpResponse
 import java.time.Duration
+import java.util.Collections
 import java.util.concurrent.CompletableFuture
-import java.util.concurrent.ConcurrentHashMap
 
 /**
  * API client for fetching documentation from hytale-docs.com.
@@ -32,6 +32,10 @@ class DocumentationApiClient {
         // Cache TTL in milliseconds (5 minutes)
         private const val CACHE_TTL_MS = 5 * 60 * 1000L
 
+        // Maximum cache size (sidebar cache is small, doc cache can be larger)
+        private const val MAX_SIDEBAR_CACHE_SIZE = 10
+        private const val MAX_DOC_CACHE_SIZE = 100
+
         fun getInstance(): DocumentationApiClient {
             return ApplicationManager.getApplication().getService(DocumentationApiClient::class.java)
         }
@@ -39,9 +43,22 @@ class DocumentationApiClient {
 
     private val gson = Gson()
 
-    // Cache for sidebar and docs
-    private val sidebarCache = ConcurrentHashMap<String, CachedData<SidebarResponse>>()
-    private val docCache = ConcurrentHashMap<String, CachedData<DocResponse>>()
+    // Cache for sidebar and docs with LRU eviction
+    private val sidebarCache = Collections.synchronizedMap(
+        object : LinkedHashMap<String, CachedData<SidebarResponse>>(MAX_SIDEBAR_CACHE_SIZE, 0.75f, true) {
+            override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, CachedData<SidebarResponse>>?): Boolean {
+                return size > MAX_SIDEBAR_CACHE_SIZE
+            }
+        }
+    )
+
+    private val docCache = Collections.synchronizedMap(
+        object : LinkedHashMap<String, CachedData<DocResponse>>(MAX_DOC_CACHE_SIZE, 0.75f, true) {
+            override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, CachedData<DocResponse>>?): Boolean {
+                return size > MAX_DOC_CACHE_SIZE
+            }
+        }
+    )
 
     data class CachedData<T>(
         val data: T,

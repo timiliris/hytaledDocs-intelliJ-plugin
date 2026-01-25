@@ -3,6 +3,7 @@ package com.hytaledocs.intellij.completion.providers
 import com.hytaledocs.intellij.HytaleIcons
 import com.hytaledocs.intellij.completion.data.EventInfo
 import com.hytaledocs.intellij.services.ServerDataService
+import com.hytaledocs.intellij.settings.HytaleAppSettings
 import com.intellij.codeInsight.completion.*
 import com.intellij.codeInsight.lookup.LookupElement
 import com.intellij.codeInsight.lookup.LookupElementBuilder
@@ -42,6 +43,12 @@ class EventClassCompletionProvider : CompletionProvider<CompletionParameters>() 
         context: ProcessingContext,
         result: CompletionResultSet
     ) {
+        // Check if Hytale completion is enabled
+        val settings = HytaleAppSettings.getInstance()
+        if (!settings.enableCodeCompletion) {
+            return
+        }
+
         val position = parameters.position
         val prefix = result.prefixMatcher.prefix
 
@@ -231,9 +238,11 @@ class EventClassCompletionProvider : CompletionProvider<CompletionParameters>() 
 
     /**
      * Calculate priority for sorting completion results.
+     * Uses the base priority from settings and adjusts based on event characteristics.
      */
     private fun calculatePriority(event: EventInfo): Double {
-        var priority = 100.0
+        val settings = HytaleAppSettings.getInstance()
+        var priority = settings.completionPriority.toDouble()
 
         // Boost common events
         if (event.name.startsWith("Player")) priority += 20

@@ -94,6 +94,7 @@ intellijPlatform {
 
         ideaVersion {
             sinceBuild = providers.gradleProperty("pluginSinceBuild")
+            untilBuild = providers.gradleProperty("pluginUntilBuild")
         }
     }
 
@@ -142,6 +143,17 @@ tasks {
 
     publishPlugin {
         dependsOn(patchChangelog)
+    }
+
+    // Force French locale for testing i18n (comment out for production)
+    runIde {
+        jvmArgumentProviders += CommandLineArgumentProvider {
+            listOf(
+                "-Duser.language=fr",
+                "-Duser.country=FR",
+                "-Dide.locale=fr_FR"
+            )
+        }
     }
 }
 

@@ -277,15 +277,17 @@ class HytaleDownloaderService {
      */
     private fun extractServerFiles(destinationPath: Path, statusCallback: Consumer<DownloaderStatus>?) {
         // Find the server zip file
-        val serverZip = Files.list(destinationPath)
-            .filter { path ->
-                val name = path.fileName.toString()
-                name.endsWith(".zip") && name.contains("-") && name[0].isDigit()
-            }
-            .max { a, b ->
-                Files.getLastModifiedTime(a).compareTo(Files.getLastModifiedTime(b))
-            }
-            .orElse(null) ?: return
+        val serverZip = Files.list(destinationPath).use { stream ->
+            stream
+                .filter { path ->
+                    val name = path.fileName.toString()
+                    name.endsWith(".zip") && name.contains("-") && name[0].isDigit()
+                }
+                .max { a, b ->
+                    Files.getLastModifiedTime(a).compareTo(Files.getLastModifiedTime(b))
+                }
+                .orElse(null)
+        } ?: return
 
         statusCallback?.accept(DownloaderStatus(Stage.EXTRACTING_SERVER, 0, "Extracting ${serverZip.fileName}..."))
 
