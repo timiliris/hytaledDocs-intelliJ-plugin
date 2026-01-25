@@ -86,6 +86,10 @@ class HytaleToolWindowPanel(
     // Console
     private var consolePane: JTextPane? = null
     private val commandField = JBTextField()
+    private val modeIndicatorLabel = JBLabel("Log Parsing")
+
+    // Console log service
+    private lateinit var consoleLogService: ConsoleLogService
 
     // Command history
     private val commandHistory = mutableListOf<String>()
@@ -114,6 +118,9 @@ class HytaleToolWindowPanel(
         background = JBColor.namedColor("ToolWindow.background", UIUtil.getPanelBackground())
         border = JBUI.Borders.empty()
 
+        // Initialize console log service
+        consoleLogService = ConsoleLogService.getInstance(project)
+
         val tabbedPane = JBTabbedPane()
         tabbedPane.tabComponentInsets = JBUI.insets(0)
 
@@ -133,6 +140,23 @@ class HytaleToolWindowPanel(
         statsTimer = Timer(1000) { updateStats() }
         statsTimer?.start()
 
+        // Register for console log events
+        consoleLogService.registerLogCallback { event ->
+            SwingUtilities.invokeLater {
+                logUnified(event)
+            }
+        }
+
+        // Register for mode changes
+        consoleLogService.registerModeCallback { mode ->
+            SwingUtilities.invokeLater {
+                updateModeIndicator(mode)
+            }
+        }
+
+        // Initialize mode indicator
+        updateModeIndicator(consoleLogService.getMode())
+
         // Register for authentication events
         authService.registerCallback(project) { session ->
             SwingUtilities.invokeLater {
@@ -146,20 +170,20 @@ class HytaleToolWindowPanel(
     private fun logAuthEvent(session: AuthenticationService.AuthSession) {
         when (session.state) {
             AuthenticationService.AuthState.AWAITING_CODE -> {
-                log("[Auth] Waiting for authentication code...", isSystemMessage = true)
+                consoleLogService.logSystemMessage("[Auth] Waiting for authentication code...")
             }
             AuthenticationService.AuthState.CODE_DISPLAYED -> {
-                log("[Auth] Device code: ${session.deviceCode}", isSystemMessage = true)
-                log("[Auth] Enter code at: ${session.verificationUrl}", isSystemMessage = true)
+                consoleLogService.logSystemMessage("[Auth] Device code: ${session.deviceCode}")
+                consoleLogService.logSystemMessage("[Auth] Enter code at: ${session.verificationUrl}")
             }
             AuthenticationService.AuthState.AUTHENTICATING -> {
-                log("[Auth] Authenticating...", isSystemMessage = true)
+                consoleLogService.logSystemMessage("[Auth] Authenticating...")
             }
             AuthenticationService.AuthState.SUCCESS -> {
-                log("[Auth] Authentication successful!", isSystemMessage = true)
+                consoleLogService.logSystemMessage("[Auth] Authentication successful!")
             }
             AuthenticationService.AuthState.FAILED -> {
-                log("[Auth] Authentication failed: ${session.message}", isSystemMessage = true)
+                consoleLogService.logSystemMessage("[Auth] Authentication failed: ${session.message}")
             }
             else -> {}
         }
@@ -428,13 +452,15 @@ class HytaleToolWindowPanel(
         val topPanel = JPanel(BorderLayout())
         topPanel.isOpaque = false
 
-        // Toolbar
-        val toolbar = JPanel(FlowLayout(FlowLayout.LEFT, JBUI.scale(4), JBUI.scale(4)))
+        // Toolbar with BoxLayout for proper glue support
+        val toolbar = JPanel()
+        toolbar.layout = BoxLayout(toolbar, BoxLayout.X_AXIS)
         toolbar.isOpaque = false
         toolbar.border = BorderFactory.createCompoundBorder(
             BorderFactory.createMatteBorder(0, 0, 1, 0, HytaleTheme.cardBorder),
             JBUI.Borders.empty(4, 8)
         )
+        toolbar.add(Box.createHorizontalStrut(JBUI.scale(4)))
         toolbar.add(HytaleTheme.createButton(HytaleBundle.message("button.clear"), AllIcons.Actions.GC).apply {
             addActionListener {
                 consolePane?.text = ""
@@ -442,6 +468,7 @@ class HytaleToolWindowPanel(
                 updateLogCount()
             }
         })
+        toolbar.add(Box.createHorizontalStrut(JBUI.scale(4)))
         toolbar.add(HytaleTheme.createButton(HytaleBundle.message("button.copyAll"), AllIcons.Actions.Copy).apply {
             addActionListener {
                 consolePane?.let {
@@ -451,6 +478,16 @@ class HytaleToolWindowPanel(
                 }
             }
         })
+
+        // Spacer to push mode indicator to the right
+        toolbar.add(Box.createHorizontalGlue())
+
+        // Mode indicator (Log Parsing / Bridge Connected)
+        modeIndicatorLabel.font = modeIndicatorLabel.font.deriveFont(Font.ITALIC, JBUI.scaleFontSize(11f).toFloat())
+        modeIndicatorLabel.border = JBUI.Borders.empty(0, 8)
+        toolbar.add(modeIndicatorLabel)
+        toolbar.add(Box.createHorizontalStrut(JBUI.scale(4)))
+
         topPanel.add(toolbar, BorderLayout.NORTH)
 
         // Search bar
@@ -924,9 +961,9 @@ class HytaleToolWindowPanel(
         )
 
         consolePane?.text = ""
-        log("Starting Hytale server...", isSystemMessage = true)
-        log("Auth mode: ${settings.authMode.displayName}", isSystemMessage = true)
-        log("Memory: ${settings.minMemory} - ${settings.maxMemory}", isSystemMessage = true)
+        consoleLogService.logSystemMessage("Starting Hytale server...")
+        consoleLogService.logSystemMessage("Auth mode: ${settings.authMode.displayName}")
+        consoleLogService.logSystemMessage("Memory: ${settings.minMemory} - ${settings.maxMemory}")
 
         // Record profiler event
         profiler.recordEvent(ServerProfiler.EventType.SERVER_START)
@@ -935,9 +972,8 @@ class HytaleToolWindowPanel(
 
         launchService.startServer(config,
             logCallback = { line ->
-                SwingUtilities.invokeLater {
-                    log(line, isSystemMessage = false)
-                }
+                // Route through ConsoleLogService for unified handling
+                consoleLogService.onFallbackLog(line)
             },
             statusCallback = { status ->
                 SwingUtilities.invokeLater {
@@ -975,6 +1011,7 @@ class HytaleToolWindowPanel(
     private fun stopServer() {
         val launchService = ServerLaunchService.getInstance(project)
         log("Stopping server...", isSystemMessage = true)
+        consoleLogService.logSystemMessage("Stopping server...")
         notify(HytaleBundle.message("notification.serverStopped"), NotificationType.INFORMATION)
 
         // Disable buttons while stopping
@@ -983,7 +1020,10 @@ class HytaleToolWindowPanel(
 
         launchService.stopServer(
             logCallback = { line ->
-                SwingUtilities.invokeLater { log(line, isSystemMessage = true) }
+                SwingUtilities.invokeLater {
+                    log(line, isSystemMessage = true)
+                    consoleLogService.logSystemMessage(line)
+                }
             },
             statusCallback = { status ->
                 SwingUtilities.invokeLater {
@@ -1006,8 +1046,18 @@ class HytaleToolWindowPanel(
     private fun sendCommand() {
         val command = commandField.text.trim()
         if (command.isNotEmpty()) {
-            val launchService = ServerLaunchService.getInstance(project)
-            if (launchService.sendCommand(command)) {
+            // Try to use bridge connection first if available
+            val bridgeConnection = consoleLogService.getActiveConnection()
+            val success = if (bridgeConnection != null) {
+                bridgeConnection.executeCommand(command)
+                true
+            } else {
+                // Fall back to stdin
+                val launchService = ServerLaunchService.getInstance(project)
+                launchService.sendCommand(command)
+            }
+
+            if (success) {
                 // Add to history (remove duplicate if exists, add to front)
                 commandHistory.remove(command)
                 commandHistory.add(0, command)
@@ -1020,6 +1070,7 @@ class HytaleToolWindowPanel(
                 profiler.recordEvent(ServerProfiler.EventType.COMMAND_SENT, command)
 
                 log("> $command", isSystemMessage = true)
+                consoleLogService.logSystemMessage("> $command")
                 commandField.text = ""
             }
         }
@@ -1309,6 +1360,77 @@ class HytaleToolWindowPanel(
         val colorStyle = doc.addStyle("color", style)
         javax.swing.text.StyleConstants.setForeground(colorStyle, color)
         doc.insertString(doc.length, text, colorStyle)
+    }
+
+    /**
+     * Log a unified log event from ConsoleLogService.
+     * Handles both system messages and structured log events from fallback or bridge.
+     */
+    private fun logUnified(event: ConsoleLogService.UnifiedLogEvent) {
+        consolePane?.let { pane ->
+            val doc = pane.styledDocument
+
+            if (event.isSystemMessage) {
+                val finalMessage = if (settings.showTimestamps) {
+                    "[${LocalTime.now().format(DateTimeFormatter.ofPattern("HH:mm:ss"))}] ${event.message}"
+                } else {
+                    event.message
+                }
+                appendStyled(doc, "$finalMessage\n", HytaleTheme.textPrimary)
+            } else {
+                // Get color based on log level
+                val levelColor = when (event.level) {
+                    ConsoleLogService.UnifiedLogLevel.TRACE -> HytaleTheme.mutedText
+                    ConsoleLogService.UnifiedLogLevel.DEBUG -> HytaleTheme.mutedText
+                    ConsoleLogService.UnifiedLogLevel.INFO -> HytaleTheme.successColor
+                    ConsoleLogService.UnifiedLogLevel.WARNING -> HytaleTheme.warningColor
+                    ConsoleLogService.UnifiedLogLevel.ERROR -> HytaleTheme.errorColor
+                    ConsoleLogService.UnifiedLogLevel.FATAL -> HytaleTheme.errorColor
+                    else -> HytaleTheme.textPrimary
+                }
+
+                val levelName = event.level.name
+
+                // If we have structured data from bridge, show logger name
+                if (event.loggerName != null && consoleLogService.isBridgeConnected()) {
+                    // Extract short logger name (last part after dot)
+                    val shortLogger = event.loggerName.substringAfterLast('.')
+                    appendStyled(doc, "[$levelName] ", levelColor)
+                    appendStyled(doc, "[$shortLogger] ", HytaleTheme.mutedText)
+                    appendStyled(doc, "${event.message}\n", HytaleTheme.textPrimary)
+                } else {
+                    appendStyled(doc, "[$levelName] ", levelColor)
+                    appendStyled(doc, "${event.message}\n", HytaleTheme.textPrimary)
+                }
+
+                // Show throwable if present
+                if (!event.throwable.isNullOrEmpty()) {
+                    appendStyled(doc, "${event.throwable}\n", HytaleTheme.errorColor)
+                }
+            }
+
+            if (settings.autoScroll) {
+                pane.caretPosition = doc.length
+            }
+        }
+    }
+
+    /**
+     * Update the mode indicator label based on current console log mode.
+     */
+    private fun updateModeIndicator(mode: ConsoleLogService.ConsoleLogMode) {
+        when (mode) {
+            ConsoleLogService.ConsoleLogMode.FALLBACK_PARSING -> {
+                modeIndicatorLabel.text = "Log Parsing"
+                modeIndicatorLabel.foreground = HytaleTheme.warningColor
+                modeIndicatorLabel.toolTipText = "Parsing logs from stdout (bridge not connected)"
+            }
+            ConsoleLogService.ConsoleLogMode.BRIDGE_CONNECTED -> {
+                modeIndicatorLabel.text = "Bridge Connected"
+                modeIndicatorLabel.foreground = HytaleTheme.successColor
+                modeIndicatorLabel.toolTipText = "Receiving structured logs from dev bridge"
+            }
+        }
     }
 
     private fun notify(message: String, type: NotificationType) =
