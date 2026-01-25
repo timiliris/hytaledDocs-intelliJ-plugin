@@ -85,6 +85,8 @@ class ConsoleLogService(private val project: Project) : Disposable {
             if (activeConnection == connection) {
                 activeConnection = null
                 setMode(ConsoleLogMode.FALLBACK_PARSING)
+                // Clear bridge asset paths since the connection is gone
+                AssetScannerService.getInstance(project).clearBridgeAssetPaths()
             }
         }
     }

@@ -18,6 +18,7 @@ message AgentMessage {
         SuggestionsResponse suggestions = 4;
         AssetPathsEvent asset_paths = 5;
         ServerStateEvent server_state = 6;
+        TranslateResponse translate_response = 7;
     }
 }
 
@@ -28,6 +29,7 @@ message IdeMessage {
         GetCommandsRequest get_commands = 2;
         GetSuggestionsRequest get_suggestions = 3;
         ExecuteCommandRequest execute_command = 4;
+        TranslateRequest translate = 5;
     }
 }
 
@@ -114,6 +116,19 @@ message GetSuggestionsRequest {
 message SuggestionsResponse {
     repeated string suggestions = 1;
     int32 start_position = 2;  // Where suggestion replaces from
+}
+
+// =============================================================================
+// Translation Messages
+// =============================================================================
+
+message TranslateRequest {
+    repeated string keys = 1;
+    optional string language = 2;  // If not set, uses server default ("en")
+}
+
+message TranslateResponse {
+    map<string, string> translations = 1;  // key -> translated text
 }
 
 // =============================================================================

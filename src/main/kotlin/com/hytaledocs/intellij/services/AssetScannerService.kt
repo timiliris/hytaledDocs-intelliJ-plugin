@@ -59,6 +59,10 @@ class AssetScannerService(private val project: Project) {
     @Volatile
     private var cachedStats: AssetStats = AssetStats.EMPTY
 
+    // Asset paths received from dev bridge (plugin resource directories)
+    @Volatile
+    private var bridgeAssetPaths: MutableList<String> = mutableListOf()
+
     /**
      * Data class to hold both tree views and stats from a single scan operation.
      */
@@ -176,29 +180,76 @@ class AssetScannerService(private val project: Project) {
     }
 
     /**
+     * Set asset paths received from the dev bridge.
+     * These are absolute paths to plugin resource directories on the running server.
+     */
+    fun setBridgeAssetPaths(paths: List<String>) {
+        bridgeAssetPaths = paths.toMutableList()
+        LOG.info("Received ${paths.size} asset paths from bridge")
+        clearCache()
+    }
+
+    /**
+     * Clear asset paths from the dev bridge (called on disconnect).
+     */
+    fun clearBridgeAssetPaths() {
+        if (bridgeAssetPaths.isNotEmpty()) {
+            bridgeAssetPaths.clear()
+            LOG.info("Cleared bridge asset paths")
+            clearCache()
+        }
+    }
+
+    /**
      * Perform a synchronous scan of assets. Called by the CachedValue provider.
      */
     @RequiresReadLock
     private fun performSynchronousScan(): ScanResult? {
-        val resourcesDir = getResourcesDirectory() ?: return null
+        val resourcesDir = getResourcesDirectory()
+        val hasBridgePaths = bridgeAssetPaths.isNotEmpty()
+
+        // Need at least one source to scan
+        if (resourcesDir == null && !hasBridgePaths) {
+            return null
+        }
 
         val allFiles = mutableListOf<AssetNode.FileNode>()
 
-        // Collect all asset files from directory
-        collectAssetFiles(resourcesDir, resourcesDir, allFiles, null)
+        // Collect all asset files from project resources directory
+        if (resourcesDir != null) {
+            collectAssetFiles(resourcesDir, resourcesDir, allFiles, null)
 
-        // Scan ZIP files for assets
-        val zipFiles = findAssetZipFiles(resourcesDir)
-        for (zipFile in zipFiles) {
-            collectAssetsFromZip(zipFile, allFiles, null)
+            // Scan ZIP files for assets
+            val zipFiles = findAssetZipFiles(resourcesDir)
+            for (zipFile in zipFiles) {
+                collectAssetsFromZip(zipFile, allFiles, null)
+            }
+        }
+
+        // Collect assets from bridge paths (plugin resource directories from running server)
+        for (bridgePath in bridgeAssetPaths) {
+            val bridgeDir = LocalFileSystem.getInstance().findFileByPath(bridgePath)
+            if (bridgeDir != null && bridgeDir.isDirectory) {
+                LOG.info("Scanning bridge asset path: $bridgePath")
+                collectAssetFiles(bridgeDir, bridgeDir, allFiles, null)
+            } else {
+                LOG.warn("Bridge asset path not accessible: $bridgePath")
+            }
         }
 
         // Build both trees
         val byTypeRoot = AssetNode.RootNode()
         val byFolderRoot = AssetNode.RootNode()
 
+        // Use a dummy base dir for folder tree if no resources dir
+        val baseDir = resourcesDir ?: bridgeAssetPaths.firstOrNull()?.let {
+            LocalFileSystem.getInstance().findFileByPath(it)
+        }
+
         buildByTypeTree(byTypeRoot, allFiles)
-        buildByFolderTree(byFolderRoot, allFiles, resourcesDir)
+        if (baseDir != null) {
+            buildByFolderTree(byFolderRoot, allFiles, baseDir)
+        }
 
         // Calculate statistics
         val byType = allFiles.groupBy { it.assetType }.mapValues { it.value.size }
@@ -208,7 +259,10 @@ class AssetScannerService(private val project: Project) {
             byType = byType
         )
 
-        LOG.info("Scanned ${allFiles.size} assets in ${resourcesDir.path}")
+        val sources = mutableListOf<String>()
+        if (resourcesDir != null) sources.add(resourcesDir.path)
+        sources.addAll(bridgeAssetPaths)
+        LOG.info("Scanned ${allFiles.size} assets from ${sources.size} source(s)")
 
         return ScanResult(byTypeRoot, byFolderRoot, stats, allFiles)
     }
@@ -229,25 +283,42 @@ class AssetScannerService(private val project: Project) {
         return CompletableFuture.supplyAsync {
             try {
                 val resourcesDir = getResourcesDirectory()
-                if (resourcesDir == null) {
-                    LOG.info("No resources directory found")
+                val hasBridgePaths = bridgeAssetPaths.isNotEmpty()
+
+                if (resourcesDir == null && !hasBridgePaths) {
+                    LOG.info("No resources directory or bridge paths found")
                     onProgress?.invoke(100, "No resources directory found")
                     return@supplyAsync null
                 }
 
-                onProgress?.invoke(0, "Scanning ${resourcesDir.name}...")
+                onProgress?.invoke(0, "Scanning assets...")
 
                 val allFiles = mutableListOf<AssetNode.FileNode>()
 
-                // Collect all asset files from directory
-                collectAssetFiles(resourcesDir, resourcesDir, allFiles, onProgress)
+                // Collect all asset files from project resources directory
+                if (resourcesDir != null) {
+                    onProgress?.invoke(5, "Scanning ${resourcesDir.name}...")
+                    collectAssetFiles(resourcesDir, resourcesDir, allFiles, onProgress)
 
-                // Scan ZIP files for assets
-                onProgress?.invoke(30, "Scanning ZIP archives...")
-                val zipFiles = findAssetZipFiles(resourcesDir)
-                for (zipFile in zipFiles) {
-                    onProgress?.invoke(40, "Scanning ${zipFile.name}...")
-                    collectAssetsFromZip(zipFile, allFiles, onProgress)
+                    // Scan ZIP files for assets
+                    onProgress?.invoke(30, "Scanning ZIP archives...")
+                    val zipFiles = findAssetZipFiles(resourcesDir)
+                    for (zipFile in zipFiles) {
+                        onProgress?.invoke(40, "Scanning ${zipFile.name}...")
+                        collectAssetsFromZip(zipFile, allFiles, onProgress)
+                    }
+                }
+
+                // Collect assets from bridge paths
+                if (hasBridgePaths) {
+                    onProgress?.invoke(50, "Scanning bridge paths...")
+                    for (bridgePath in bridgeAssetPaths) {
+                        val bridgeDir = LocalFileSystem.getInstance().findFileByPath(bridgePath)
+                        if (bridgeDir != null && bridgeDir.isDirectory) {
+                            onProgress?.invoke(55, "Scanning ${bridgeDir.name}...")
+                            collectAssetFiles(bridgeDir, bridgeDir, allFiles, onProgress)
+                        }
+                    }
                 }
 
                 onProgress?.invoke(70, "Building tree...")
@@ -256,8 +327,14 @@ class AssetScannerService(private val project: Project) {
                 val byTypeRoot = AssetNode.RootNode()
                 val byFolderRoot = AssetNode.RootNode()
 
+                val baseDir = resourcesDir ?: bridgeAssetPaths.firstOrNull()?.let {
+                    LocalFileSystem.getInstance().findFileByPath(it)
+                }
+
                 buildByTypeTree(byTypeRoot, allFiles)
-                buildByFolderTree(byFolderRoot, allFiles, resourcesDir)
+                if (baseDir != null) {
+                    buildByFolderTree(byFolderRoot, allFiles, baseDir)
+                }
 
                 // Calculate statistics
                 val byType = allFiles.groupBy { it.assetType }.mapValues { it.value.size }
@@ -270,7 +347,10 @@ class AssetScannerService(private val project: Project) {
 
                 onProgress?.invoke(100, "Found ${allFiles.size} assets")
 
-                LOG.info("Scanned ${allFiles.size} assets in ${resourcesDir.path}")
+                val sources = mutableListOf<String>()
+                if (resourcesDir != null) sources.add(resourcesDir.path)
+                sources.addAll(bridgeAssetPaths)
+                LOG.info("Scanned ${allFiles.size} assets from ${sources.size} source(s)")
 
                 val result = ScanResult(byTypeRoot, byFolderRoot, stats, allFiles)
                 // Force cache refresh by incrementing and then allowing CachedValue to recompute

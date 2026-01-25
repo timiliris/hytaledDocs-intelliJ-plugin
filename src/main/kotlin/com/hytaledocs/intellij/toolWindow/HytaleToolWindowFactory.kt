@@ -88,6 +88,7 @@ class HytaleToolWindowPanel(
     private var consolePane: JTextPane? = null
     private val commandField = JBTextField()
     private val modeIndicatorLabel = JBLabel("Log Parsing")
+    private var commandAutoComplete: CommandAutoCompletePopup? = null
 
     // Console log service
     private lateinit var consoleLogService: ConsoleLogService
@@ -584,7 +585,13 @@ class HytaleToolWindowPanel(
 
         commandField.border = JBUI.Borders.empty(4, 8)
         commandField.emptyText.text = HytaleBundle.message("console.commandPlaceholder")
+        // Disable Tab for focus traversal so autocomplete can use it
+        commandField.setFocusTraversalKeysEnabled(false)
         commandPanel.add(commandField, BorderLayout.CENTER)
+
+        // Setup command autocomplete popup
+        commandAutoComplete = CommandAutoCompletePopup(project, commandField)
+        Disposer.register(this, commandAutoComplete!!)
 
         val sendButton = HytaleTheme.createButton(HytaleBundle.message("button.send"), AllIcons.Actions.Execute)
         sendButton.addActionListener { sendCommand() }
@@ -1098,12 +1105,16 @@ class HytaleToolWindowPanel(
     }
 
     private fun sendCommand() {
-        val command = commandField.text.trim()
-        if (command.isNotEmpty()) {
+        val rawCommand = commandField.text.trim()
+        if (rawCommand.isNotEmpty()) {
+            // Strip leading slash - it's a UI convention, commands don't include it
+            val command = rawCommand.removePrefix("/")
+
             // Try to use bridge connection first if available
             val bridgeConnection = consoleLogService.getActiveConnection()
             val success = if (bridgeConnection != null) {
                 bridgeConnection.executeCommand(command)
+                // Don't log here - bridge logs the command
                 true
             } else {
                 // Fall back to stdin
@@ -1113,8 +1124,8 @@ class HytaleToolWindowPanel(
 
             if (success) {
                 // Add to history (remove duplicate if exists, add to front)
-                commandHistory.remove(command)
-                commandHistory.add(0, command)
+                commandHistory.remove(rawCommand)
+                commandHistory.add(0, rawCommand)
                 if (commandHistory.size > maxHistorySize) {
                     commandHistory.removeAt(commandHistory.lastIndex)
                 }
@@ -1123,8 +1134,8 @@ class HytaleToolWindowPanel(
                 // Record profiler event
                 profiler.recordEvent(ServerProfiler.EventType.COMMAND_SENT, command)
 
-                log("> $command", isSystemMessage = true)
-                consoleLogService.logSystemMessage("> $command")
+                log("> $rawCommand", isSystemMessage = true)
+                consoleLogService.logSystemMessage("> $rawCommand")
                 commandField.text = ""
             }
         }

@@ -42,6 +42,8 @@ class DevBridgeServer(private val project: Project) : Disposable {
     val port: Int get() = _port
     val authToken: String get() = _authToken
 
+    fun getProject(): Project = project
+
     private val connections = ConcurrentHashMap<WebSocket, DevBridgeConnection>()
     private val connectionListeners = CopyOnWriteArrayList<ConnectionListener>()
 

@@ -302,6 +302,8 @@
                 serviceImplementation="com.hytaledocs.intellij.bridge.DevBridgeServer"/>
         <projectService
                 serviceImplementation="com.hytaledocs.intellij.services.ConsoleLogService"/>
+        <projectService
+                serviceImplementation="com.hytaledocs.intellij.services.CommandRegistryCache"/>
 
         <applicationService
                 serviceImplementation="com.hytaledocs.intellij.settings.HytaleAppSettings"/>

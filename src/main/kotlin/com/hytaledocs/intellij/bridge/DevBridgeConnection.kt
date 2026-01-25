@@ -28,6 +28,8 @@ class DevBridgeConnection(
     private val logListeners = CopyOnWriteArrayList<(LogEvent) -> Unit>()
     private val serverStateListeners = CopyOnWriteArrayList<(ServerState) -> Unit>()
     private val commandRegistryListeners = CopyOnWriteArrayList<(CommandRegistryResponse) -> Unit>()
+    private val suggestionListeners = CopyOnWriteArrayList<(SuggestionsResponse) -> Unit>()
+    private val translateListeners = CopyOnWriteArrayList<(TranslateResponse) -> Unit>()
 
     fun handleMessage(message: AgentMessage) {
         when (message.payloadCase) {
@@ -37,6 +39,7 @@ class DevBridgeConnection(
             AgentMessage.PayloadCase.COMMAND_REGISTRY -> handleCommandRegistry(message.commandRegistry)
             AgentMessage.PayloadCase.SUGGESTIONS -> handleSuggestions(message.suggestions)
             AgentMessage.PayloadCase.ASSET_PATHS -> handleAssetPaths(message.assetPaths)
+            AgentMessage.PayloadCase.TRANSLATE_RESPONSE -> handleTranslateResponse(message.translateResponse)
             else -> LOG.warn("Unknown message type: ${message.payloadCase}")
         }
     }
@@ -87,13 +90,22 @@ class DevBridgeConnection(
     }
 
     private fun handleSuggestions(suggestions: SuggestionsResponse) {
-        // TODO: Phase 4 - Provide to autocomplete UI
+        if (!handshakeComplete.get()) return
         LOG.debug("Received ${suggestions.suggestionsCount} suggestions")
+        suggestionListeners.forEach { it(suggestions) }
     }
 
     private fun handleAssetPaths(paths: AssetPathsEvent) {
-        // TODO: Phase 4 - Add to AssetScannerService
-        LOG.info("Received ${paths.pathsCount} asset paths: ${paths.pathsList}")
+        if (!handshakeComplete.get()) return
+        LOG.info("Received ${paths.pathsCount} asset paths from bridge")
+        val assetScanner = com.hytaledocs.intellij.services.AssetScannerService.getInstance(server.getProject())
+        assetScanner.setBridgeAssetPaths(paths.pathsList)
+    }
+
+    private fun handleTranslateResponse(response: TranslateResponse) {
+        if (!handshakeComplete.get()) return
+        LOG.debug("Received ${response.translationsCount} translations")
+        translateListeners.forEach { it(response) }
     }
 
     /**
@@ -145,6 +157,28 @@ class DevBridgeConnection(
         socket.send(message.toByteArray())
     }
 
+    /**
+     * Request translation of keys from the server.
+     * @param keys List of translation keys to resolve
+     * @param language Optional language code (defaults to "en" on server)
+     */
+    fun requestTranslation(keys: List<String>, language: String? = null) {
+        if (!handshakeComplete.get()) return
+
+        val requestBuilder = TranslateRequest.newBuilder()
+            .addAllKeys(keys)
+
+        if (language != null) {
+            requestBuilder.language = language
+        }
+
+        val message = IdeMessage.newBuilder()
+            .setTranslate(requestBuilder.build())
+            .build()
+
+        socket.send(message.toByteArray())
+    }
+
     fun addLogListener(listener: (LogEvent) -> Unit) {
         logListeners.add(listener)
     }
@@ -167,6 +201,22 @@ class DevBridgeConnection(
 
     fun removeCommandRegistryListener(listener: (CommandRegistryResponse) -> Unit) {
         commandRegistryListeners.remove(listener)
+    }
+
+    fun addSuggestionListener(listener: (SuggestionsResponse) -> Unit) {
+        suggestionListeners.add(listener)
+    }
+
+    fun removeSuggestionListener(listener: (SuggestionsResponse) -> Unit) {
+        suggestionListeners.remove(listener)
+    }
+
+    fun addTranslateListener(listener: (TranslateResponse) -> Unit) {
+        translateListeners.add(listener)
+    }
+
+    fun removeTranslateListener(listener: (TranslateResponse) -> Unit) {
+        translateListeners.remove(listener)
     }
 
     fun isHandshakeComplete(): Boolean = handshakeComplete.get()
