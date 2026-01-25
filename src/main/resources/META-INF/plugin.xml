@@ -182,6 +182,7 @@
 
     <depends>com.intellij.modules.platform</depends>
     <depends>com.intellij.modules.java</depends>
+    <depends>org.jetbrains.plugins.gradle</depends>
 
     <resource-bundle>messages.HytaleBundle</resource-bundle>
 
@@ -352,6 +353,18 @@
         <!-- Run Configuration Extension for Dev Bridge env var injection -->
         <runConfigurationExtension
                 implementation="com.hytaledocs.intellij.run.HytaleRunConfigurationExtension"/>
+
+    </extensions>
+
+    <!-- Gradle Integration Extensions -->
+    <extensions defaultExtensionNs="org.jetbrains.plugins.gradle">
+        <projectResolve implementation="com.hytaledocs.intellij.gradle.HytaleDevProjectResolverExtension"/>
+    </extensions>
+
+    <!-- Gradle Sync Listener (for refreshing tool window after sync) -->
+    <extensions defaultExtensionNs="com.intellij">
+        <postStartupActivity
+                implementation="com.hytaledocs.intellij.gradle.HytaleGradleSyncStartupActivity"/>
     </extensions>
 
     <actions>

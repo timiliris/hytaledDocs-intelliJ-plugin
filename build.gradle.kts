@@ -158,6 +158,33 @@ sourceSets {
     }
 }
 
+// Gradle Tooling Extension configuration - following MinecraftDev pattern
+// This extension runs in Gradle's process during IntelliJ sync to detect the hytale-dev plugin
+val gradleToolingExtension: Configuration by configurations.creating
+
+val gradleToolingExtensionSourceSet: SourceSet = sourceSets.create("gradle-tooling-extension") {
+    configurations.named(compileOnlyConfigurationName) {
+        extendsFrom(gradleToolingExtension)
+    }
+}
+
+// Create a separate JAR for the tooling extension
+val gradleToolingExtensionJar = tasks.register<Jar>(gradleToolingExtensionSourceSet.jarTaskName) {
+    from(gradleToolingExtensionSourceSet.output)
+    archiveClassifier.set("gradle-tooling-extension")
+}
+
+dependencies {
+    // Embed the tooling extension JAR in the plugin
+    implementation(files(gradleToolingExtensionJar))
+
+    // Dependencies for the gradle-tooling-extension (runs in Gradle, not IntelliJ)
+    gradleToolingExtension(gradleApi())
+    gradleToolingExtension(kotlin("stdlib"))
+    gradleToolingExtension(libs.gradleToolingExtension)
+    gradleToolingExtension(libs.annotations)
+}
+
 tasks {
     wrapper {
         gradleVersion = providers.gradleProperty("gradleVersion").get()

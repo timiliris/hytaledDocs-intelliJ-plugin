@@ -1,6 +1,7 @@
 package com.hytaledocs.intellij.toolWindow
 
 import com.hytaledocs.intellij.HytaleBundle
+import com.hytaledocs.intellij.gradle.HytaleToolWindowRefreshable
 import com.hytaledocs.intellij.services.*
 import com.hytaledocs.intellij.settings.AuthMode
 import com.hytaledocs.intellij.settings.HytaleServerSettings
@@ -48,7 +49,7 @@ class HytaleToolWindowFactory : ToolWindowFactory {
 class HytaleToolWindowPanel(
     private val project: Project,
     private val toolWindow: ToolWindow
-) : JBPanel<HytaleToolWindowPanel>(BorderLayout()), Disposable {
+) : JBPanel<HytaleToolWindowPanel>(BorderLayout()), Disposable, HytaleToolWindowRefreshable {
 
     private val settings = HytaleServerSettings.getInstance(project)
     private val javaService = JavaInstallService.getInstance()
@@ -110,6 +111,12 @@ class HytaleToolWindowPanel(
     // Log counter
     private var logCountLabel: JLabel? = null
 
+    // Tabbed pane for refreshing tabs
+    private lateinit var tabbedPane: JBTabbedPane
+
+    // Track last detected project type for refresh optimization
+    private var lastDetectedProjectType: HytaleProjectType? = null
+
     // ANSI escape code regex
     private val ansiRegex = Regex("\u001B\\[[0-9;]*[a-zA-Z]")
     private val serverLogRegex = Regex("""^\[[\d/]+\s+[\d:]+\s+(\w+)\]\s+(.*)$""")
@@ -121,7 +128,10 @@ class HytaleToolWindowPanel(
         // Initialize console log service
         consoleLogService = ConsoleLogService.getInstance(project)
 
-        val tabbedPane = JBTabbedPane()
+        // Track initial project type
+        lastDetectedProjectType = HytaleProjectService.getInstance(project).detectProjectType()
+
+        tabbedPane = JBTabbedPane()
         tabbedPane.tabComponentInsets = JBUI.insets(0)
 
         tabbedPane.addTab(HytaleBundle.message("tab.server"), createServerTab())
@@ -235,6 +245,12 @@ class HytaleToolWindowPanel(
         mainPanel.background = JBColor.namedColor("ToolWindow.background", UIUtil.getPanelBackground())
         mainPanel.border = JBUI.Borders.empty(12)
 
+        // Check if this is a Gradle plugin project
+        val projectService = HytaleProjectService.getInstance(project)
+        if (projectService.isGradlePluginProject()) {
+            return createGradlePluginServerTab(mainPanel)
+        }
+
         // Auth panel at top (initially hidden)
         authPanel = AuthenticationPanel()
         mainPanel.add(authPanel, BorderLayout.NORTH)
@@ -259,6 +275,44 @@ class HytaleToolWindowPanel(
         contentPanel.add(createQuickSettingsCard())
 
         // Push content to top
+        contentPanel.add(Box.createVerticalGlue())
+
+        val scrollPane = JBScrollPane(contentPanel)
+        scrollPane.border = null
+        scrollPane.viewportBorder = null
+        mainPanel.add(scrollPane, BorderLayout.CENTER)
+
+        return mainPanel
+    }
+
+    /**
+     * Creates a simplified Server tab for Gradle plugin projects.
+     * Since the Gradle plugin handles server management, we just show an info message.
+     */
+    private fun createGradlePluginServerTab(mainPanel: JPanel): JPanel {
+        // Initialize authPanel to avoid lateinit issues (won't be displayed)
+        authPanel = AuthenticationPanel()
+
+        val contentPanel = JPanel()
+        contentPanel.layout = BoxLayout(contentPanel, BoxLayout.Y_AXIS)
+        contentPanel.isOpaque = false
+
+        // Info Card
+        val infoCard = HytaleTheme.createCard("Gradle Plugin Project")
+        infoCard.maximumSize = Dimension(Int.MAX_VALUE, JBUI.scale(200))
+
+        val infoText = JBLabel("<html><body style='width: 250px'>" +
+            "<p>This project uses the <b>net.janrupf.hytale-dev</b> Gradle plugin.</p>" +
+            "<br/>" +
+            "<p>Server management is handled by Gradle-generated run configurations. " +
+            "Use the <b>Run</b> dropdown in the toolbar to start the server.</p>" +
+            "<br/>" +
+            "<p style='color: gray;'>The Console tab can still be used to view logs when the Dev Bridge connects.</p>" +
+            "</body></html>")
+        infoText.alignmentX = Component.LEFT_ALIGNMENT
+        infoCard.add(infoText)
+
+        contentPanel.add(infoCard)
         contentPanel.add(Box.createVerticalGlue())
 
         val scrollPane = JBScrollPane(contentPanel)
@@ -1435,6 +1489,29 @@ class HytaleToolWindowPanel(
 
     private fun notify(message: String, type: NotificationType) =
         PanelUtils.notify(project, "Hytale", message, type)
+
+    /**
+     * Called when project type detection may have changed (e.g., after Gradle sync).
+     * Refreshes the Server tab if the project type has changed.
+     */
+    override fun onProjectTypeChanged() {
+        val currentProjectType = HytaleProjectService.getInstance(project).detectProjectType()
+
+        // Only refresh if the project type actually changed
+        if (currentProjectType == lastDetectedProjectType) {
+            return
+        }
+
+        lastDetectedProjectType = currentProjectType
+
+        // Refresh the Server tab (index 0)
+        SwingUtilities.invokeLater {
+            val newServerTab = createServerTab()
+            tabbedPane.setComponentAt(0, newServerTab)
+            tabbedPane.revalidate()
+            tabbedPane.repaint()
+        }
+    }
 
     override fun dispose() {
         statsTimer?.stop()

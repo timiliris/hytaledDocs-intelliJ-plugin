@@ -1,5 +1,7 @@
 package com.hytaledocs.intellij.run
 
+import com.hytaledocs.intellij.services.HytaleProjectService
+import com.hytaledocs.intellij.services.HytaleProjectType
 import com.hytaledocs.intellij.util.PluginInfoDetector
 import com.intellij.execution.RunManager
 import com.intellij.openapi.diagnostic.Logger
@@ -9,7 +11,10 @@ import java.io.File
 
 /**
  * Startup activity that creates a default Hytale Server run configuration
- * if one doesn't exist and the project appears to be a Hytale plugin project.
+ * if one doesn't exist and the project appears to be a legacy Hytale plugin project.
+ *
+ * Note: This skips Gradle plugin projects (net.janrupf.hytale-dev) as they use
+ * Gradle-generated JarApplication run configurations instead.
  */
 class HytaleRunConfigurationSetup : ProjectActivity {
 
@@ -18,11 +23,22 @@ class HytaleRunConfigurationSetup : ProjectActivity {
     }
 
     override suspend fun execute(project: Project) {
-        // Check if this looks like a Hytale plugin project
-        if (!isHytaleProject(project)) {
+        val projectService = HytaleProjectService.getInstance(project)
+        val projectType = projectService.detectProjectType()
+
+        // Skip if not a Hytale project
+        if (projectType == HytaleProjectType.UNKNOWN) {
             LOG.info("Not a Hytale project, skipping run configuration setup")
             return
         }
+
+        // Skip Gradle plugin projects - they use Gradle-generated JarApplication configs
+        if (projectType == HytaleProjectType.GRADLE_PLUGIN) {
+            LOG.info("Gradle plugin project detected (net.janrupf.hytale-dev), skipping legacy run configuration setup")
+            return
+        }
+
+        LOG.info("Legacy Hytale project detected ($projectType), setting up run configuration")
 
         // Check if we already have a Hytale Server run configuration
         val runManager = RunManager.getInstance(project)
@@ -63,31 +79,6 @@ class HytaleRunConfigurationSetup : ProjectActivity {
 
         // Create the run configuration
         createHytaleServerRunConfiguration(project, pluginInfo)
-    }
-
-    private fun isHytaleProject(project: Project): Boolean {
-        val basePath = project.basePath ?: return false
-
-        // Check for Hytale-specific indicators
-        val indicators = listOf(
-            File(basePath, ".hytale/project.json"),
-            File(basePath, "server/HytaleServer.jar"),
-            File(basePath, "libs/HytaleServer.jar"),
-            File(basePath, "src/main/resources/manifest.json")
-        )
-
-        val hasIndicator = indicators.any { it.exists() }
-
-        // Also check for Hytale dependency in build.gradle
-        val buildGradle = File(basePath, "build.gradle")
-        val buildGradleKts = File(basePath, "build.gradle.kts")
-        val hasHytaleDep = when {
-            buildGradle.exists() -> buildGradle.readText().contains("HytaleServer")
-            buildGradleKts.exists() -> buildGradleKts.readText().contains("HytaleServer")
-            else -> false
-        }
-
-        return hasIndicator || hasHytaleDep
     }
 
     /**

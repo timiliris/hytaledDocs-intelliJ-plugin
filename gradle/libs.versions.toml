@@ -19,6 +19,11 @@ opentest4j = { group = "org.opentest4j", name = "opentest4j", version.ref = "ope
 protobuf = { group = "com.google.protobuf", name = "protobuf-java", version.ref = "protobuf" }
 javaWebsocket = { group = "org.java-websocket", name = "Java-WebSocket", version.ref = "javaWebsocket" }
 
+# Gradle Tooling Extension - version must match IntelliJ build number
+# Find version with: afterEvaluate { println(intellijPlatform.productInfo.buildNumber) }
+gradleToolingExtension = { module = "com.jetbrains.intellij.gradle:gradle-tooling-extension", version = "253.29346.240" }
+annotations = { group = "org.jetbrains", name = "annotations", version = "24.0.0" }
+
 [plugins]
 changelog = { id = "org.jetbrains.changelog", version.ref = "changelog" }
 intelliJPlatform = { id = "org.jetbrains.intellij.platform", version.ref = "intelliJPlatform" }
