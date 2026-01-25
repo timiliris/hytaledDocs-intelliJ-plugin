@@ -182,6 +182,7 @@
 
     <depends>com.intellij.modules.platform</depends>
     <depends>com.intellij.modules.java</depends>
+    <depends>org.jetbrains.plugins.gradle</depends>
 
     <resource-bundle>messages.HytaleBundle</resource-bundle>
 
@@ -297,6 +298,12 @@
                 serviceImplementation="com.hytaledocs.intellij.services.AssetSyncService"/>
         <projectService
                 serviceImplementation="com.hytaledocs.intellij.services.ServerProfiler"/>
+        <projectService
+                serviceImplementation="com.hytaledocs.intellij.bridge.DevBridgeServer"/>
+        <projectService
+                serviceImplementation="com.hytaledocs.intellij.services.ConsoleLogService"/>
+        <projectService
+                serviceImplementation="com.hytaledocs.intellij.services.CommandRegistryCache"/>
 
         <applicationService
                 serviceImplementation="com.hytaledocs.intellij.settings.HytaleAppSettings"/>
@@ -344,6 +351,22 @@
         <!-- Auto-setup Run Configuration for Hytale projects -->
         <postStartupActivity
                 implementation="com.hytaledocs.intellij.run.HytaleRunConfigurationSetup"/>
+
+        <!-- Run Configuration Extension for Dev Bridge env var injection -->
+        <runConfigurationExtension
+                implementation="com.hytaledocs.intellij.run.HytaleRunConfigurationExtension"/>
+
+    </extensions>
+
+    <!-- Gradle Integration Extensions -->
+    <extensions defaultExtensionNs="org.jetbrains.plugins.gradle">
+        <projectResolve implementation="com.hytaledocs.intellij.gradle.HytaleDevProjectResolverExtension"/>
+    </extensions>
+
+    <!-- Gradle Sync Listener (for refreshing tool window after sync) -->
+    <extensions defaultExtensionNs="com.intellij">
+        <postStartupActivity
+                implementation="com.hytaledocs.intellij.gradle.HytaleGradleSyncStartupActivity"/>
     </extensions>
 
     <actions>

@@ -55,6 +55,10 @@ class HytaleProjectWizardStep(parent: NewProjectWizardStep) : AbstractNewProject
     private lateinit var languageSegmentedButton: SegmentedButton<String>
     private lateinit var buildSystemSegmentedButton: SegmentedButton<String>
 
+    // Gradle plugin mode
+    private var useGradlePlugin = true
+    private val useGradlePluginCheckbox = JCheckBox("Use Gradle Dev Plugin (recommended)", true)
+
     // Game detection - mutable to allow manual selection
     private var hytaleInstallation = HytaleModuleBuilder.detectHytaleInstallation()
     private val copyFromGameCheckbox = JCheckBox("Copy server files automatically", hytaleInstallation != null)
@@ -63,6 +67,7 @@ class HytaleProjectWizardStep(parent: NewProjectWizardStep) : AbstractNewProject
     private var serverPanel: JPanel? = null
     private var serverStatusLabel: JBLabel? = null
     private var serverStatusIcon: JBLabel? = null
+    private var serverPanelContainer: JPanel? = null
 
     // Track manual edits
     private var modIdManuallyEdited = false
@@ -464,8 +469,20 @@ class HytaleProjectWizardStep(parent: NewProjectWizardStep) : AbstractNewProject
             }
             row("Build System:") {
                 buildSystemSegmentedButton = segmentedButton(listOf("Gradle", "Maven")) { text = it }
-                    .whenItemSelected { selectedBuildSystem = it }
+                    .whenItemSelected {
+                        selectedBuildSystem = it
+                        // Disable Gradle plugin checkbox when Maven is selected
+                        useGradlePluginCheckbox.isEnabled = (it == "Gradle")
+                        if (it == "Maven") {
+                            useGradlePluginCheckbox.isSelected = false
+                            useGradlePlugin = false
+                        }
+                    }
                 buildSystemSegmentedButton.selectedItem = selectedBuildSystem
+            }
+            row("") {
+                cell(useGradlePluginCheckbox)
+                    .comment("Automatic server detection, manifest generation, and run configurations")
             }
             row("Version:") {
                 cell(versionField)
@@ -477,6 +494,11 @@ class HytaleProjectWizardStep(parent: NewProjectWizardStep) : AbstractNewProject
                     .columns(10)
                     .comment("In-game command shortcut")
             }
+        }
+
+        // Track checkbox changes
+        useGradlePluginCheckbox.addActionListener {
+            useGradlePlugin = useGradlePluginCheckbox.isSelected
         }
         formPanel.alignmentX = Component.LEFT_ALIGNMENT
         content.add(formPanel)
@@ -502,7 +524,7 @@ class HytaleProjectWizardStep(parent: NewProjectWizardStep) : AbstractNewProject
         titleLabel.border = JBUI.Borders.emptyBottom(4)
         content.add(titleLabel)
 
-        val subtitleLabel = JBLabel("Add metadata and configure server files")
+        val subtitleLabel = JBLabel("Add metadata for your mod")
         subtitleLabel.foreground = JBColor.GRAY
         subtitleLabel.alignmentX = Component.LEFT_ALIGNMENT
         subtitleLabel.border = JBUI.Borders.emptyBottom(20)
@@ -536,8 +558,15 @@ class HytaleProjectWizardStep(parent: NewProjectWizardStep) : AbstractNewProject
         content.add(formPanel)
         content.add(Box.createVerticalStrut(20))
 
-        // Server detection
-        content.add(createServerPanel())
+        // Server detection container (only shown in legacy mode)
+        val container = JPanel()
+        container.layout = BoxLayout(container, BoxLayout.Y_AXIS)
+        container.isOpaque = false
+        container.alignmentX = Component.LEFT_ALIGNMENT
+        serverPanelContainer = container
+
+        container.add(createServerPanel())
+        content.add(container)
 
         content.add(Box.createVerticalGlue())
 
@@ -721,7 +750,16 @@ class HytaleProjectWizardStep(parent: NewProjectWizardStep) : AbstractNewProject
             cardLayout.show(cardPanel, "step${currentStep + 1}")
             updateStepIndicators()
             updateNavigationButtons()
+
+            // Update server panel visibility when entering Step 3
+            if (currentStep == 2) {
+                updateServerPanelVisibility()
+            }
         }
+    }
+
+    private fun updateServerPanelVisibility() {
+        serverPanelContainer?.isVisible = !useGradlePlugin
     }
 
     private fun goToPreviousStep() {
@@ -764,6 +802,7 @@ class HytaleProjectWizardStep(parent: NewProjectWizardStep) : AbstractNewProject
         builder.buildSystem = selectedBuildSystem
         builder.copyFromGame = copyFromGameCheckbox.isSelected
         builder.hytaleInstallation = hytaleInstallation
+        builder.useGradlePlugin = useGradlePluginCheckbox.isSelected && selectedBuildSystem == "Gradle"
 
         val projectPath = context.projectDirectory?.toString() ?: return
         builder.createProjectAtPath(projectPath)

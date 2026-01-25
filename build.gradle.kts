@@ -1,6 +1,7 @@
 import org.jetbrains.changelog.Changelog
 import org.jetbrains.changelog.markdownToHTML
 import org.jetbrains.intellij.platform.gradle.TestFrameworkType
+import java.util.Properties
 
 plugins {
     id("java") // Java support
@@ -9,6 +10,7 @@ plugins {
     alias(libs.plugins.changelog) // Gradle Changelog Plugin
     alias(libs.plugins.qodana) // Gradle Qodana Plugin
     alias(libs.plugins.kover) // Gradle Kover Plugin
+    alias(libs.plugins.protobuf) // Protocol Buffers
 }
 
 group = providers.gradleProperty("pluginGroup").get()
@@ -39,6 +41,10 @@ dependencies {
     implementation("com.google.code.gson:gson:2.11.0")
     // OGG Vorbis audio support for asset preview
     implementation("com.github.trilarion:java-vorbis-support:1.2.1")
+    // WebSocket server for Dev Bridge
+    implementation(libs.javaWebsocket)
+    // Protocol Buffers runtime
+    implementation(libs.protobuf)
 
     testImplementation(libs.junit)
     testImplementation(libs.opentest4j)
@@ -136,6 +142,49 @@ kover {
     }
 }
 
+// Configure Protocol Buffers - read more: https://github.com/google/protobuf-gradle-plugin
+protobuf {
+    protoc {
+        artifact = "com.google.protobuf:protoc:${libs.versions.protobuf.get()}"
+    }
+}
+
+// Ensure generated protobuf sources are included in the source set
+sourceSets {
+    main {
+        java {
+            srcDirs(layout.buildDirectory.dir("generated/source/proto/main/java"))
+        }
+    }
+}
+
+// Gradle Tooling Extension configuration - following MinecraftDev pattern
+// This extension runs in Gradle's process during IntelliJ sync to detect the hytale-dev plugin
+val gradleToolingExtension: Configuration by configurations.creating
+
+val gradleToolingExtensionSourceSet: SourceSet = sourceSets.create("gradle-tooling-extension") {
+    configurations.named(compileOnlyConfigurationName) {
+        extendsFrom(gradleToolingExtension)
+    }
+}
+
+// Create a separate JAR for the tooling extension
+val gradleToolingExtensionJar = tasks.register<Jar>(gradleToolingExtensionSourceSet.jarTaskName) {
+    from(gradleToolingExtensionSourceSet.output)
+    archiveClassifier.set("gradle-tooling-extension")
+}
+
+dependencies {
+    // Embed the tooling extension JAR in the plugin
+    implementation(files(gradleToolingExtensionJar))
+
+    // Dependencies for the gradle-tooling-extension (runs in Gradle, not IntelliJ)
+    gradleToolingExtension(gradleApi())
+    gradleToolingExtension(kotlin("stdlib"))
+    gradleToolingExtension(libs.gradleToolingExtension)
+    gradleToolingExtension(libs.annotations)
+}
+
 tasks {
     wrapper {
         gradleVersion = providers.gradleProperty("gradleVersion").get()
@@ -153,6 +202,18 @@ tasks {
                 "-Duser.country=FR",
                 "-Dide.locale=fr_FR"
             )
+        }
+
+        // Allow overwriting the IDE runtime with local JBR for testing/compatibility
+        val localProperties = project.rootProject.file("local.properties")
+        if (localProperties.exists()) {
+            val p = Properties().apply { load(localProperties.inputStream()) }
+            val jbrPath = p.getProperty("idea.runtimeDir")
+
+            if (jbrPath != null) {
+                logger.info("Using overridden JBR path: $jbrPath")
+                runtimeDirectory.set(file(jbrPath))
+            }
         }
     }
 }

@@ -2,6 +2,8 @@
 # libraries
 junit = "4.13.2"
 opentest4j = "1.3.0"
+protobuf = "3.25.1"
+javaWebsocket = "1.5.7"
 
 # plugins
 changelog = "2.5.0"
@@ -9,10 +11,18 @@ intelliJPlatform = "2.10.5"
 kotlin = "2.2.21"
 kover = "0.9.3"
 qodana = "2025.2.2"
+protobufPlugin = "0.9.4"
 
 [libraries]
 junit = { group = "junit", name = "junit", version.ref = "junit" }
 opentest4j = { group = "org.opentest4j", name = "opentest4j", version.ref = "opentest4j" }
+protobuf = { group = "com.google.protobuf", name = "protobuf-java", version.ref = "protobuf" }
+javaWebsocket = { group = "org.java-websocket", name = "Java-WebSocket", version.ref = "javaWebsocket" }
+
+# Gradle Tooling Extension - version must match IntelliJ build number
+# Find version with: afterEvaluate { println(intellijPlatform.productInfo.buildNumber) }
+gradleToolingExtension = { module = "com.jetbrains.intellij.gradle:gradle-tooling-extension", version = "253.29346.240" }
+annotations = { group = "org.jetbrains", name = "annotations", version = "24.0.0" }
 
 [plugins]
 changelog = { id = "org.jetbrains.changelog", version.ref = "changelog" }
@@ -20,3 +30,4 @@ intelliJPlatform = { id = "org.jetbrains.intellij.platform", version.ref = "inte
 kotlin = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
 kover = { id = "org.jetbrains.kotlinx.kover", version.ref = "kover" }
 qodana = { id = "org.jetbrains.qodana", version.ref = "qodana" }
+protobuf = { id = "com.google.protobuf", version.ref = "protobufPlugin" }
