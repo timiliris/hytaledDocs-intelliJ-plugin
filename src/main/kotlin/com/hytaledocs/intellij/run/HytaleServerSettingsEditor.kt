@@ -116,9 +116,9 @@ class HytaleServerSettingsEditor(private val project: Project) : SettingsEditor<
 
                 row("Plugin JAR:") {
                     textFieldWithBrowseButton(
+                        "Select Plugin JAR",
+                        project,
                         FileChooserDescriptorFactory.createSingleFileDescriptor("jar")
-                            .withTitle("Select Plugin JAR"),
-                        project
                     ).applyToComponent {
                         pluginJarField = this
                         textField.document.addDocumentListener(createChangeListener())
@@ -154,9 +154,9 @@ class HytaleServerSettingsEditor(private val project: Project) : SettingsEditor<
             group("Server") {
                 row("Server directory:") {
                     textFieldWithBrowseButton(
+                        "Select Server Directory",
+                        project,
                         FileChooserDescriptorFactory.createSingleFolderDescriptor()
-                            .withTitle("Select Server Directory"),
-                        project
                     ).applyToComponent {
                         serverPathField = this
                         textField.document.addDocumentListener(createChangeListener())
@@ -170,9 +170,9 @@ class HytaleServerSettingsEditor(private val project: Project) : SettingsEditor<
                     val java25 = javaService.findJava25()
 
                     textFieldWithBrowseButton(
+                        "Select Java Executable",
+                        project,
                         FileChooserDescriptorFactory.createSingleLocalFileDescriptor()
-                            .withTitle("Select Java Executable"),
-                        project
                     ).applyToComponent {
                         javaPathField = this
                         textField.document.addDocumentListener(createChangeListener())

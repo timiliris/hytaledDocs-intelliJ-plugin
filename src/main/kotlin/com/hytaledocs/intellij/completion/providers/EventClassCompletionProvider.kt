@@ -112,7 +112,7 @@ class EventClassCompletionProvider : CompletionProvider<CompletionParameters>() 
         val variable = PsiTreeUtil.getParentOfType(position, PsiVariable::class.java)
         if (variable != null) {
             val typeText = variable.type.presentableText
-            if (typeText.contains("Event") || typeText.contains("Consumer")) {
+            if (typeText.endsWith("Event")) {
                 return true
             }
         }
@@ -126,17 +126,6 @@ class EventClassCompletionProvider : CompletionProvider<CompletionParameters>() 
                 return true
             }
             if (implementsList != null && PsiTreeUtil.isAncestor(implementsList, position, false)) {
-                return true
-            }
-        }
-
-        // Allow completion in any Java code reference that could be an event
-        val codeRef = PsiTreeUtil.getParentOfType(position, PsiJavaCodeReferenceElement::class.java)
-        if (codeRef != null) {
-            val text = position.text
-            // If the prefix looks like it could be an event name
-            if (text.contains("Event") || text.endsWith("Event") ||
-                text.matches(Regex("^[A-Z][a-zA-Z]*$"))) {
                 return true
             }
         }

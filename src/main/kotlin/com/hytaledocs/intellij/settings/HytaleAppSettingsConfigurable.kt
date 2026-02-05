@@ -69,10 +69,11 @@ class HytaleAppSettingsConfigurable : BoundConfigurable("HytaleDocs") {
                 }
 
                 row("Installation path:") {
-                    val descriptor = FileChooserDescriptorFactory.createSingleFolderDescriptor()
-                        .withTitle("Select Hytale Installation Directory")
-
-                    installationPathField = textFieldWithBrowseButton(descriptor)
+                    installationPathField = textFieldWithBrowseButton(
+                        "Select Hytale Installation Directory",
+                        null,
+                        FileChooserDescriptorFactory.createSingleFolderDescriptor()
+                    )
                         .bindText(settings::hytaleInstallationPath)
                         .comment("Path to the Hytale game folder (containing Server/HytaleServer.jar)")
                         .align(AlignX.FILL)
