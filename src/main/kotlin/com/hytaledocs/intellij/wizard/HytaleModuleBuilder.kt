@@ -417,9 +417,7 @@ class HytaleModuleBuilder : ModuleBuilder() {
 
             # Hytale
             libs/HytaleServer.jar
-            server/mods/
-            server/logs/
-            server/world/
+            server/*
         """.trimIndent())
     }
 
