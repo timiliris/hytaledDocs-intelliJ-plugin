@@ -199,4 +199,4 @@ object UITokenTypes {
 /**
  * Custom element type for UI language.
  */
-class UIElementType(debugName: String) : IElementType(debugName, UILanguage)
+class UIElementType(debugName: String) : IElementType(debugName, UILanguage.INSTANCE)

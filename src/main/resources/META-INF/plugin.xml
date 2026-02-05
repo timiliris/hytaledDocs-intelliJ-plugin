@@ -344,6 +344,10 @@
         <!-- Auto-setup Run Configuration for Hytale projects -->
         <postStartupActivity
                 implementation="com.hytaledocs.intellij.run.HytaleRunConfigurationSetup"/>
+
+        <!-- Force early UILanguage init before stub indexing -->
+        <preloadingActivity
+                implementation="com.hytaledocs.intellij.uifile.UILanguagePreloader"/>
     </extensions>
 
     <actions>

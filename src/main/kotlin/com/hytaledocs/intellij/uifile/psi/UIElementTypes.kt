@@ -8,5 +8,5 @@ import com.intellij.psi.tree.IFileElementType
  */
 object UIElementTypes {
 
-    val FILE = IFileElementType(UILanguage)
+    val FILE: IFileElementType by lazy { IFileElementType(UILanguage.INSTANCE) }
 }

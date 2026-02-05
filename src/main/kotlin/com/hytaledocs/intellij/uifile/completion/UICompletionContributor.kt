@@ -32,7 +32,7 @@ class UICompletionContributor : CompletionContributor() {
         // Component completion (at top level or inside a component)
         extend(
             CompletionType.BASIC,
-            PlatformPatterns.psiElement().withLanguage(UILanguage),
+            PlatformPatterns.psiElement().withLanguage(UILanguage.INSTANCE),
             UICompletionProvider()
         )
     }

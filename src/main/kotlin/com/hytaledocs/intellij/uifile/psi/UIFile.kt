@@ -9,7 +9,7 @@ import com.intellij.psi.FileViewProvider
 /**
  * PSI file representation for Hytale .ui files.
  */
-class UIFile(viewProvider: FileViewProvider) : PsiFileBase(viewProvider, UILanguage) {
+class UIFile(viewProvider: FileViewProvider) : PsiFileBase(viewProvider, UILanguage.INSTANCE) {
 
     override fun getFileType(): FileType = UIFileType
 

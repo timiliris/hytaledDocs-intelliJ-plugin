@@ -1,5 +1,6 @@
 package com.hytaledocs.intellij.uifile.parser
 
+import com.hytaledocs.intellij.uifile.UILanguage
 import com.hytaledocs.intellij.uifile.lexer.UILexer
 import com.hytaledocs.intellij.uifile.lexer.UITokenTypes
 import com.hytaledocs.intellij.uifile.psi.UIElement
@@ -26,7 +27,13 @@ class UIParserDefinition : ParserDefinition {
 
     override fun createParser(project: Project?): PsiParser = UIParser()
 
-    override fun getFileNodeType(): IFileElementType = UIElementTypes.FILE
+    override fun getFileNodeType(): IFileElementType {
+        return try {
+            UIElementTypes.FILE
+        } catch (e: Throwable) {
+            IFileElementType(UILanguage.INSTANCE)
+        }
+    }
 
     override fun getWhitespaceTokens(): TokenSet = UITokenTypes.WHITESPACE_TOKENS
 

@@ -7,7 +7,7 @@ import javax.swing.Icon
 /**
  * File type for Hytale .ui definition files.
  */
-object UIFileType : LanguageFileType(UILanguage) {
+object UIFileType : LanguageFileType(UILanguage.INSTANCE) {
 
     override fun getName(): String = "Hytale UI File"
 
