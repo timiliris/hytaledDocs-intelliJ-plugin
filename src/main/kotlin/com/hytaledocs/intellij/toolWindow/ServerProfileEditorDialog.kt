@@ -75,29 +75,31 @@ class ServerProfileEditorDialog(
             // Server Configuration
             group("Server Configuration") {
                 row("Server directory:") {
-                    serverPathField = textFieldWithBrowseButton(
-                        FileChooserDescriptorFactory.createSingleFolderDescriptor()
-                            .withTitle("Select Server Directory"),
-                        project
-                    ) { it.path }
-                    .align(AlignX.FILL)
-                        .applyToComponent {
-                            text = existingProfile?.path ?: "server"
-                        }
-                        .component
+                    serverPathField = TextFieldWithBrowseButton().apply {
+                        addBrowseFolderListener(
+                            "Select Server Directory",
+                            "Directory containing HytaleServer.jar",
+                            project,
+                            FileChooserDescriptorFactory.createSingleFolderDescriptor()
+                        )
+                        text = existingProfile?.path ?: "server"
+                    }
+                    cell(serverPathField)
+                        .align(AlignX.FILL)
                 }.comment("Directory containing HytaleServer.jar")
 
                 row("Java executable:") {
-                    javaPathField = textFieldWithBrowseButton(
-                        FileChooserDescriptorFactory.createSingleLocalFileDescriptor()
-                            .withTitle("Select Java Executable"),
-                        project
-                    ) { it.path }
-                    .align(AlignX.FILL)
-                        .applyToComponent {
-                            text = existingProfile?.javaPath ?: java25?.let { javaService.getJavaExecutable(it).toString() } ?: ""
-                        }
-                        .component
+                    javaPathField = TextFieldWithBrowseButton().apply {
+                        addBrowseFolderListener(
+                            "Select Java Executable",
+                            "Path to java.exe (Java 25+ required)",
+                            project,
+                            FileChooserDescriptorFactory.createSingleLocalFileDescriptor()
+                        )
+                        text = existingProfile?.javaPath ?: java25?.let { javaService.getJavaExecutable(it).toString() } ?: ""
+                    }
+                    cell(javaPathField)
+                        .align(AlignX.FILL)
                 }
 
                 row {

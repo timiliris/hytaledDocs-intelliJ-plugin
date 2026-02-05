@@ -115,17 +115,18 @@ class HytaleServerSettingsEditor(private val project: Project) : SettingsEditor<
                 }
 
                 row("Plugin JAR:") {
-                    textFieldWithBrowseButton(
-                        FileChooserDescriptorFactory.createSingleFileDescriptor("jar")
-                            .withTitle("Select Plugin JAR"),
-                        project
-                    ) { it.path }
-                    .applyToComponent {
-                        pluginJarField = this
+                    pluginJarField = TextFieldWithBrowseButton().apply {
+                        addBrowseFolderListener(
+                            "Select Plugin JAR",
+                            "Select the built plugin JAR file",
+                            project,
+                            FileChooserDescriptorFactory.createSingleFileDescriptor("jar")
+                        )
                         textField.document.addDocumentListener(createChangeListener())
                     }
-                    .comment("Path to the built plugin JAR (relative to project)")
-                    .align(AlignX.FILL)
+                    cell(pluginJarField!!)
+                        .comment("Path to the built plugin JAR (relative to project)")
+                        .align(AlignX.FILL)
                 }
 
                 row("Plugin name:") {
@@ -154,34 +155,36 @@ class HytaleServerSettingsEditor(private val project: Project) : SettingsEditor<
             // Server Configuration
             group("Server") {
                 row("Server directory:") {
-                    textFieldWithBrowseButton(
-                        FileChooserDescriptorFactory.createSingleFolderDescriptor()
-                            .withTitle("Select Server Directory"),
-                        project
-                    ) { it.path }
-                    .applyToComponent {
-                        serverPathField = this
+                    serverPathField = TextFieldWithBrowseButton().apply {
+                        addBrowseFolderListener(
+                            "Select Server Directory",
+                            "Directory containing HytaleServer.jar",
+                            project,
+                            FileChooserDescriptorFactory.createSingleFolderDescriptor()
+                        )
                         textField.document.addDocumentListener(createChangeListener())
                     }
-                    .comment("Directory containing HytaleServer.jar")
-                    .align(AlignX.FILL)
+                    cell(serverPathField!!)
+                        .comment("Directory containing HytaleServer.jar")
+                        .align(AlignX.FILL)
                 }
 
                 row("Java executable:") {
                     val javaService = JavaInstallService.getInstance()
                     val java25 = javaService.findJava25()
 
-                    textFieldWithBrowseButton(
-                        FileChooserDescriptorFactory.createSingleLocalFileDescriptor()
-                            .withTitle("Select Java Executable"),
-                        project
-                    ) { it.path }
-                    .applyToComponent {
-                        javaPathField = this
+                    javaPathField = TextFieldWithBrowseButton().apply {
+                        addBrowseFolderListener(
+                            "Select Java Executable",
+                            "Path to java.exe (Java 25+ required)",
+                            project,
+                            FileChooserDescriptorFactory.createSingleLocalFileDescriptor()
+                        )
                         textField.document.addDocumentListener(createChangeListener())
                     }
-                    .comment(if (java25 != null) "Java 25+ found: ${java25.version}" else "Path to java.exe (Java 25+ required)")
-                    .align(AlignX.FILL)
+                    cell(javaPathField!!)
+                        .comment(if (java25 != null) "Java 25+ found: ${java25.version}" else "Path to java.exe (Java 25+ required)")
+                        .align(AlignX.FILL)
                 }
 
                 row("Port:") {

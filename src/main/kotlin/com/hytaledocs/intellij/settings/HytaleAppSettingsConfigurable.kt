@@ -69,22 +69,24 @@ class HytaleAppSettingsConfigurable : BoundConfigurable("HytaleDocs") {
                 }
 
                 row("Installation path:") {
-                    installationPathField = textFieldWithBrowseButton(
-                        FileChooserDescriptorFactory.createSingleFolderDescriptor()
-                            .withTitle("Select Hytale Installation Directory"),
-                        null
-                    ) { it.path }
-                        .bindText(settings::hytaleInstallationPath)
+                    installationPathField = TextFieldWithBrowseButton().apply {
+                        addBrowseFolderListener(
+                            "Select Hytale Installation Directory",
+                            "Path to the Hytale game folder (containing Server/HytaleServer.jar)",
+                            null,
+                            FileChooserDescriptorFactory.createSingleFolderDescriptor()
+                        )
+                        text = settings.hytaleInstallationPath
+                        textField.document.addDocumentListener(object : javax.swing.event.DocumentListener {
+                            override fun insertUpdate(e: javax.swing.event.DocumentEvent) = updateStatus()
+                            override fun removeUpdate(e: javax.swing.event.DocumentEvent) = updateStatus()
+                            override fun changedUpdate(e: javax.swing.event.DocumentEvent) = updateStatus()
+                        })
+                    }
+                    cell(installationPathField)
                         .comment("Path to the Hytale game folder (containing Server/HytaleServer.jar)")
                         .align(AlignX.FILL)
-                        .onChanged { updateStatus() }
-                        .component
-
-                    installationPathField.textField.document.addDocumentListener(object : javax.swing.event.DocumentListener {
-                        override fun insertUpdate(e: javax.swing.event.DocumentEvent) = updateStatus()
-                        override fun removeUpdate(e: javax.swing.event.DocumentEvent) = updateStatus()
-                        override fun changedUpdate(e: javax.swing.event.DocumentEvent) = updateStatus()
-                    })
+                        .onApply { settings.hytaleInstallationPath = installationPathField.text }
                 }
 
                 row {
