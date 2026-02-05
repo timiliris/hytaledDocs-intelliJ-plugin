@@ -263,7 +263,7 @@ class HytaleServerProcessHandler(
         val isWindows = System.getProperty("os.name").lowercase().contains("windows")
         return try {
             val process = if (isWindows) {
-                ProcessBuilder("where", "gradle").start()
+                ProcessBuilder("where", "gradle.bat").start()
             } else {
                 ProcessBuilder("which", "gradle").start()
             }
@@ -279,7 +279,7 @@ class HytaleServerProcessHandler(
         val isWindows = System.getProperty("os.name").lowercase().contains("windows")
         return try {
             val process = if (isWindows) {
-                ProcessBuilder("where", "mvn").start()
+                ProcessBuilder("where", "mvn.cmd").start()
             } else {
                 ProcessBuilder("which", "mvn").start()
             }
