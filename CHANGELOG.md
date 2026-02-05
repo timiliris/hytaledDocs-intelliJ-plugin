@@ -2,6 +2,51 @@
 
 ## [Unreleased]
 
+## [1.4.0] - 2026-02-05
+
+### Added
+
+- **Server Profile Manager**: New centralized system to manage multiple server configurations
+  - Add, edit, delete, and duplicate server profiles
+  - Profiles stored in `~/.hytale-intellij/servers.json`
+  - Import servers from existing directories with auto-detection
+  - Quick switch between servers from the Tool Window
+
+- **Server Selector UI**: New dropdown in the Tool Window
+  - Visual server selector with status indicator (running/stopped/starting)
+  - Auto-detects `server/` folder in project and creates default profile
+  - Browse button to quickly add new server directories
+  - Gear button to open full Server Manager dialog
+
+- **Multi-Server Support**: Run multiple Hytale servers simultaneously
+  - Each server runs on its own port
+  - Independent start/stop/status per server
+  - Port conflict detection prevents duplicate bindings
+
+- **Improved Java Detection**: Comprehensive cross-platform Java 25+ detection
+  - Windows: Registry, Scoop, Chocolatey, SDKMAN, jabba, GraalVM, Microsoft JDK
+  - macOS: Homebrew (Intel & Apple Silicon), `/usr/libexec/java_home`, SDKMAN, asdf, mise
+  - Linux: Snap, Flatpak, distribution packages, SDKMAN, asdf, jabba, mise
+  - Searches PATH and resolves symlinks
+  - Smart prioritization: managed > JAVA_HOME > PATH > version managers
+
+### Fixed
+
+- **Hot Reload on Windows**: Now fully functional on Windows
+  - Shadow copy mechanism bypasses file locking
+  - Atomic move with fallback strategies
+  - Timestamped filenames when files are locked
+  - Retry with exponential backoff (1s, 2s, 4s)
+  - Automatic cleanup of old timestamped JARs
+
+- **IntelliJ 2025.3 API Compatibility**: Updated deprecated `textFieldWithBrowseButton` calls
+
+### Changed
+
+- `ServerLaunchService` refactored to support multiple concurrent servers
+- Old single-server methods marked as `@Deprecated` with migration path
+- Platform version updated to 2025.3.1.1
+
 ## [1.3.9] - 2026-02-05
 
 ### Added

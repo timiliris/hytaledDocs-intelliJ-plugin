@@ -6,6 +6,7 @@ import com.intellij.notification.NotificationGroupManager
 import com.intellij.notification.NotificationType
 import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent
+import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.progress.ProgressIndicator
 import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.progress.Task
@@ -14,12 +15,27 @@ import java.io.File
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.StandardCopyOption
+import kotlin.io.path.name
 
 /**
  * Action to hot reload the plugin on a running Hytale server.
  * Build -> Unload -> Deploy -> Load
+ *
+ * Supports Windows with robust file deployment strategy:
+ * - Shadow copy to temp location first
+ * - Atomic move with REPLACE_EXISTING
+ * - Timestamped fallback if atomic move fails
+ * - Retry logic with exponential backoff
+ * - Automatic cleanup of old timestamped JARs
  */
 class HotReloadPluginAction : AnAction() {
+
+    companion object {
+        private val LOG = Logger.getInstance(HotReloadPluginAction::class.java)
+        private const val MAX_RETRIES = 3
+        private val RETRY_DELAYS_MS = listOf(1000L, 2000L, 4000L) // Exponential backoff
+        private const val MAX_OLD_JARS_TO_KEEP = 2
+    }
 
     override fun actionPerformed(e: AnActionEvent) {
         val project = e.project ?: return
@@ -58,18 +74,24 @@ class HotReloadPluginAction : AnAction() {
             buildTask = detectedInfo.buildTask
         )
 
+        LOG.info("Starting hot reload for plugin: ${pluginInfo.pluginName}")
+
         try {
             // Step 1: Build
             indicator.text = "Building plugin..."
             indicator.fraction = 0.1
+            LOG.info("Building plugin with task: ${pluginInfo.buildTask}")
             if (!executeBuild(basePath, pluginInfo.buildTask)) {
+                LOG.warn("Build failed for plugin: ${pluginInfo.pluginName}")
                 showNotification(project, "Build failed!", NotificationType.ERROR)
                 return
             }
+            LOG.info("Build completed successfully")
 
             // Step 2: Unload plugin
             indicator.text = "Unloading plugin..."
             indicator.fraction = 0.4
+            LOG.info("Unloading plugin: ${pluginInfo.pluginName}")
             launchService.sendCommand("plugin unload ${pluginInfo.pluginName}")
             // Wait for server to release file handles
             Thread.sleep(3000)
@@ -77,23 +99,29 @@ class HotReloadPluginAction : AnAction() {
             System.gc()
             Thread.sleep(500)
 
-            // Step 3: Deploy
+            // Step 3: Deploy with retry logic
             indicator.text = "Deploying plugin..."
             indicator.fraction = 0.6
-            if (!deployPlugin(basePath, pluginInfo)) {
-                showNotification(project, "Deploy failed!", NotificationType.ERROR)
+            val deployResult = deployJarWithRetry(basePath, pluginInfo)
+            if (!deployResult.success) {
+                LOG.error("Deploy failed after ${MAX_RETRIES} attempts: ${deployResult.error}")
+                showNotification(project, "Deploy failed: ${deployResult.error}", NotificationType.ERROR)
                 return
             }
+            LOG.info("Plugin deployed successfully to: ${deployResult.deployedPath}")
 
             // Step 4: Load plugin
             indicator.text = "Loading plugin..."
             indicator.fraction = 0.9
+            LOG.info("Loading plugin: ${pluginInfo.pluginName}")
             launchService.sendCommand("plugin load ${pluginInfo.pluginName}")
 
             indicator.fraction = 1.0
             showNotification(project, "Plugin reloaded successfully!", NotificationType.INFORMATION)
+            LOG.info("Hot reload completed successfully for: ${pluginInfo.pluginName}")
 
         } catch (e: Exception) {
+            LOG.error("Hot reload failed with exception", e)
             showNotification(project, "Hot reload failed: ${e.message}", NotificationType.ERROR)
         }
     }
@@ -110,6 +138,7 @@ class HotReloadPluginAction : AnAction() {
             val exitCode = process.waitFor()
             exitCode == 0
         } catch (e: Exception) {
+            LOG.error("Build execution failed", e)
             false
         }
     }
@@ -121,36 +150,166 @@ class HotReloadPluginAction : AnAction() {
         return if (wrapper.exists()) wrapper.absolutePath else null
     }
 
-    private fun deployPlugin(basePath: String, pluginInfo: PluginInfo): Boolean {
-        val jarPath = resolveJarPath(basePath, pluginInfo.jarPath) ?: return false
+    /**
+     * Result of a JAR deployment operation.
+     */
+    private data class DeployResult(
+        val success: Boolean,
+        val deployedPath: Path? = null,
+        val error: String? = null
+    )
+
+    /**
+     * Deploys a JAR file with retry logic and Windows-safe file handling.
+     *
+     * Strategy:
+     * 1. Copy source JAR to a temp file (shadow copy)
+     * 2. Try atomic move with REPLACE_EXISTING
+     * 3. If atomic move fails (file locked), use timestamped filename as fallback
+     * 4. Retry with exponential backoff on failure
+     * 5. Clean up old timestamped JARs on success
+     */
+    private fun deployJarWithRetry(basePath: String, pluginInfo: PluginInfo): DeployResult {
+        val jarPath = resolveJarPath(basePath, pluginInfo.jarPath)
+            ?: return DeployResult(false, error = "Source JAR not found: ${pluginInfo.jarPath}")
+
         val modsDir = Path.of(basePath, "server", "mods")
 
-        return try {
+        try {
             if (!Files.exists(modsDir)) {
                 Files.createDirectories(modsDir)
+                LOG.info("Created mods directory: $modsDir")
             }
-
-            val baseJarName = jarPath.fileName.toString().substringBeforeLast(".jar")
-            val isWindows = System.getProperty("os.name").lowercase().contains("windows")
-
-            if (isWindows) {
-                // Windows: mandatory file locking - can't delete/overwrite open files
-                // Use timestamped filename, cleanup happens on server start
-                val timestamp = System.currentTimeMillis()
-                val newFileName = "${baseJarName}-dev-${timestamp}.jar"
-                val targetPath = modsDir.resolve(newFileName)
-                Files.copy(jarPath, targetPath, StandardCopyOption.REPLACE_EXISTING)
-            } else {
-                // Linux/Mac: advisory locking - can delete open files
-                // Just overwrite the same file each time
-                val devFileName = "${baseJarName}-dev.jar"
-                val targetPath = modsDir.resolve(devFileName)
-                Files.deleteIfExists(targetPath)
-                Files.copy(jarPath, targetPath)
-            }
-            true
         } catch (e: Exception) {
-            false
+            return DeployResult(false, error = "Failed to create mods directory: ${e.message}")
+        }
+
+        val baseJarName = jarPath.fileName.toString().substringBeforeLast(".jar")
+        val devFileName = "${baseJarName}-dev.jar"
+        val targetPath = modsDir.resolve(devFileName)
+
+        var lastException: Exception? = null
+
+        for (attempt in 1..MAX_RETRIES) {
+            try {
+                LOG.info("Deploy attempt $attempt/$MAX_RETRIES for: $devFileName")
+
+                // Step 1: Create shadow copy in temp location
+                val tempFile = Files.createTempFile("hytale-deploy-", ".jar")
+                try {
+                    Files.copy(jarPath, tempFile, StandardCopyOption.REPLACE_EXISTING)
+                    LOG.debug("Created shadow copy at: $tempFile")
+
+                    // Step 2: Try atomic move to target
+                    try {
+                        Files.move(
+                            tempFile,
+                            targetPath,
+                            StandardCopyOption.ATOMIC_MOVE,
+                            StandardCopyOption.REPLACE_EXISTING
+                        )
+                        LOG.info("Atomic move succeeded to: $targetPath")
+
+                        // Success! Clean up old timestamped JARs
+                        cleanupOldTimestampedJars(modsDir, baseJarName)
+
+                        return DeployResult(true, deployedPath = targetPath)
+                    } catch (atomicEx: Exception) {
+                        LOG.debug("Atomic move failed (${atomicEx.message}), trying non-atomic approach")
+
+                        // Step 3: Atomic move failed - try regular move/copy
+                        try {
+                            // Try to delete existing file first
+                            Files.deleteIfExists(targetPath)
+                            Files.move(tempFile, targetPath, StandardCopyOption.REPLACE_EXISTING)
+                            LOG.info("Non-atomic move succeeded to: $targetPath")
+
+                            cleanupOldTimestampedJars(modsDir, baseJarName)
+                            return DeployResult(true, deployedPath = targetPath)
+                        } catch (moveEx: Exception) {
+                            LOG.debug("Non-atomic move failed (${moveEx.message}), falling back to timestamped filename")
+
+                            // Step 4: File is locked - use timestamped filename as fallback
+                            val timestamp = System.currentTimeMillis()
+                            val timestampedFileName = "${baseJarName}-dev-${timestamp}.jar"
+                            val timestampedPath = modsDir.resolve(timestampedFileName)
+
+                            Files.copy(jarPath, timestampedPath, StandardCopyOption.REPLACE_EXISTING)
+                            LOG.info("Deployed with timestamped filename: $timestampedPath")
+
+                            // Clean up old timestamped JARs (keeping the one we just created)
+                            cleanupOldTimestampedJars(modsDir, baseJarName)
+
+                            return DeployResult(true, deployedPath = timestampedPath)
+                        }
+                    }
+                } finally {
+                    // Clean up temp file if it still exists
+                    try {
+                        Files.deleteIfExists(tempFile)
+                    } catch (e: Exception) {
+                        LOG.debug("Failed to delete temp file: $tempFile")
+                    }
+                }
+            } catch (e: Exception) {
+                lastException = e
+                LOG.warn("Deploy attempt $attempt failed: ${e.message}")
+
+                if (attempt < MAX_RETRIES) {
+                    val delay = RETRY_DELAYS_MS[attempt - 1]
+                    LOG.info("Retrying in ${delay}ms...")
+                    Thread.sleep(delay)
+
+                    // Try to help release file handles
+                    System.gc()
+                    Thread.sleep(100)
+                }
+            }
+        }
+
+        return DeployResult(
+            false,
+            error = "Failed after $MAX_RETRIES attempts: ${lastException?.message ?: "Unknown error"}"
+        )
+    }
+
+    /**
+     * Cleans up old timestamped JAR files, keeping only the most recent ones.
+     * This prevents the mods directory from filling up with old dev JARs.
+     */
+    private fun cleanupOldTimestampedJars(modsDir: Path, baseJarName: String) {
+        try {
+            val pattern = Regex("${Regex.escape(baseJarName)}-dev(-\\d+)?\\.jar")
+
+            val devJars = Files.list(modsDir).use { stream ->
+                stream
+                    .filter { path ->
+                        val fileName = path.fileName.toString()
+                        pattern.matches(fileName)
+                    }
+                    .sorted { a, b ->
+                        // Sort by modification time, newest first
+                        Files.getLastModifiedTime(b).compareTo(Files.getLastModifiedTime(a))
+                    }
+                    .toList()
+            }
+
+            // Keep only the most recent JARs
+            if (devJars.size > MAX_OLD_JARS_TO_KEEP) {
+                val toDelete = devJars.drop(MAX_OLD_JARS_TO_KEEP)
+                for (jar in toDelete) {
+                    try {
+                        Files.deleteIfExists(jar)
+                        LOG.info("Cleaned up old dev JAR: ${jar.name}")
+                    } catch (e: Exception) {
+                        // File might still be locked by server, ignore
+                        LOG.debug("Could not delete old JAR (may be in use): ${jar.name}")
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            LOG.warn("Failed to cleanup old timestamped JARs", e)
+            // Non-fatal, continue execution
         }
     }
 
@@ -193,17 +352,9 @@ class HotReloadPluginAction : AnAction() {
     override fun update(e: AnActionEvent) {
         val project = e.project
         val launchService = project?.let { ServerLaunchService.getInstance(it) }
-        val isWindows = System.getProperty("os.name").lowercase().contains("windows")
 
-        // Hot reload disabled on Windows (file locking issues)
-        // On Windows, just re-run the server config to restart with fresh build
-        if (isWindows) {
-            e.presentation.isEnabled = false
-            e.presentation.isVisible = false
-            return
-        }
-
-        // Only enable if server is running (Linux/Mac only)
+        // Hot reload is now available on all platforms (including Windows)
+        // Only enable if server is running
         e.presentation.isEnabled = launchService?.isServerRunning() == true
         e.presentation.isVisible = project != null
     }

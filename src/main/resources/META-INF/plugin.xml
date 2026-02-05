@@ -326,6 +326,8 @@
                 serviceImplementation="com.hytaledocs.intellij.services.ServerDataService"/>
         <applicationService
                 serviceImplementation="com.hytaledocs.intellij.services.OfflineDocsService"/>
+        <applicationService
+                serviceImplementation="com.hytaledocs.intellij.services.ServerProfileManager"/>
 
         <!-- Code Completion for Hytale API -->
         <completion.contributor

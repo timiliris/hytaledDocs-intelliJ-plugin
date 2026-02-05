@@ -325,6 +325,25 @@ class HytaleServerProcessHandler(
         }
     }
 
+    /**
+     * Result of a JAR deployment operation.
+     */
+    private data class DeployResult(
+        val success: Boolean,
+        val deployedPath: Path? = null,
+        val error: String? = null
+    )
+
+    /**
+     * Deploys a plugin JAR with retry logic and Windows-safe file handling.
+     *
+     * Strategy:
+     * 1. Copy source JAR to a temp file (shadow copy)
+     * 2. Try atomic move with REPLACE_EXISTING
+     * 3. If atomic move fails (file locked), use timestamped filename as fallback
+     * 4. Retry with exponential backoff on failure
+     * 5. Clean up old timestamped JARs on success
+     */
     private fun deployPlugin(projectBasePath: String): Boolean {
         val jarPath = resolvePluginJarPath(projectBasePath) ?: run {
             printError("Plugin JAR not found: ${config.pluginJarPath}")
@@ -340,34 +359,143 @@ class HytaleServerProcessHandler(
                 Files.createDirectories(modsDir)
                 printInfo("Created mods directory")
             }
+        } catch (e: Exception) {
+            printError("Failed to create mods directory: ${e.message}")
+            return false
+        }
 
-            val baseJarName = jarPath.fileName.toString().substringBeforeLast(".jar")
-            val devFileName = "${baseJarName}-dev.jar"
-            val targetPath = modsDir.resolve(devFileName)
+        val baseJarName = jarPath.fileName.toString().substringBeforeLast(".jar")
+        val devFileName = "${baseJarName}-dev.jar"
+        val targetPath = modsDir.resolve(devFileName)
 
-            // Try to delete/copy with retries (in case file is still being released)
-            var success = false
-            for (attempt in 1..3) {
+        val maxRetries = 3
+        val retryDelaysMs = listOf(1000L, 2000L, 4000L) // Exponential backoff
+        var lastException: Exception? = null
+
+        for (attempt in 1..maxRetries) {
+            try {
+                LOG.info("Deploy attempt $attempt/$maxRetries for: $devFileName")
+                printInfo("Deploy attempt $attempt/$maxRetries...")
+
+                // Step 1: Create shadow copy in temp location
+                val tempFile = Files.createTempFile("hytale-deploy-", ".jar")
                 try {
-                    Files.deleteIfExists(targetPath)
-                    printInfo("Copying ${devFileName} to ${modsDir}...")
-                    Files.copy(jarPath, targetPath)
-                    success = true
-                    break
-                } catch (e: Exception) {
-                    if (attempt < 3) {
-                        printInfo("File locked, retrying in 2 seconds... (attempt $attempt/3)")
-                        Thread.sleep(2000)
-                    } else {
-                        throw e
+                    Files.copy(jarPath, tempFile, java.nio.file.StandardCopyOption.REPLACE_EXISTING)
+                    LOG.debug("Created shadow copy at: $tempFile")
+
+                    // Step 2: Try atomic move to target
+                    try {
+                        Files.move(
+                            tempFile,
+                            targetPath,
+                            java.nio.file.StandardCopyOption.ATOMIC_MOVE,
+                            java.nio.file.StandardCopyOption.REPLACE_EXISTING
+                        )
+                        printInfo("Deployed ${devFileName} to ${modsDir}")
+                        LOG.info("Atomic move succeeded to: $targetPath")
+
+                        // Success! Clean up old timestamped JARs
+                        cleanupOldTimestampedJars(modsDir, baseJarName)
+
+                        return true
+                    } catch (atomicEx: Exception) {
+                        LOG.debug("Atomic move failed (${atomicEx.message}), trying non-atomic approach")
+
+                        // Step 3: Atomic move failed - try regular move/copy
+                        try {
+                            // Try to delete existing file first
+                            Files.deleteIfExists(targetPath)
+                            Files.move(tempFile, targetPath, java.nio.file.StandardCopyOption.REPLACE_EXISTING)
+                            printInfo("Deployed ${devFileName} to ${modsDir}")
+                            LOG.info("Non-atomic move succeeded to: $targetPath")
+
+                            cleanupOldTimestampedJars(modsDir, baseJarName)
+                            return true
+                        } catch (moveEx: Exception) {
+                            LOG.debug("Non-atomic move failed (${moveEx.message}), falling back to timestamped filename")
+
+                            // Step 4: File is locked - use timestamped filename as fallback
+                            val timestamp = System.currentTimeMillis()
+                            val timestampedFileName = "${baseJarName}-dev-${timestamp}.jar"
+                            val timestampedPath = modsDir.resolve(timestampedFileName)
+
+                            Files.copy(jarPath, timestampedPath, java.nio.file.StandardCopyOption.REPLACE_EXISTING)
+                            printInfo("Deployed ${timestampedFileName} to ${modsDir} (timestamped fallback)")
+                            LOG.info("Deployed with timestamped filename: $timestampedPath")
+
+                            // Clean up old timestamped JARs (keeping the one we just created)
+                            cleanupOldTimestampedJars(modsDir, baseJarName)
+
+                            return true
+                        }
+                    }
+                } finally {
+                    // Clean up temp file if it still exists
+                    try {
+                        Files.deleteIfExists(tempFile)
+                    } catch (e: Exception) {
+                        LOG.debug("Failed to delete temp file: $tempFile")
+                    }
+                }
+            } catch (e: Exception) {
+                lastException = e
+                LOG.warn("Deploy attempt $attempt failed: ${e.message}")
+
+                if (attempt < maxRetries) {
+                    val delay = retryDelaysMs[attempt - 1]
+                    printInfo("File locked, retrying in ${delay / 1000} seconds... (attempt $attempt/$maxRetries)")
+                    Thread.sleep(delay)
+
+                    // Try to help release file handles
+                    System.gc()
+                    Thread.sleep(100)
+                }
+            }
+        }
+
+        printError("Failed to deploy plugin after $maxRetries attempts: ${lastException?.message ?: "Unknown error"}")
+        return false
+    }
+
+    /**
+     * Cleans up old timestamped JAR files, keeping only the most recent ones.
+     * This prevents the mods directory from filling up with old dev JARs.
+     */
+    private fun cleanupOldTimestampedJars(modsDir: Path, baseJarName: String) {
+        val maxOldJarsToKeep = 2
+        try {
+            val pattern = Regex("${Regex.escape(baseJarName)}-dev(-\\d+)?\\.jar")
+
+            val devJars = Files.list(modsDir).use { stream ->
+                stream
+                    .filter { path ->
+                        val fileName = path.fileName.toString()
+                        pattern.matches(fileName)
+                    }
+                    .sorted { a, b ->
+                        // Sort by modification time, newest first
+                        Files.getLastModifiedTime(b).compareTo(Files.getLastModifiedTime(a))
+                    }
+                    .toList()
+            }
+
+            // Keep only the most recent JARs
+            if (devJars.size > maxOldJarsToKeep) {
+                val toDelete = devJars.drop(maxOldJarsToKeep)
+                for (jar in toDelete) {
+                    try {
+                        Files.deleteIfExists(jar)
+                        printInfo("Cleaned up old dev JAR: ${jar.fileName}")
+                        LOG.info("Cleaned up old dev JAR: ${jar.fileName}")
+                    } catch (e: Exception) {
+                        // File might still be locked by server, ignore
+                        LOG.debug("Could not delete old JAR (may be in use): ${jar.fileName}")
                     }
                 }
             }
-
-            return success
         } catch (e: Exception) {
-            printError("Failed to copy plugin: ${e.message}")
-            return false
+            LOG.warn("Failed to cleanup old timestamped JARs", e)
+            // Non-fatal, continue execution
         }
     }
 

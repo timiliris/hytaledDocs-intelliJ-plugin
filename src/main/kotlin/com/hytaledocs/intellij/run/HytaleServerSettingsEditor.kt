@@ -116,10 +116,11 @@ class HytaleServerSettingsEditor(private val project: Project) : SettingsEditor<
 
                 row("Plugin JAR:") {
                     textFieldWithBrowseButton(
-                        "Select Plugin JAR",
-                        project,
                         FileChooserDescriptorFactory.createSingleFileDescriptor("jar")
-                    ).applyToComponent {
+                            .withTitle("Select Plugin JAR"),
+                        project
+                    ) { it.path }
+                    .applyToComponent {
                         pluginJarField = this
                         textField.document.addDocumentListener(createChangeListener())
                     }
@@ -154,10 +155,11 @@ class HytaleServerSettingsEditor(private val project: Project) : SettingsEditor<
             group("Server") {
                 row("Server directory:") {
                     textFieldWithBrowseButton(
-                        "Select Server Directory",
-                        project,
                         FileChooserDescriptorFactory.createSingleFolderDescriptor()
-                    ).applyToComponent {
+                            .withTitle("Select Server Directory"),
+                        project
+                    ) { it.path }
+                    .applyToComponent {
                         serverPathField = this
                         textField.document.addDocumentListener(createChangeListener())
                     }
@@ -170,10 +172,11 @@ class HytaleServerSettingsEditor(private val project: Project) : SettingsEditor<
                     val java25 = javaService.findJava25()
 
                     textFieldWithBrowseButton(
-                        "Select Java Executable",
-                        project,
                         FileChooserDescriptorFactory.createSingleLocalFileDescriptor()
-                    ).applyToComponent {
+                            .withTitle("Select Java Executable"),
+                        project
+                    ) { it.path }
+                    .applyToComponent {
                         javaPathField = this
                         textField.document.addDocumentListener(createChangeListener())
                     }

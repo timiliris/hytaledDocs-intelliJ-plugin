@@ -77,6 +77,9 @@ class HytaleToolWindowPanel(
     private val profiler = ServerProfiler.getInstance(project)
     private var profilerPanel: ProfilerPanel? = null
 
+    // Server selector
+    private var serverSelectorPanel: ServerSelectorPanel? = null
+
     // Buttons - using standard IntelliJ buttons with hover
     private val installJavaButton = HytaleTheme.createButton(HytaleBundle.message("button.installJava"), AllIcons.Actions.Download)
     private val downloadServerButton = HytaleTheme.createButton(HytaleBundle.message("button.downloadServer"), AllIcons.Actions.Download)
@@ -211,9 +214,27 @@ class HytaleToolWindowPanel(
         mainPanel.background = JBColor.namedColor("ToolWindow.background", UIUtil.getPanelBackground())
         mainPanel.border = JBUI.Borders.empty(12)
 
+        // Top panel containing auth panel and server selector
+        val topPanel = JPanel()
+        topPanel.layout = BoxLayout(topPanel, BoxLayout.Y_AXIS)
+        topPanel.isOpaque = false
+
         // Auth panel at top (initially hidden)
         authPanel = AuthenticationPanel()
-        mainPanel.add(authPanel, BorderLayout.NORTH)
+        authPanel.alignmentX = Component.LEFT_ALIGNMENT
+        topPanel.add(authPanel)
+
+        // Server selector panel
+        serverSelectorPanel = ServerSelectorPanel(project) { selectedProfile ->
+            // When selection changes, refresh the status display
+            SwingUtilities.invokeLater {
+                refreshStatus()
+            }
+        }
+        serverSelectorPanel?.alignmentX = Component.LEFT_ALIGNMENT
+        topPanel.add(serverSelectorPanel)
+
+        mainPanel.add(topPanel, BorderLayout.NORTH)
 
         val contentPanel = JPanel()
         contentPanel.layout = BoxLayout(contentPanel, BoxLayout.Y_AXIS)
@@ -792,6 +813,9 @@ class HytaleToolWindowPanel(
         val launchService = ServerLaunchService.getInstance(project)
         val stats = launchService.getStats()
 
+        // Update server selector status indicator
+        serverSelectorPanel?.updateStatusFromLaunchService()
+
         if (stats.uptime != null) {
             val hours = stats.uptime.toHours()
             val minutes = stats.uptime.toMinutesPart()
@@ -1320,6 +1344,8 @@ class HytaleToolWindowPanel(
         authPanel.dispose()
         profilerPanel?.dispose()
         profilerPanel = null
+        serverSelectorPanel?.dispose()
+        serverSelectorPanel = null
         authService.unregisterCallbacks(project)
     }
 }

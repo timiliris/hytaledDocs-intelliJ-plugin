@@ -15,7 +15,6 @@ import java.util.concurrent.CompletableFuture
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
-import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.function.Consumer
 
@@ -24,7 +23,7 @@ class ServerLaunchService(private val project: Project) : Disposable {
 
     /**
      * ExecutorService with daemon threads for background server monitoring tasks.
-     * Using a cached thread pool since we typically have 2 threads (log reader + process monitor).
+     * Using a cached thread pool since we may have multiple servers with 2 threads each.
      */
     private val executorService: ExecutorService = Executors.newCachedThreadPool { runnable ->
         Thread(runnable).apply {
@@ -40,6 +39,7 @@ class ServerLaunchService(private val project: Project) : Disposable {
         const val DEFAULT_MIN_MEMORY = "2G"
         const val DEFAULT_MAX_MEMORY = "8G"
         const val DEFAULT_PORT = 5520
+        const val DEFAULT_PROFILE_ID = "default"
 
         private val JOIN_PATTERNS = listOf(
             Regex("""Player\s+(\S+)\s+(?:joined|connected)""", RegexOption.IGNORE_CASE),
@@ -92,47 +92,134 @@ class ServerLaunchService(private val project: Project) : Disposable {
         val cpuUsagePercent: Double?
     )
 
-    @Volatile
-    private var serverProcess: Process? = null
-    @Volatile
-    private var status: ServerStatus = ServerStatus.STOPPED
-    private val isRunning = AtomicBoolean(false)
-    @Volatile
-    private var startTime: Instant? = null
-    private val playerCount = AtomicInteger(0)
-    private val connectedPlayers: MutableSet<String> = ConcurrentHashMap.newKeySet()
+    /**
+     * Represents a single running server instance with all its state.
+     */
+    data class ServerInstance(
+        val profileId: String,
+        val config: ServerConfig,
+        @Volatile var process: Process?,
+        @Volatile var status: ServerStatus = ServerStatus.STOPPED,
+        @Volatile var startTime: Instant? = null,
+        val playerCount: AtomicInteger = AtomicInteger(0),
+        val connectedPlayers: MutableSet<String> = ConcurrentHashMap.newKeySet(),
+        val logCallback: Consumer<String>? = null,
+        val statusCallback: Consumer<ServerStatus>? = null
+    ) {
+        fun getStats(): ServerStats {
+            return ServerStats(
+                status = status,
+                uptime = startTime?.let { Duration.between(it, Instant.now()) },
+                playerCount = playerCount.get(),
+                memoryUsageMB = null,
+                cpuUsagePercent = null
+            )
+        }
 
-    fun getStatus(): ServerStatus = status
+        fun isRunning(): Boolean = status == ServerStatus.RUNNING || status == ServerStatus.STARTING
+    }
 
-    fun isServerRunning(): Boolean = isRunning.get()
+    /**
+     * Map of profile ID to server instance. Thread-safe for concurrent access.
+     */
+    private val servers: ConcurrentHashMap<String, ServerInstance> = ConcurrentHashMap()
 
-    fun getPlayerCount(): Int = playerCount.get()
+    /**
+     * Lock object for synchronizing status updates across multiple servers.
+     */
+    private val statusLock = Any()
 
-    fun getConnectedPlayers(): Set<String> = connectedPlayers.toSet()
+    // ===================================================================================
+    // Multi-Server Methods
+    // ===================================================================================
 
-    fun getStats(): ServerStats {
-        return ServerStats(
-            status = status,
-            uptime = startTime?.let { Duration.between(it, Instant.now()) },
-            playerCount = playerCount.get(),
-            memoryUsageMB = null, // Java ProcessHandle doesn't provide memory directly
+    /**
+     * Gets the status of a specific server by profile ID.
+     */
+    fun getStatus(profileId: String): ServerStatus {
+        return servers[profileId]?.status ?: ServerStatus.STOPPED
+    }
+
+    /**
+     * Checks if a specific server is running.
+     */
+    fun isServerRunning(profileId: String): Boolean {
+        return servers[profileId]?.isRunning() ?: false
+    }
+
+    /**
+     * Gets the player count for a specific server.
+     */
+    fun getPlayerCount(profileId: String): Int {
+        return servers[profileId]?.playerCount?.get() ?: 0
+    }
+
+    /**
+     * Gets the connected players for a specific server.
+     */
+    fun getConnectedPlayers(profileId: String): Set<String> {
+        return servers[profileId]?.connectedPlayers?.toSet() ?: emptySet()
+    }
+
+    /**
+     * Gets stats for a specific server.
+     */
+    fun getServerStats(profileId: String): ServerStats {
+        return servers[profileId]?.getStats() ?: ServerStats(
+            status = ServerStatus.STOPPED,
+            uptime = null,
+            playerCount = 0,
+            memoryUsageMB = null,
             cpuUsagePercent = null
         )
     }
 
-    fun needsAuthentication(): Boolean {
+    /**
+     * Gets a list of all running server profile IDs.
+     */
+    fun getRunningServers(): List<String> {
+        return servers.entries
+            .filter { it.value.isRunning() }
+            .map { it.key }
+    }
+
+    /**
+     * Gets all server instances (both running and stopped that haven't been cleaned up).
+     */
+    fun getAllServers(): Map<String, ServerInstance> {
+        return servers.toMap()
+    }
+
+    /**
+     * Gets a specific server instance by profile ID.
+     */
+    fun getServerInstance(profileId: String): ServerInstance? {
+        return servers[profileId]
+    }
+
+    /**
+     * Checks if any server needs authentication.
+     */
+    fun needsAuthentication(profileId: String): Boolean {
+        if (!isServerRunning(profileId)) return false
         val authService = AuthenticationService.getInstance()
         return authService.isAuthenticating()
     }
 
-    fun triggerAuth() {
-        if (isRunning.get()) {
+    /**
+     * Triggers authentication for a specific server.
+     */
+    fun triggerAuth(profileId: String) {
+        if (isServerRunning(profileId)) {
             val authService = AuthenticationService.getInstance()
             authService.triggerServerAuth(project)
         }
     }
 
-    private fun parseLogForPlayers(line: String) {
+    /**
+     * Parses a log line for player join/leave events for a specific server instance.
+     */
+    private fun parseLogForPlayers(instance: ServerInstance, line: String) {
         // Delegate auth parsing to centralized service
         val authService = AuthenticationService.getInstance()
         authService.parseServerLogLine(line, project)
@@ -140,8 +227,8 @@ class ServerLaunchService(private val project: Project) : Disposable {
         for (pattern in JOIN_PATTERNS) {
             pattern.find(line)?.let { match ->
                 val playerName = match.groupValues[1]
-                if (connectedPlayers.add(playerName)) {
-                    playerCount.incrementAndGet()
+                if (instance.connectedPlayers.add(playerName)) {
+                    instance.playerCount.incrementAndGet()
                 }
                 return
             }
@@ -150,8 +237,8 @@ class ServerLaunchService(private val project: Project) : Disposable {
         for (pattern in LEAVE_PATTERNS) {
             pattern.find(line)?.let { match ->
                 val playerName = match.groupValues[1]
-                if (connectedPlayers.remove(playerName)) {
-                    playerCount.decrementAndGet()
+                if (instance.connectedPlayers.remove(playerName)) {
+                    instance.playerCount.decrementAndGet()
                 }
                 return
             }
@@ -183,25 +270,57 @@ class ServerLaunchService(private val project: Project) : Disposable {
     )
 
     /**
-     * Starts the Hytale server with the given configuration.
+     * Starts a server with the given profile ID and configuration.
+     *
+     * @param profileId Unique identifier for this server instance
+     * @param config Server configuration
+     * @param logCallback Callback for log output
+     * @param statusCallback Callback for status changes
+     * @return CompletableFuture that resolves to true if the server started successfully
      */
     fun startServer(
+        profileId: String,
         config: ServerConfig,
         logCallback: Consumer<String>? = null,
         statusCallback: Consumer<ServerStatus>? = null
     ): CompletableFuture<Boolean> {
-        if (isRunning.get()) {
+        // Check if this profile already has a running server
+        val existingInstance = servers[profileId]
+        if (existingInstance != null && existingInstance.isRunning()) {
+            logCallback?.accept("Server with profile ID '$profileId' is already running")
             return CompletableFuture.completedFuture(false)
+        }
+
+        // Check for port conflicts with other running servers
+        for ((otherId, otherInstance) in servers) {
+            if (otherId != profileId && otherInstance.isRunning() && otherInstance.config.port == config.port) {
+                logCallback?.accept("Port ${config.port} is already in use by server '$otherId'")
+                return CompletableFuture.completedFuture(false)
+            }
         }
 
         return CompletableFuture.supplyAsync {
             try {
-                status = ServerStatus.STARTING
-                statusCallback?.accept(status)
+                // Create the server instance
+                val instance = ServerInstance(
+                    profileId = profileId,
+                    config = config,
+                    process = null,
+                    status = ServerStatus.STARTING,
+                    logCallback = logCallback,
+                    statusCallback = statusCallback
+                )
+
+                servers[profileId] = instance
+
+                synchronized(statusLock) {
+                    instance.status = ServerStatus.STARTING
+                }
+                statusCallback?.accept(ServerStatus.STARTING)
 
                 val command = buildCommand(config)
 
-                logCallback?.accept("Starting server with command:")
+                logCallback?.accept("[$profileId] Starting server with command:")
                 logCallback?.accept(command.joinToString(" "))
                 logCallback?.accept("")
 
@@ -209,23 +328,13 @@ class ServerLaunchService(private val project: Project) : Disposable {
                     .directory(config.serverPath.toFile())
                     .redirectErrorStream(true)
 
-                serverProcess = processBuilder.start()
-                isRunning.set(true)
-                startTime = Instant.now()
-                playerCount.set(0)
-                connectedPlayers.clear()
+                val process = processBuilder.start()
+                instance.process = process
+                instance.startTime = Instant.now()
+                instance.playerCount.set(0)
+                instance.connectedPlayers.clear()
 
-                // Capture process reference for safe access in background threads
-                val process = serverProcess
-                if (process == null) {
-                    logCallback?.accept("Failed to start server: process is null")
-                    status = ServerStatus.ERROR
-                    statusCallback?.accept(status)
-                    isRunning.set(false)
-                    return@supplyAsync false
-                }
-
-                // Start log reader task using ExecutorService with daemon threads
+                // Start log reader task
                 executorService.submit {
                     try {
                         BufferedReader(InputStreamReader(process.inputStream)).use { reader ->
@@ -233,146 +342,304 @@ class ServerLaunchService(private val project: Project) : Disposable {
                             while (reader.readLine().also { line = it } != null) {
                                 val currentLine = line ?: continue
                                 logCallback?.accept(currentLine)
-                                parseLogForPlayers(currentLine)
+                                parseLogForPlayers(instance, currentLine)
 
                                 // Detect server boot
                                 if (currentLine.contains("Hytale Server Booted!") ||
                                     currentLine.contains("Server started")) {
-                                    status = ServerStatus.RUNNING
-                                    statusCallback?.accept(status)
+                                    synchronized(statusLock) {
+                                        instance.status = ServerStatus.RUNNING
+                                    }
+                                    statusCallback?.accept(ServerStatus.RUNNING)
                                 }
                             }
                         }
                     } catch (e: Exception) {
-                        if (isRunning.get()) {
-                            logCallback?.accept("Error reading logs: ${e.message}")
+                        if (instance.isRunning()) {
+                            logCallback?.accept("[$profileId] Error reading logs: ${e.message}")
                         }
                     }
                 }
 
-                // Wait for process to complete (in background) using ExecutorService
+                // Wait for process to complete (in background)
                 executorService.submit {
                     try {
                         val exitCode = process.waitFor()
-                        isRunning.set(false)
-                        status = ServerStatus.STOPPED
-                        startTime = null
-                        playerCount.set(0)
-                        connectedPlayers.clear()
-                        statusCallback?.accept(status)
+                        synchronized(statusLock) {
+                            instance.status = ServerStatus.STOPPED
+                            instance.startTime = null
+                            instance.playerCount.set(0)
+                            instance.connectedPlayers.clear()
+                        }
+                        statusCallback?.accept(ServerStatus.STOPPED)
                         logCallback?.accept("")
-                        logCallback?.accept("Server stopped with exit code: $exitCode")
+                        logCallback?.accept("[$profileId] Server stopped with exit code: $exitCode")
                     } catch (e: InterruptedException) {
                         Thread.currentThread().interrupt()
-                        isRunning.set(false)
-                        status = ServerStatus.STOPPED
-                        startTime = null
+                        synchronized(statusLock) {
+                            instance.status = ServerStatus.STOPPED
+                            instance.startTime = null
+                        }
                     } catch (e: Exception) {
-                        isRunning.set(false)
-                        status = ServerStatus.ERROR
-                        startTime = null
-                        statusCallback?.accept(status)
-                        logCallback?.accept("Server error: ${e.message}")
+                        synchronized(statusLock) {
+                            instance.status = ServerStatus.ERROR
+                            instance.startTime = null
+                        }
+                        statusCallback?.accept(ServerStatus.ERROR)
+                        logCallback?.accept("[$profileId] Server error: ${e.message}")
                     }
                 }
 
                 true
             } catch (e: Exception) {
-                status = ServerStatus.ERROR
-                statusCallback?.accept(status)
-                logCallback?.accept("Failed to start server: ${e.message}")
-                isRunning.set(false)
+                val instance = servers[profileId]
+                if (instance != null) {
+                    synchronized(statusLock) {
+                        instance.status = ServerStatus.ERROR
+                    }
+                }
+                statusCallback?.accept(ServerStatus.ERROR)
+                logCallback?.accept("[$profileId] Failed to start server: ${e.message}")
                 false
             }
         }
     }
 
     /**
-     * Stops the running server gracefully.
+     * Stops a specific server by profile ID.
+     *
+     * @param profileId The profile ID of the server to stop
+     * @param logCallback Callback for log output
+     * @param statusCallback Callback for status changes
+     * @return CompletableFuture that resolves to true if the server was stopped successfully
      */
     fun stopServer(
+        profileId: String,
         logCallback: Consumer<String>? = null,
         statusCallback: Consumer<ServerStatus>? = null
     ): CompletableFuture<Boolean> {
-        if (!isRunning.get()) {
+        val instance = servers[profileId]
+        if (instance == null || !instance.isRunning()) {
+            logCallback?.accept("[$profileId] Server is not running")
             return CompletableFuture.completedFuture(false)
         }
 
         return CompletableFuture.supplyAsync {
             try {
-                status = ServerStatus.STOPPING
-                statusCallback?.accept(status)
-                logCallback?.accept("Stopping server...")
+                synchronized(statusLock) {
+                    instance.status = ServerStatus.STOPPING
+                }
+                statusCallback?.accept(ServerStatus.STOPPING)
+                logCallback?.accept("[$profileId] Stopping server...")
 
-                serverProcess?.let { process ->
+                instance.process?.let { process ->
                     // Try graceful shutdown first
                     try {
                         process.outputStream.write("stop\n".toByteArray())
                         process.outputStream.flush()
                     } catch (e: Exception) {
-                        LOG.warn("Failed to send stop command, will force kill", e)
+                        LOG.warn("[$profileId] Failed to send stop command, will force kill", e)
                     }
 
                     // Wait up to 30 seconds for graceful shutdown
                     val exited = process.waitFor(30, TimeUnit.SECONDS)
 
                     if (!exited) {
-                        logCallback?.accept("Server did not stop gracefully, forcing...")
+                        logCallback?.accept("[$profileId] Server did not stop gracefully, forcing...")
                         process.destroyForcibly()
-                        // Wait for force kill to complete
                         if (!process.waitFor(10, TimeUnit.SECONDS)) {
-                            LOG.error("Failed to kill server process after force destroy")
+                            LOG.error("[$profileId] Failed to kill server process after force destroy")
                         }
                     }
                 }
 
-                isRunning.set(false)
-                serverProcess = null
-                status = ServerStatus.STOPPED
-                startTime = null
-                playerCount.set(0)
-                connectedPlayers.clear()
-                statusCallback?.accept(status)
-                logCallback?.accept("Server stopped.")
+                synchronized(statusLock) {
+                    instance.process = null
+                    instance.status = ServerStatus.STOPPED
+                    instance.startTime = null
+                    instance.playerCount.set(0)
+                    instance.connectedPlayers.clear()
+                }
+                statusCallback?.accept(ServerStatus.STOPPED)
+                logCallback?.accept("[$profileId] Server stopped.")
                 true
             } catch (e: Exception) {
-                LOG.error("Error stopping server", e)
-                logCallback?.accept("Error stopping server: ${e.message}")
+                LOG.error("[$profileId] Error stopping server", e)
+                logCallback?.accept("[$profileId] Error stopping server: ${e.message}")
                 // Force kill
-                serverProcess?.destroyForcibly()
-                serverProcess = null
-                isRunning.set(false)
-                status = ServerStatus.STOPPED
-                startTime = null
-                statusCallback?.accept(status)
+                instance.process?.destroyForcibly()
+                synchronized(statusLock) {
+                    instance.process = null
+                    instance.status = ServerStatus.STOPPED
+                    instance.startTime = null
+                }
+                statusCallback?.accept(ServerStatus.STOPPED)
                 false
             }
         }
     }
 
     /**
-     * Sends a command to the running server's stdin.
+     * Stops all running servers.
+     *
+     * @param logCallback Callback for log output
+     * @return CompletableFuture that resolves when all servers are stopped
      */
-    fun sendCommand(command: String): Boolean {
-        if (!isRunning.get()) {
-            LOG.warn("Cannot send command '$command': server is not running")
+    fun stopAllServers(logCallback: Consumer<String>? = null): CompletableFuture<Void> {
+        val runningServers = getRunningServers()
+        if (runningServers.isEmpty()) {
+            logCallback?.accept("No servers are running")
+            return CompletableFuture.completedFuture(null)
+        }
+
+        logCallback?.accept("Stopping ${runningServers.size} server(s)...")
+
+        val futures = runningServers.map { profileId ->
+            stopServer(profileId, logCallback, null)
+        }
+
+        return CompletableFuture.allOf(*futures.toTypedArray())
+    }
+
+    /**
+     * Sends a command to a specific server.
+     *
+     * @param profileId The profile ID of the server
+     * @param command The command to send
+     * @return true if the command was sent successfully
+     */
+    fun sendCommand(profileId: String, command: String): Boolean {
+        val instance = servers[profileId]
+        if (instance == null || !instance.isRunning()) {
+            LOG.warn("[$profileId] Cannot send command '$command': server is not running")
             return false
         }
 
         return try {
-            serverProcess?.outputStream?.let { stream ->
+            instance.process?.outputStream?.let { stream ->
                 stream.write("$command\n".toByteArray())
                 stream.flush()
                 true
             } ?: run {
-                LOG.warn("Cannot send command '$command': server process output stream is null")
+                LOG.warn("[$profileId] Cannot send command '$command': server process output stream is null")
                 false
             }
         } catch (e: Exception) {
-            LOG.warn("Failed to send command '$command' to server", e)
+            LOG.warn("[$profileId] Failed to send command '$command' to server", e)
             false
         }
     }
+
+    /**
+     * Removes a stopped server instance from the map.
+     * This can be used to clean up old server instances.
+     *
+     * @param profileId The profile ID of the server to remove
+     * @return true if the server was removed, false if it was still running or didn't exist
+     */
+    fun removeServer(profileId: String): Boolean {
+        val instance = servers[profileId] ?: return false
+        if (instance.isRunning()) {
+            LOG.warn("[$profileId] Cannot remove server: still running")
+            return false
+        }
+        servers.remove(profileId)
+        return true
+    }
+
+    // ===================================================================================
+    // Backward Compatibility Methods (using DEFAULT_PROFILE_ID)
+    // ===================================================================================
+
+    /**
+     * Gets the status of the default server.
+     * @deprecated Use getStatus(profileId) instead
+     */
+    @Deprecated("Use getStatus(profileId) instead", ReplaceWith("getStatus(DEFAULT_PROFILE_ID)"))
+    fun getStatus(): ServerStatus = getStatus(DEFAULT_PROFILE_ID)
+
+    /**
+     * Checks if the default server is running.
+     * @deprecated Use isServerRunning(profileId) instead
+     */
+    @Deprecated("Use isServerRunning(profileId) instead", ReplaceWith("isServerRunning(DEFAULT_PROFILE_ID)"))
+    fun isServerRunning(): Boolean = isServerRunning(DEFAULT_PROFILE_ID)
+
+    /**
+     * Gets the player count for the default server.
+     * @deprecated Use getPlayerCount(profileId) instead
+     */
+    @Deprecated("Use getPlayerCount(profileId) instead", ReplaceWith("getPlayerCount(DEFAULT_PROFILE_ID)"))
+    fun getPlayerCount(): Int = getPlayerCount(DEFAULT_PROFILE_ID)
+
+    /**
+     * Gets the connected players for the default server.
+     * @deprecated Use getConnectedPlayers(profileId) instead
+     */
+    @Deprecated("Use getConnectedPlayers(profileId) instead", ReplaceWith("getConnectedPlayers(DEFAULT_PROFILE_ID)"))
+    fun getConnectedPlayers(): Set<String> = getConnectedPlayers(DEFAULT_PROFILE_ID)
+
+    /**
+     * Gets stats for the default server.
+     * @deprecated Use getServerStats(profileId) instead
+     */
+    @Deprecated("Use getServerStats(profileId) instead", ReplaceWith("getServerStats(DEFAULT_PROFILE_ID)"))
+    fun getStats(): ServerStats = getServerStats(DEFAULT_PROFILE_ID)
+
+    /**
+     * Checks if authentication is needed for the default server.
+     * @deprecated Use needsAuthentication(profileId) instead
+     */
+    @Deprecated("Use needsAuthentication(profileId) instead", ReplaceWith("needsAuthentication(DEFAULT_PROFILE_ID)"))
+    fun needsAuthentication(): Boolean = needsAuthentication(DEFAULT_PROFILE_ID)
+
+    /**
+     * Triggers authentication for the default server.
+     * @deprecated Use triggerAuth(profileId) instead
+     */
+    @Deprecated("Use triggerAuth(profileId) instead", ReplaceWith("triggerAuth(DEFAULT_PROFILE_ID)"))
+    fun triggerAuth() = triggerAuth(DEFAULT_PROFILE_ID)
+
+    /**
+     * Starts the default server with the given configuration.
+     * @deprecated Use startServer(profileId, config, logCallback, statusCallback) instead
+     */
+    @Deprecated(
+        "Use startServer(profileId, config, logCallback, statusCallback) instead",
+        ReplaceWith("startServer(DEFAULT_PROFILE_ID, config, logCallback, statusCallback)")
+    )
+    fun startServer(
+        config: ServerConfig,
+        logCallback: Consumer<String>? = null,
+        statusCallback: Consumer<ServerStatus>? = null
+    ): CompletableFuture<Boolean> = startServer(DEFAULT_PROFILE_ID, config, logCallback, statusCallback)
+
+    /**
+     * Stops the default server.
+     * @deprecated Use stopServer(profileId, logCallback, statusCallback) instead
+     */
+    @Deprecated(
+        "Use stopServer(profileId, logCallback, statusCallback) instead",
+        ReplaceWith("stopServer(DEFAULT_PROFILE_ID, logCallback, statusCallback)")
+    )
+    fun stopServer(
+        logCallback: Consumer<String>? = null,
+        statusCallback: Consumer<ServerStatus>? = null
+    ): CompletableFuture<Boolean> = stopServer(DEFAULT_PROFILE_ID, logCallback, statusCallback)
+
+    /**
+     * Sends a command to the default server.
+     * @deprecated Use sendCommand(profileId, command) instead
+     */
+    @Deprecated(
+        "Use sendCommand(profileId, command) instead",
+        ReplaceWith("sendCommand(DEFAULT_PROFILE_ID, command)")
+    )
+    fun sendCommand(command: String): Boolean = sendCommand(DEFAULT_PROFILE_ID, command)
+
+    // ===================================================================================
+    // Helper Methods
+    // ===================================================================================
 
     /**
      * Builds the command line arguments for launching the server.
@@ -442,25 +709,33 @@ class ServerLaunchService(private val project: Project) : Disposable {
 
     /**
      * Cleans up resources when the service is disposed.
-     * Stops the server if running and shuts down the executor service.
+     * Stops all servers and shuts down the executor service.
      */
     override fun dispose() {
-        // Stop the server if it's running
-        if (isRunning.get()) {
-            serverProcess?.let { process ->
-                try {
-                    process.outputStream.write("stop\n".toByteArray())
-                    process.outputStream.flush()
-                    if (!process.waitFor(5, TimeUnit.SECONDS)) {
+        // Stop all running servers
+        for ((profileId, instance) in servers) {
+            if (instance.isRunning()) {
+                instance.process?.let { process ->
+                    try {
+                        LOG.info("[$profileId] Disposing: sending stop command")
+                        process.outputStream.write("stop\n".toByteArray())
+                        process.outputStream.flush()
+                        if (!process.waitFor(5, TimeUnit.SECONDS)) {
+                            LOG.info("[$profileId] Disposing: force killing")
+                            process.destroyForcibly()
+                        }
+                    } catch (e: Exception) {
+                        LOG.warn("[$profileId] Disposing: error during shutdown, force killing", e)
                         process.destroyForcibly()
                     }
-                } catch (e: Exception) {
-                    process.destroyForcibly()
+                }
+                synchronized(statusLock) {
+                    instance.status = ServerStatus.STOPPED
                 }
             }
-            isRunning.set(false)
-            status = ServerStatus.STOPPED
         }
+
+        servers.clear()
 
         // Shutdown the executor service gracefully
         executorService.shutdown()

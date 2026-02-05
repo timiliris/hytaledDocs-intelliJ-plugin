@@ -70,10 +70,10 @@ class HytaleAppSettingsConfigurable : BoundConfigurable("HytaleDocs") {
 
                 row("Installation path:") {
                     installationPathField = textFieldWithBrowseButton(
-                        "Select Hytale Installation Directory",
-                        null,
                         FileChooserDescriptorFactory.createSingleFolderDescriptor()
-                    )
+                            .withTitle("Select Hytale Installation Directory"),
+                        null
+                    ) { it.path }
                         .bindText(settings::hytaleInstallationPath)
                         .comment("Path to the Hytale game folder (containing Server/HytaleServer.jar)")
                         .align(AlignX.FILL)
