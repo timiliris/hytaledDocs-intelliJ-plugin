@@ -259,33 +259,36 @@ class HytaleServerProcessHandler(
         return if (Files.exists(wrapper)) wrapper.toString() else null
     }
 
-    private fun findGlobalGradle(): String? {
-        val isWindows = System.getProperty("os.name").lowercase().contains("windows")
-        return try {
-            val process = if (isWindows) {
-                ProcessBuilder("where", "gradle.bat").start()
-            } else {
-                ProcessBuilder("which", "gradle").start()
-            }
-            val result = process.inputStream.bufferedReader().use { it.readLine() }
-            process.waitFor()
-            if (process.exitValue() == 0 && result != null && result.isNotBlank()) result else null
-        } catch (e: Exception) {
-            null
-        }
-    }
+    private fun findGlobalGradle(): String? = findGlobalTool("gradle")
 
-    private fun findGlobalMaven(): String? {
+    private fun findGlobalMaven(): String? = findGlobalTool("mvn")
+
+    /**
+     * Finds a global tool on the system PATH.
+     * On Windows, `where` can return multiple results including non-executable files (e.g. shell scripts).
+     * We read all results and prefer .exe > .cmd > .bat, falling back to the first result.
+     */
+    private fun findGlobalTool(name: String): String? {
         val isWindows = System.getProperty("os.name").lowercase().contains("windows")
         return try {
             val process = if (isWindows) {
-                ProcessBuilder("where", "mvn.cmd").start()
+                ProcessBuilder("where", name).start()
             } else {
-                ProcessBuilder("which", "mvn").start()
+                ProcessBuilder("which", name).start()
             }
-            val result = process.inputStream.bufferedReader().use { it.readLine() }
+            val results = process.inputStream.bufferedReader().use { it.readLines() }
+                .filter { it.isNotBlank() }
             process.waitFor()
-            if (process.exitValue() == 0 && result != null && result.isNotBlank()) result else null
+            if (process.exitValue() != 0 || results.isEmpty()) return null
+
+            if (!isWindows) return results.first()
+
+            // On Windows, prefer native executables over scripts
+            val lower = results.associateWith { it.lowercase() }
+            lower.entries.firstOrNull { it.value.endsWith(".exe") }?.key
+                ?: lower.entries.firstOrNull { it.value.endsWith(".cmd") }?.key
+                ?: lower.entries.firstOrNull { it.value.endsWith(".bat") }?.key
+                ?: results.first()
         } catch (e: Exception) {
             null
         }
