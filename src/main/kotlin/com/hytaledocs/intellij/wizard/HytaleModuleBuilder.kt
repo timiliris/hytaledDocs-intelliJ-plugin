@@ -679,12 +679,12 @@ class HytaleModuleBuilder : ModuleBuilder() {
             }
         }
 
-        // Copy gradlew script (Unix)
+        // Copy gradlew script (Unix) - ensure LF line endings
         javaClass.getResourceAsStream("/gradle-wrapper/gradlew")?.use { input ->
             val gradlewFile = File(basePath, "gradlew")
-            gradlewFile.outputStream().use { output ->
-                input.copyTo(output)
-            }
+            // Read content and ensure Unix line endings (LF only, no CRLF)
+            val content = input.bufferedReader().readText().replace("\r\n", "\n").replace("\r", "\n")
+            gradlewFile.writeText(content)
             gradlewFile.setExecutable(true)
         }
 
