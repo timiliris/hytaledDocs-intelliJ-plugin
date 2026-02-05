@@ -249,14 +249,44 @@ class HytaleServerProcessHandler(
         val isWindows = System.getProperty("os.name").lowercase().contains("windows")
         val wrapperName = if (isWindows) "gradlew.bat" else "gradlew"
         val wrapper = Path.of(projectBasePath, wrapperName)
-        return if (Files.exists(wrapper)) wrapper.toString() else null
+        if (!Files.exists(wrapper)) return null
+
+        // On Unix, ensure the wrapper is executable
+        if (!isWindows) {
+            makeExecutableIfNeeded(wrapper)
+        }
+        return wrapper.toString()
     }
 
     private fun findMavenWrapper(projectBasePath: String): String? {
         val isWindows = System.getProperty("os.name").lowercase().contains("windows")
         val wrapperName = if (isWindows) "mvnw.cmd" else "mvnw"
         val wrapper = Path.of(projectBasePath, wrapperName)
-        return if (Files.exists(wrapper)) wrapper.toString() else null
+        if (!Files.exists(wrapper)) return null
+
+        // On Unix, ensure the wrapper is executable
+        if (!isWindows) {
+            makeExecutableIfNeeded(wrapper)
+        }
+        return wrapper.toString()
+    }
+
+    /**
+     * Makes a file executable on Unix systems if it isn't already.
+     * This fixes "No such file or directory" errors when gradlew/mvnw lack execute permission.
+     */
+    private fun makeExecutableIfNeeded(file: Path) {
+        try {
+            if (!Files.isExecutable(file)) {
+                LOG.info("Making ${file.fileName} executable")
+                val process = ProcessBuilder("chmod", "+x", file.toString())
+                    .start()
+                process.waitFor(5, TimeUnit.SECONDS)
+            }
+        } catch (e: Exception) {
+            LOG.warn("Failed to make ${file.fileName} executable: ${e.message}")
+            // Continue anyway - might still work or fail with better error
+        }
     }
 
     private fun findGlobalGradle(): String? = findGlobalTool("gradle")

@@ -2,6 +2,14 @@
 
 ## [Unreleased]
 
+## [1.4.1] - 2026-02-06
+
+### Fixed
+
+- **Linux/macOS: Gradle wrapper not executable**: Auto-fix `gradlew` and `mvnw` permissions on Unix systems
+  - Runs `chmod +x` automatically if wrapper lacks execute permission
+  - Fixes "No such file or directory" error on fresh clones
+
 ## [1.4.0] - 2026-02-05
 
 ### Added
@@ -11,18 +19,15 @@
   - Profiles stored in `~/.hytale-intellij/servers.json`
   - Import servers from existing directories with auto-detection
   - Quick switch between servers from the Tool Window
-
 - **Server Selector UI**: New dropdown in the Tool Window
   - Visual server selector with status indicator (running/stopped/starting)
   - Auto-detects `server/` folder in project and creates default profile
   - Browse button to quickly add new server directories
   - Gear button to open full Server Manager dialog
-
 - **Multi-Server Support**: Run multiple Hytale servers simultaneously
   - Each server runs on its own port
   - Independent start/stop/status per server
   - Port conflict detection prevents duplicate bindings
-
 - **Improved Java Detection**: Comprehensive cross-platform Java 25+ detection
   - Windows: Registry, Scoop, Chocolatey, SDKMAN, jabba, GraalVM, Microsoft JDK
   - macOS: Homebrew (Intel & Apple Silicon), `/usr/libexec/java_home`, SDKMAN, asdf, mise
@@ -38,7 +43,6 @@
   - Timestamped filenames when files are locked
   - Retry with exponential backoff (1s, 2s, 4s)
   - Automatic cleanup of old timestamped JARs
-
 - **IntelliJ 2025.3 API Compatibility**: Updated deprecated `textFieldWithBrowseButton` calls
 
 ### Changed
@@ -206,7 +210,9 @@
 - Supports IntelliJ IDEA 2024.3+
 - Requires Java 25 for Hytale development
 
-[Unreleased]: https://github.com/HytaleDocs/hytale-intellij-plugin/compare/v1.3.9...HEAD
+[Unreleased]: https://github.com/HytaleDocs/hytale-intellij-plugin/compare/v1.4.1...HEAD
+[1.4.1]: https://github.com/HytaleDocs/hytale-intellij-plugin/compare/v1.4.0...v1.4.1
+[1.4.0]: https://github.com/HytaleDocs/hytale-intellij-plugin/compare/v1.3.9...v1.4.0
 [1.3.9]: https://github.com/HytaleDocs/hytale-intellij-plugin/compare/v1.3.7...v1.3.9
 [1.3.7]: https://github.com/HytaleDocs/hytale-intellij-plugin/compare/v1.3.6...v1.3.7
 [1.3.6]: https://github.com/HytaleDocs/hytale-intellij-plugin/compare/v1.3.5...v1.3.6
