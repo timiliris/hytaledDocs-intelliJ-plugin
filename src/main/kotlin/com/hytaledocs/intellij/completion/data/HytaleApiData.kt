@@ -54,6 +54,19 @@ data class EventInfo(
     val implements: List<String> = emptyList()
 )
 
+/**
+ * Gson bypasses Kotlin default values and can set non-null list fields to null.
+ * These extensions provide null-safe access for list properties on deserialized data classes.
+ */
+@Suppress("USELESS_CAST")
+fun EventInfo.safeMethods(): List<MethodInfo> = (methods as List<MethodInfo>?).orEmpty()
+@Suppress("USELESS_CAST")
+fun EventInfo.safeFields(): List<FieldInfo> = (fields as List<FieldInfo>?).orEmpty()
+@Suppress("USELESS_CAST")
+fun EventInfo.safeAnnotations(): List<String> = (annotations as List<String>?).orEmpty()
+@Suppress("USELESS_CAST")
+fun EventClassInfo.safeMethods(): List<MethodInfo> = (methods as List<MethodInfo>?).orEmpty()
+
 data class MethodInfo(
     val name: String,
     val signature: String? = null,

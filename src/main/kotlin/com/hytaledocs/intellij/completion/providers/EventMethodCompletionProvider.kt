@@ -4,6 +4,8 @@ import com.hytaledocs.intellij.HytaleIcons
 import com.hytaledocs.intellij.completion.data.EventInfo
 import com.hytaledocs.intellij.completion.data.FieldInfo
 import com.hytaledocs.intellij.completion.data.MethodInfo
+import com.hytaledocs.intellij.completion.data.safeFields
+import com.hytaledocs.intellij.completion.data.safeMethods
 import com.hytaledocs.intellij.services.ServerDataService
 import com.hytaledocs.intellij.settings.HytaleAppSettings
 import com.intellij.codeInsight.completion.*
@@ -120,9 +122,11 @@ class EventMethodCompletionProvider : CompletionProvider<CompletionParameters>()
 
     /**
      * Add methods defined directly on the event.
+     * Note: Gson can set list fields to null despite Kotlin non-null defaults,
+     * so we use safeMethods()/safeFields() to guard against NPE.
      */
     private fun addEventMethods(event: EventInfo, result: CompletionResultSet) {
-        for (method in event.methods) {
+        for (method in event.safeMethods()) {
             val lookupElement = createMethodLookupElement(method)
             result.addElement(lookupElement)
         }
@@ -132,10 +136,11 @@ class EventMethodCompletionProvider : CompletionProvider<CompletionParameters>()
      * Add field accessors (getter methods for fields).
      */
     private fun addFieldAccessors(event: EventInfo, result: CompletionResultSet) {
-        for (field in event.fields) {
+        val methods = event.safeMethods()
+        for (field in event.safeFields()) {
             // If the field has an accessor, suggest it
             val accessor = field.accessor
-            if (accessor != null && !event.methods.any { it.name == accessor.substringBefore("(") }) {
+            if (accessor != null && !methods.any { it.name == accessor.substringBefore("(") }) {
                 val lookupElement = createFieldAccessorLookupElement(field)
                 result.addElement(lookupElement)
             }
@@ -161,11 +166,11 @@ class EventMethodCompletionProvider : CompletionProvider<CompletionParameters>()
             // Check if parent is in events list
             val parentEvent = dataService.getEventByClassName(parentName)
             if (parentEvent != null) {
-                for (method in parentEvent.methods) {
+                for (method in parentEvent.safeMethods()) {
                     val lookupElement = createMethodLookupElement(method, inherited = true)
                     result.addElement(lookupElement)
                 }
-                for (field in parentEvent.fields) {
+                for (field in parentEvent.safeFields()) {
                     val accessor = field.accessor
                     if (accessor != null) {
                         val lookupElement = createFieldAccessorLookupElement(field, inherited = true)
@@ -177,7 +182,7 @@ class EventMethodCompletionProvider : CompletionProvider<CompletionParameters>()
                 // Check core interfaces
                 val coreInterface = dataService.getCoreInterfaces().find { it.className == parentName }
                 if (coreInterface != null) {
-                    for (method in coreInterface.methods) {
+                    for (method in coreInterface.safeMethods()) {
                         val lookupElement = createMethodLookupElement(method, inherited = true)
                         result.addElement(lookupElement)
                     }

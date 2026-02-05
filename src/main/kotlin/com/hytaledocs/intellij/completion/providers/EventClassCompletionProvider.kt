@@ -2,6 +2,7 @@ package com.hytaledocs.intellij.completion.providers
 
 import com.hytaledocs.intellij.HytaleIcons
 import com.hytaledocs.intellij.completion.data.EventInfo
+import com.hytaledocs.intellij.completion.data.safeAnnotations
 import com.hytaledocs.intellij.services.ServerDataService
 import com.hytaledocs.intellij.settings.HytaleAppSettings
 import com.intellij.codeInsight.completion.*
@@ -250,7 +251,7 @@ class EventClassCompletionProvider : CompletionProvider<CompletionParameters>() 
         if (event.name.contains("Chat")) priority += 10
 
         // Lower priority for deprecated events
-        if (event.annotations.any { it.contains("Deprecated") }) priority -= 50
+        if (event.safeAnnotations().any { it.contains("Deprecated") }) priority -= 50
 
         // Lower priority for abstract events
         if (event.isAbstract) priority -= 10
