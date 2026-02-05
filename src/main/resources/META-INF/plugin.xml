@@ -345,10 +345,13 @@
         <postStartupActivity
                 implementation="com.hytaledocs.intellij.run.HytaleRunConfigurationSetup"/>
 
-        <!-- Force early UILanguage init before stub indexing -->
-        <preloadingActivity
-                implementation="com.hytaledocs.intellij.uifile.UILanguagePreloader"/>
     </extensions>
+
+    <applicationListeners>
+        <!-- Force early UILanguage init before stub indexing -->
+        <listener class="com.hytaledocs.intellij.uifile.UILanguagePreloader"
+                  topic="com.intellij.ide.AppLifecycleListener"/>
+    </applicationListeners>
 
     <actions>
         <group id="HytaleDocs.NewGroup" text="Hytale" description="Hytale mod development">

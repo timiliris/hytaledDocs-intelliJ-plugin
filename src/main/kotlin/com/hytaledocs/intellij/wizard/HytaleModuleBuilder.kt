@@ -245,7 +245,6 @@ class HytaleModuleBuilder : ModuleBuilder() {
             val baseDirs = mutableListOf(
                 "src/main/$srcLang/$packagePath",
                 "src/main/resources",
-                "libs",
                 "server"
             )
 
@@ -310,8 +309,12 @@ class HytaleModuleBuilder : ModuleBuilder() {
                 }
             }
 
-            // Copy server files from game installation or configured path
-            copyServerFiles(basePath)
+            // Create server directory (needed for deployToServer task)
+            Files.createDirectories(Paths.get(basePath, "server"))
+            // Copy server files from game installation if opted in
+            if (copyFromGame) {
+                copyServerFiles(basePath)
+            }
 
             // Generate IntelliJ run configurations
             generateRunConfigurations(basePath)
@@ -319,19 +322,12 @@ class HytaleModuleBuilder : ModuleBuilder() {
     }
 
     private fun copyServerFiles(basePath: String) {
-        val libsPath = Paths.get(basePath, "libs")
         val serverFolderPath = Paths.get(basePath, "server")
 
-        // Create server folder for running the server
-        Files.createDirectories(serverFolderPath)
-
         // Priority 1: Copy from Hytale game installation
-        if (copyFromGame && hytaleInstallation != null) {
+        if (hytaleInstallation != null) {
             hytaleInstallation?.serverJarPath?.let { jarPath ->
                 try {
-                    // Copy to libs for compilation
-                    Files.copy(jarPath, libsPath.resolve("HytaleServer.jar"), StandardCopyOption.REPLACE_EXISTING)
-                    // Copy to server folder for running
                     Files.copy(jarPath, serverFolderPath.resolve("HytaleServer.jar"), StandardCopyOption.REPLACE_EXISTING)
                 } catch (e: Exception) {
                     // Ignore copy errors
@@ -339,7 +335,6 @@ class HytaleModuleBuilder : ModuleBuilder() {
             }
             hytaleInstallation?.assetsPath?.let { assetsPath ->
                 try {
-                    // Copy assets to server folder
                     Files.copy(assetsPath, serverFolderPath.resolve("Assets.zip"), StandardCopyOption.REPLACE_EXISTING)
                 } catch (e: Exception) {
                     // Ignore copy errors
@@ -356,7 +351,6 @@ class HytaleModuleBuilder : ModuleBuilder() {
 
             if (Files.exists(jarPath)) {
                 try {
-                    Files.copy(jarPath, libsPath.resolve("HytaleServer.jar"), StandardCopyOption.REPLACE_EXISTING)
                     Files.copy(jarPath, serverFolderPath.resolve("HytaleServer.jar"), StandardCopyOption.REPLACE_EXISTING)
                 } catch (e: Exception) { }
             }
@@ -383,7 +377,6 @@ class HytaleModuleBuilder : ModuleBuilder() {
                 val normalizedPath = location.normalize()
                 val jarPath = normalizedPath.resolve("HytaleServer.jar")
                 if (Files.exists(jarPath)) {
-                    Files.copy(jarPath, libsPath.resolve("HytaleServer.jar"), StandardCopyOption.REPLACE_EXISTING)
                     Files.copy(jarPath, serverFolderPath.resolve("HytaleServer.jar"), StandardCopyOption.REPLACE_EXISTING)
 
                     val assetsPath = normalizedPath.resolve("Assets.zip")
@@ -416,7 +409,6 @@ class HytaleModuleBuilder : ModuleBuilder() {
             *.iml
 
             # Hytale
-            libs/HytaleServer.jar
             server/*
         """.trimIndent())
     }
@@ -1558,14 +1550,24 @@ class HytaleModuleBuilder : ModuleBuilder() {
                     $kotlinProps
                 </properties>
 
+                <repositories>
+                    <repository>
+                        <id>hytale-release</id>
+                        <url>https://maven.hytale.com/release</url>
+                    </repository>
+                    <repository>
+                        <id>hytale-pre-release</id>
+                        <url>https://maven.hytale.com/pre-release</url>
+                    </repository>
+                </repositories>
+
                 <dependencies>
-                    <!-- HytaleServer API -->
+                    <!-- HytaleServer API (from official Maven repository) -->
                     <dependency>
                         <groupId>com.hypixel.hytale</groupId>
-                        <artifactId>hytale-server</artifactId>
-                        <version>1.0.0</version>
-                        <scope>system</scope>
-                        <systemPath>${'$'}{project.basedir}/libs/HytaleServer.jar</systemPath>
+                        <artifactId>Server</artifactId>
+                        <version>2026.01.24-6e2d4fc36</version>
+                        <scope>provided</scope>
                     </dependency>
 
                     <!-- JSR305 annotations -->

@@ -2,6 +2,22 @@
 
 ## [Unreleased]
 
+## [1.3.9] - 2026-02-05
+
+### Added
+
+- **IDE 2024.2+ Compatibility**: Plugin now supports IntelliJ IDEA 2024.2 through 2025.3
+  - Lowered minimum IDE version from 2025.3 to 2024.2 (build 242)
+  - Fixed `textFieldWithBrowseButton` API calls for cross-version compatibility
+
+### Fixed
+
+- **Wizard: Remove redundant /libs/ JAR**: No longer copies HytaleServer.jar to `/libs/` (unused by both Gradle and Maven projects, caused ~50MB bloat in repos)
+- **Wizard: Maven pom.xml now uses official Maven repo**: Replaced `<scope>system</scope>` + `<systemPath>` with proper `<repositories>` block pointing to `maven.hytale.com`
+- **Wizard: Server files gated on opt-in**: `copyServerFiles()` only runs when user checks "Copy from game"
+- **Autocomplete: Reduced aggressiveness**: Event completion no longer triggers on every capitalized identifier (e.g., `String`, `Map`, `Config`). Removed catch-all regex, tightened variable type check to `endsWith("Event")`
+- **Replace internal PreloadingActivity**: Migrated from `@Internal` PreloadingActivity to public `AppLifecycleListener` API
+
 ## [1.3.7] - 2026-01-25
 
 ### Added
@@ -145,7 +161,8 @@
 - Supports IntelliJ IDEA 2024.3+
 - Requires Java 25 for Hytale development
 
-[Unreleased]: https://github.com/HytaleDocs/hytale-intellij-plugin/compare/v1.3.7...HEAD
+[Unreleased]: https://github.com/HytaleDocs/hytale-intellij-plugin/compare/v1.3.9...HEAD
+[1.3.9]: https://github.com/HytaleDocs/hytale-intellij-plugin/compare/v1.3.7...v1.3.9
 [1.3.7]: https://github.com/HytaleDocs/hytale-intellij-plugin/compare/v1.3.6...v1.3.7
 [1.3.6]: https://github.com/HytaleDocs/hytale-intellij-plugin/compare/v1.3.5...v1.3.6
 [1.3.5]: https://github.com/HytaleDocs/hytale-intellij-plugin/compare/v1.3.4...v1.3.5
