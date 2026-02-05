@@ -14,6 +14,19 @@ plugins {
 group = providers.gradleProperty("pluginGroup").get()
 version = providers.gradleProperty("pluginVersion").get()
 
+// Load local.properties for secrets (not committed to git)
+val localPropertiesFile = rootProject.file("local.properties")
+val localProperties: Map<String, String> = if (localPropertiesFile.exists()) {
+    localPropertiesFile.readLines()
+        .filter { it.contains("=") && !it.startsWith("#") }
+        .associate {
+            val (key, value) = it.split("=", limit = 2)
+            key.trim() to value.trim()
+        }
+} else {
+    emptyMap()
+}
+
 // Set the JVM language level used to build the project.
 kotlin {
     jvmToolchain(21)
@@ -105,7 +118,12 @@ intellijPlatform {
     }
 
     publishing {
-        token = providers.environmentVariable("PUBLISH_TOKEN")
+        // Read token from local.properties first, fallback to environment variable
+        token = provider {
+            localProperties["intellijPublishToken"]
+                ?: System.getenv("PUBLISH_TOKEN")
+                ?: ""
+        }
         // The pluginVersion is based on the SemVer (https://semver.org) and supports pre-release labels, like 2.1.7-alpha.3
         // Specify pre-release label to publish the plugin in a custom Release Channel automatically. Read more:
         // https://plugins.jetbrains.com/docs/intellij/publishing-plugin.html#specifying-a-release-channel
