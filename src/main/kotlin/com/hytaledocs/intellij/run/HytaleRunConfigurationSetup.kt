@@ -2,6 +2,10 @@ package com.hytaledocs.intellij.run
 
 import com.hytaledocs.intellij.util.PluginInfoDetector
 import com.intellij.execution.RunManager
+import com.intellij.ide.util.PropertiesComponent
+import com.intellij.notification.NotificationAction
+import com.intellij.notification.NotificationGroupManager
+import com.intellij.notification.NotificationType
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.startup.ProjectActivity
@@ -15,6 +19,7 @@ class HytaleRunConfigurationSetup : ProjectActivity {
 
     companion object {
         private val LOG = Logger.getInstance(HytaleRunConfigurationSetup::class.java)
+        private const val MAVEN_TASK_MIGRATION_KEY = "hytale.runConfig.mavenTaskMigration.v1"
     }
 
     override suspend fun execute(project: Project) {
@@ -31,6 +36,11 @@ class HytaleRunConfigurationSetup : ProjectActivity {
 
         if (existingSettings != null) {
             val existingConfig = existingSettings.configuration as? HytaleServerRunConfiguration
+
+            if (existingConfig != null) {
+                maybePromptMavenBuildTaskMigration(project, runManager, existingSettings, existingConfig)
+            }
+
             // If config exists but is incomplete (missing plugin name), try to reconfigure
             if (existingConfig != null && existingConfig.pluginName.isBlank()) {
                 LOG.info("Existing config has empty plugin name, attempting to reconfigure")
@@ -109,7 +119,7 @@ class HytaleRunConfigurationSetup : ProjectActivity {
 
         // Set defaults without plugin info
         config.buildBeforeRun = true
-        config.buildTask = "shadowJar"
+        config.buildTask = defaultBuildTask(project)
         config.deployPlugin = true
         config.pluginJarPath = "" // User needs to configure
         config.pluginName = "" // User needs to configure
@@ -129,6 +139,11 @@ class HytaleRunConfigurationSetup : ProjectActivity {
         runManager.selectedConfiguration = settings
 
         LOG.info("Created default Hytale Server run configuration (needs manual plugin config)")
+    }
+
+    private fun defaultBuildTask(project: Project): String {
+        val basePath = project.basePath ?: return "package"
+        return if (File(basePath, "pom.xml").exists()) "package" else "shadowJar"
     }
 
     private fun createHytaleServerRunConfiguration(project: Project, pluginInfo: PluginInfoDetector.PluginInfo) {
@@ -161,5 +176,59 @@ class HytaleRunConfigurationSetup : ProjectActivity {
         runManager.selectedConfiguration = settings
 
         LOG.info("Created Hytale Server run configuration: ${pluginInfo.groupId}:${pluginInfo.modName}")
+    }
+
+    private fun maybePromptMavenBuildTaskMigration(
+        project: Project,
+        runManager: RunManager,
+        settings: com.intellij.execution.RunnerAndConfigurationSettings,
+        config: HytaleServerRunConfiguration
+    ) {
+        val basePath = project.basePath ?: return
+        if (!File(basePath, "pom.xml").exists()) return
+
+        val properties = PropertiesComponent.getInstance(project)
+        if (properties.getBoolean(MAVEN_TASK_MIGRATION_KEY, false)) return
+
+        val currentBuildTask = config.buildTask
+        if (!containsGradleOnlyTask(currentBuildTask)) {
+            properties.setValue(MAVEN_TASK_MIGRATION_KEY, true)
+            return
+        }
+
+        val notification = NotificationGroupManager.getInstance()
+            .getNotificationGroup("Hytale Plugin")
+            .createNotification(
+                "Maven Build Task Migration",
+                "Detected Maven project with Gradle task '$currentBuildTask'. Migrate run configuration build task to Maven goal 'package'?",
+                NotificationType.WARNING
+            )
+
+        notification.addAction(NotificationAction.createSimpleExpiring("Migrate to package") {
+            config.buildTask = "package"
+            runManager.makeStable(settings)
+            properties.setValue(MAVEN_TASK_MIGRATION_KEY, true)
+            NotificationGroupManager.getInstance()
+                .getNotificationGroup("Hytale Plugin")
+                .createNotification(
+                    "Maven Build Task Migration",
+                    "Run configuration updated to use Maven goal 'package'.",
+                    NotificationType.INFORMATION
+                )
+                .notify(project)
+        })
+
+        notification.addAction(NotificationAction.createSimpleExpiring("Keep current task") {
+            properties.setValue(MAVEN_TASK_MIGRATION_KEY, true)
+        })
+
+        notification.notify(project)
+    }
+
+    private fun containsGradleOnlyTask(buildTask: String): Boolean {
+        val tasks = buildTask.trim().split(Regex("\\s+")).filter { it.isNotBlank() }
+        if (tasks.isEmpty()) return false
+        val gradleOnlyTasks = setOf("build", "shadowJar", "jar", "assemble")
+        return tasks.any { it in gradleOnlyTasks }
     }
 }

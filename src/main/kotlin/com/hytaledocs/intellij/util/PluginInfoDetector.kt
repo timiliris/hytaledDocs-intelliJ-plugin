@@ -44,24 +44,29 @@ object PluginInfoDetector {
      * @return PluginInfo if detected, null otherwise
      */
     fun detect(basePath: String, projectName: String): PluginInfo? {
+        val isMavenProject = isMavenProject(basePath)
+
         // Priority 0: .hytale/project.json
-        readHytaleProjectJson(basePath)?.let { return it }
+        readHytaleProjectJson(basePath, isMavenProject)?.let { return it }
 
         // Priority 1: manifest.json
         readManifestJson(basePath)?.let { return it }
 
-        // Priority 2: Gradle files
+        // Priority 2: Maven pom.xml
+        readMavenPom(basePath)?.let { return it }
+
+        // Priority 3: Gradle files
         readGradleFiles(basePath)?.let { return it }
 
-        // Priority 3: Project name fallback
+        // Priority 4: Project name fallback
         if (projectName.isNotBlank()) {
             val artifactId = projectName.lowercase().replace(" ", "-")
             return PluginInfo(
                 groupId = "com.example",
                 artifactId = artifactId,
                 modName = artifactId,
-                jarPath = "build/libs/$artifactId-1.0.0.jar",
-                buildTask = "shadowJar"
+                jarPath = if (isMavenProject) "target/$artifactId-1.0.0.jar" else "build/libs/$artifactId-1.0.0.jar",
+                buildTask = if (isMavenProject) "package" else "shadowJar"
             )
         }
 
@@ -72,7 +77,7 @@ object PluginInfoDetector {
      * Read plugin info from .hytale/project.json (created by project wizard).
      * This file contains complete plugin metadata.
      */
-    private fun readHytaleProjectJson(basePath: String): PluginInfo? {
+    private fun readHytaleProjectJson(basePath: String, isMavenProject: Boolean): PluginInfo? {
         val projectFile = File(basePath, ".hytale/project.json")
         if (!projectFile.exists()) return null
 
@@ -89,10 +94,73 @@ object PluginInfoDetector {
             val artifactId = artifactRegex.find(content)?.groupValues?.get(1) ?: return null
             // modName is the actual plugin name (with spaces/caps)
             val modName = modNameRegex.find(content)?.groupValues?.get(1) ?: artifactId
-            val jarPath = jarPathRegex.find(content)?.groupValues?.get(1) ?: "build/libs/$artifactId-1.0.0.jar"
-            val buildTask = buildTaskRegex.find(content)?.groupValues?.get(1) ?: "shadowJar"
+            val jarPath = jarPathRegex.find(content)?.groupValues?.get(1)
+                ?: if (isMavenProject) "target/$artifactId-1.0.0.jar" else "build/libs/$artifactId-1.0.0.jar"
+            val buildTask = buildTaskRegex.find(content)?.groupValues?.get(1)
+                ?: if (isMavenProject) "package" else "shadowJar"
 
             PluginInfo(groupId, artifactId, modName, jarPath, buildTask)
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+    /**
+     * Read plugin info from pom.xml (Maven projects).
+     */
+    private fun readMavenPom(basePath: String): PluginInfo? {
+        val pomFile = File(basePath, "pom.xml")
+        if (!pomFile.exists()) return null
+
+        return try {
+            val content = pomFile.readText()
+            val contentWithoutParent = content.replace(
+                """<parent>\s*.*?</parent>""".toRegex(RegexOption.DOT_MATCHES_ALL),
+                ""
+            )
+
+            fun firstMatch(source: String, vararg patterns: String): String? {
+                for (pattern in patterns) {
+                    val value = pattern.toRegex(RegexOption.DOT_MATCHES_ALL)
+                        .find(source)
+                        ?.groupValues
+                        ?.get(1)
+                        ?.trim()
+                    if (!value.isNullOrBlank()) return value
+                }
+                return null
+            }
+
+            val groupId = firstMatch(
+                contentWithoutParent,
+                """<groupId>\s*([^<\s][^<]*)\s*</groupId>"""
+            ) ?: firstMatch(
+                content,
+                """<parent>\s*.*?<groupId>\s*([^<\s][^<]*)\s*</groupId>.*?</parent>"""
+            ) ?: return null
+            val artifactId = firstMatch(
+                contentWithoutParent,
+                """<artifactId>\s*([^<\s][^<]*)\s*</artifactId>"""
+            ) ?: return null
+            val modName = firstMatch(
+                contentWithoutParent,
+                """<name>\s*([^<\s][^<]*)\s*</name>"""
+            ) ?: artifactId
+            val version = firstMatch(
+                contentWithoutParent,
+                """<version>\s*([^<\s][^<]*)\s*</version>"""
+            ) ?: firstMatch(
+                content,
+                """<parent>\s*.*?<version>\s*([^<\s][^<]*)\s*</version>.*?</parent>"""
+            ) ?: "1.0.0"
+
+            PluginInfo(
+                groupId = groupId,
+                artifactId = artifactId,
+                modName = modName,
+                jarPath = "target/$artifactId-$version.jar",
+                buildTask = "package"
+            )
         } catch (e: Exception) {
             null
         }
@@ -186,5 +254,9 @@ object PluginInfoDetector {
         }
 
         return null
+    }
+
+    private fun isMavenProject(basePath: String): Boolean {
+        return File(basePath, "pom.xml").exists()
     }
 }

@@ -12,6 +12,7 @@ import com.intellij.ui.components.JBCheckBox
 import com.intellij.ui.dsl.builder.AlignX
 import com.intellij.ui.dsl.builder.panel
 import com.intellij.ui.dsl.listCellRenderer.textListCellRenderer
+import java.io.File
 import javax.swing.JComponent
 import javax.swing.JSpinner
 import javax.swing.JTextField
@@ -69,7 +70,7 @@ class HytaleServerSettingsEditor(private val project: Project) : SettingsEditor<
     override fun applyEditorTo(config: HytaleServerRunConfiguration) {
         // Save all values from UI to config
         buildBeforeRunCheck?.let { config.buildBeforeRun = it.isSelected }
-        buildTaskCombo?.let { config.buildTask = it.selectedItem as? String ?: "shadowJar" }
+        buildTaskCombo?.let { config.buildTask = it.selectedItem as? String ?: defaultBuildTask() }
         deployPluginCheck?.let { config.deployPlugin = it.isSelected }
         pluginJarField?.let { config.pluginJarPath = it.text }
         pluginNameField?.let { config.pluginName = it.text }
@@ -100,9 +101,9 @@ class HytaleServerSettingsEditor(private val project: Project) : SettingsEditor<
                 }
 
                 row("Build task:") {
-                    comboBox(listOf("build", "shadowJar", "jar", "assemble"))
+                    comboBox(buildTaskOptions())
                         .applyToComponent { buildTaskCombo = this }
-                        .comment("Gradle task to execute (e.g., build, shadowJar)")
+                        .comment("Build task or Maven goal to execute before starting (e.g., shadowJar, package)")
                 }
             }
 
@@ -298,5 +299,19 @@ class HytaleServerSettingsEditor(private val project: Project) : SettingsEditor<
             override fun removeUpdate(e: DocumentEvent) = fireEditorStateChanged()
             override fun changedUpdate(e: DocumentEvent) = fireEditorStateChanged()
         }
+    }
+
+    private fun buildTaskOptions(): List<String> {
+        return when {
+            isMavenProject() -> listOf("package", "clean package", "install", "verify", "clean")
+            else -> listOf("shadowJar", "build", "jar", "assemble")
+        }
+    }
+
+    private fun defaultBuildTask(): String = if (isMavenProject()) "package" else "shadowJar"
+
+    private fun isMavenProject(): Boolean {
+        val basePath = project.basePath ?: return false
+        return File(basePath, "pom.xml").exists()
     }
 }
