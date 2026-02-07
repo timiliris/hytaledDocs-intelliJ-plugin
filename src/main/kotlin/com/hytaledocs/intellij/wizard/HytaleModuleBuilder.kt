@@ -1622,31 +1622,6 @@ class HytaleModuleBuilder : ModuleBuilder() {
                                 </execution>
                             </executions>
                         </plugin>
-                        <plugin>
-                            <groupId>org.apache.maven.plugins</groupId>
-                            <artifactId>maven-resources-plugin</artifactId>
-                            <version>3.3.1</version>
-                            <executions>
-                                <execution>
-                                    <id>copy-to-mods</id>
-                                    <phase>package</phase>
-                                    <goals>
-                                        <goal>copy-resources</goal>
-                                    </goals>
-                                    <configuration>
-                                        <outputDirectory>${'$'}{project.basedir}/server/mods</outputDirectory>
-                                        <resources>
-                                            <resource>
-                                                <directory>${'$'}{project.build.directory}</directory>
-                                                <includes>
-                                                    <include>${'$'}{project.build.finalName}.jar</include>
-                                                </includes>
-                                            </resource>
-                                        </resources>
-                                    </configuration>
-                                </execution>
-                            </executions>
-                        </plugin>
                     </plugins>
                 </build>
             </project>

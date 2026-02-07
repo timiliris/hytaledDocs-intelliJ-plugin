@@ -10,7 +10,7 @@ class HytaleServerRunConfigurationOptions : RunConfigurationOptions() {
 
     // Build settings
     var buildBeforeRun by property(true)
-    var buildTask by string("shadowJar")
+    var buildTask by string("package")
 
     // Deploy settings
     var deployPlugin by property(true)

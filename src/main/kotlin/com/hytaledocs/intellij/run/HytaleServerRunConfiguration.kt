@@ -8,6 +8,7 @@ import com.intellij.execution.configurations.RunProfileState
 import com.intellij.execution.runners.ExecutionEnvironment
 import com.intellij.openapi.options.SettingsEditor
 import com.intellij.openapi.project.Project
+import java.io.File
 
 /**
  * Run configuration for Hytale Server.
@@ -41,7 +42,7 @@ class HytaleServerRunConfiguration(
         set(value) { options.buildBeforeRun = value }
 
     var buildTask: String
-        get() = options.buildTask ?: "shadowJar"
+        get() = options.buildTask ?: defaultBuildTask()
         set(value) { options.buildTask = value }
 
     // Deploy settings
@@ -101,4 +102,10 @@ class HytaleServerRunConfiguration(
     var hotReloadEnabled: Boolean
         get() = options.hotReloadEnabled
         set(value) { options.hotReloadEnabled = value }
+
+    private fun defaultBuildTask(): String {
+        val basePath = project.basePath ?: return "package"
+        val hasPom = File(basePath, "pom.xml").exists()
+        return if (hasPom) "package" else "shadowJar"
+    }
 }
