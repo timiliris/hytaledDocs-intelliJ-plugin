@@ -127,10 +127,33 @@ class HotReloadPluginAction : AnAction() {
     }
 
     private fun executeBuild(basePath: String, buildTask: String): Boolean {
-        val gradleWrapper = findGradleWrapper(basePath) ?: return false
+        val gradleWrapper = findGradleWrapper(basePath)
+        val mavenWrapper = findMavenWrapper(basePath)
+        val globalGradle = findGlobalTool("gradle")
+        val globalMaven = findGlobalTool("mvn")
 
         return try {
-            val process = ProcessBuilder(listOf(gradleWrapper, buildTask, "--no-daemon", "-q"))
+            val command = when {
+                gradleWrapper != null -> {
+                    val gradleTasks = parseBuildTasks(buildTask, "shadowJar")
+                    listOf(gradleWrapper) + gradleTasks + listOf("--no-daemon", "-q")
+                }
+                mavenWrapper != null -> {
+                    val mavenGoals = normalizeMavenGoals(buildTask)
+                    listOf(mavenWrapper) + mavenGoals + listOf("-q")
+                }
+                globalGradle != null && hasGradleBuildFile(basePath) -> {
+                    val gradleTasks = parseBuildTasks(buildTask, "shadowJar")
+                    listOf(globalGradle) + gradleTasks + listOf("--no-daemon", "-q")
+                }
+                globalMaven != null && hasMavenBuildFile(basePath) -> {
+                    val mavenGoals = normalizeMavenGoals(buildTask)
+                    listOf(globalMaven) + mavenGoals + listOf("-q")
+                }
+                else -> return false
+            }
+
+            val process = ProcessBuilder(command)
                 .directory(File(basePath))
                 .redirectErrorStream(true)
                 .start()
@@ -147,7 +170,58 @@ class HotReloadPluginAction : AnAction() {
         val isWindows = System.getProperty("os.name").lowercase().contains("windows")
         val wrapperName = if (isWindows) "gradlew.bat" else "gradlew"
         val wrapper = File(basePath, wrapperName)
+        if (!isWindows && wrapper.exists()) {
+            wrapper.setExecutable(true)
+        }
         return if (wrapper.exists()) wrapper.absolutePath else null
+    }
+
+    private fun findMavenWrapper(basePath: String): String? {
+        val isWindows = System.getProperty("os.name").lowercase().contains("windows")
+        val wrapperName = if (isWindows) "mvnw.cmd" else "mvnw"
+        val wrapper = File(basePath, wrapperName)
+        if (!isWindows && wrapper.exists()) {
+            wrapper.setExecutable(true)
+        }
+        return if (wrapper.exists()) wrapper.absolutePath else null
+    }
+
+    private fun hasGradleBuildFile(basePath: String): Boolean {
+        return File(basePath, "build.gradle").exists() || File(basePath, "build.gradle.kts").exists()
+    }
+
+    private fun hasMavenBuildFile(basePath: String): Boolean {
+        return File(basePath, "pom.xml").exists()
+    }
+
+    private fun findGlobalTool(name: String): String? {
+        val isWindows = System.getProperty("os.name").lowercase().contains("windows")
+        return try {
+            val process = if (isWindows) ProcessBuilder("where", name).start() else ProcessBuilder("which", name).start()
+            val results = process.inputStream.bufferedReader().use { it.readLines() }.filter { it.isNotBlank() }
+            process.waitFor()
+            if (process.exitValue() != 0 || results.isEmpty()) return null
+
+            if (!isWindows) return results.first()
+            val lower = results.associateWith { it.lowercase() }
+            lower.entries.firstOrNull { it.value.endsWith(".exe") }?.key
+                ?: lower.entries.firstOrNull { it.value.endsWith(".cmd") }?.key
+                ?: lower.entries.firstOrNull { it.value.endsWith(".bat") }?.key
+                ?: results.first()
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    private fun parseBuildTasks(value: String, fallback: String): List<String> {
+        val tasks = value.trim().split(Regex("\\s+")).filter { it.isNotBlank() }
+        return if (tasks.isEmpty()) listOf(fallback) else tasks
+    }
+
+    private fun normalizeMavenGoals(value: String): List<String> {
+        val goals = parseBuildTasks(value, "package")
+        val gradleOnlyTasks = setOf("build", "shadowJar", "jar", "assemble")
+        return goals.map { goal -> if (goal in gradleOnlyTasks) "package" else goal }
     }
 
     /**
@@ -318,15 +392,21 @@ class HotReloadPluginAction : AnAction() {
         val relative = Path.of(basePath, jarPath)
         if (Files.exists(relative)) return relative
 
-        // Search in build/libs
-        val buildLibs = Path.of(basePath, "build/libs")
-        if (Files.exists(buildLibs)) {
-            Files.list(buildLibs).use { stream ->
-                return stream
-                    .filter { it.toString().endsWith(".jar") }
-                    .filter { !it.toString().contains("-sources") && !it.toString().contains("-javadoc") }
-                    .findFirst()
-                    .orElse(null)
+        val absolute = Path.of(jarPath)
+        if (Files.exists(absolute)) return absolute
+
+        // Search common outputs
+        val outputDirs = listOf(Path.of(basePath, "build/libs"), Path.of(basePath, "target"))
+        for (dir in outputDirs) {
+            if (Files.exists(dir)) {
+                Files.list(dir).use { stream ->
+                    val found = stream
+                        .filter { it.toString().endsWith(".jar") }
+                        .filter { !it.toString().contains("-sources") && !it.toString().contains("-javadoc") }
+                        .findFirst()
+                        .orElse(null)
+                    if (found != null) return found
+                }
             }
         }
         return null

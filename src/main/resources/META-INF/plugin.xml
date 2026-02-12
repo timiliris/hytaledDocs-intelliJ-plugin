@@ -121,10 +121,10 @@
 
 <h2>Resources</h2>
 <p>
-    <a href="https://hytale-docs.com">Documentation</a> ·
-    <a href="https://hytale-docs.com/api">API Reference</a> ·
-    <a href="https://hytale-docs.com/modding/plugins/project-setup">Plugin Guide</a> ·
-    <a href="https://discord.gg/yAjaFBH4Y8">Discord</a> ·
+    <a href="https://hytale-docs.com">Documentation</a> |
+    <a href="https://hytale-docs.com/api">API Reference</a> |
+    <a href="https://hytale-docs.com/modding/plugins/project-setup">Plugin Guide</a> |
+    <a href="https://discord.gg/yAjaFBH4Y8">Discord</a> |
     <a href="https://github.com/HytaleDocs/hytale-intellij-plugin">GitHub</a>
 </p>
 
@@ -408,7 +408,7 @@
             <action id="HytaleDocs.HotReloadPlugin"
                     class="com.hytaledocs.intellij.actions.HotReloadPluginAction"
                     text="Hot Reload Plugin"
-                    description="Build and reload your plugin on the running server (Build → Unload → Deploy → Load)"
+                    description="Build and reload your plugin on the running server (Build -> Unload -> Deploy -> Load)"
                     icon="AllIcons.Actions.ForceRefresh"/>
 
             <separator/>

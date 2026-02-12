@@ -202,20 +202,24 @@ class HytaleServerProcessHandler(
 
         val (command, workDir) = when {
             gradleWrapper != null -> {
-                printInfo("Using Gradle wrapper: ${config.buildTask}")
-                listOf(gradleWrapper, config.buildTask, "--no-daemon") to projectBasePath
+                val gradleTasks = parseBuildTasks(config.buildTask, "shadowJar")
+                printInfo("Using Gradle wrapper: ${gradleTasks.joinToString(" ")}")
+                (listOf(gradleWrapper) + gradleTasks + "--no-daemon") to projectBasePath
             }
             mavenWrapper != null -> {
-                printInfo("Using Maven wrapper: ${config.buildTask}")
-                listOf(mavenWrapper, config.buildTask) to projectBasePath
+                val mavenGoals = normalizeMavenGoals(config.buildTask)
+                printInfo("Using Maven wrapper: ${mavenGoals.joinToString(" ")}")
+                (listOf(mavenWrapper) + mavenGoals) to projectBasePath
             }
             globalGradle != null && hasGradleBuildFile(projectBasePath) -> {
-                printInfo("Using global Gradle: ${config.buildTask}")
-                listOf(globalGradle, config.buildTask, "--no-daemon") to projectBasePath
+                val gradleTasks = parseBuildTasks(config.buildTask, "shadowJar")
+                printInfo("Using global Gradle: ${gradleTasks.joinToString(" ")}")
+                (listOf(globalGradle) + gradleTasks + "--no-daemon") to projectBasePath
             }
             globalMaven != null && hasMavenBuildFile(projectBasePath) -> {
-                printInfo("Using global Maven: ${config.buildTask}")
-                listOf(globalMaven, config.buildTask) to projectBasePath
+                val mavenGoals = normalizeMavenGoals(config.buildTask)
+                printInfo("Using global Maven: ${mavenGoals.joinToString(" ")}")
+                (listOf(globalMaven) + mavenGoals) to projectBasePath
             }
             else -> {
                 printError("No Gradle or Maven found (wrapper or global)")
@@ -242,6 +246,19 @@ class HytaleServerProcessHandler(
         } catch (e: Exception) {
             printError("Build error: ${e.message}")
             false
+        }
+    }
+
+    private fun parseBuildTasks(value: String, fallback: String): List<String> {
+        val tasks = value.trim().split(Regex("\\s+")).filter { it.isNotBlank() }
+        return if (tasks.isEmpty()) listOf(fallback) else tasks
+    }
+
+    private fun normalizeMavenGoals(value: String): List<String> {
+        val goals = parseBuildTasks(value, "package")
+        val gradleOnlyTasks = setOf("build", "shadowJar", "jar", "assemble")
+        return goals.map { goal ->
+            if (goal in gradleOnlyTasks) "package" else goal
         }
     }
 

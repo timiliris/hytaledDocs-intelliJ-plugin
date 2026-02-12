@@ -39,7 +39,11 @@ class ReconfigureRunConfigAction : AnAction() {
         val pluginInfo = PluginInfoDetector.detect(basePath, project.name)
 
         if (pluginInfo == null) {
-            showNotification(project, "Could not detect plugin info. Make sure manifest.json or build.gradle exists.", NotificationType.ERROR)
+            showNotification(
+                project,
+                "Could not detect plugin info. Make sure manifest.json, pom.xml, or build.gradle exists.",
+                NotificationType.ERROR
+            )
             return
         }
 
@@ -53,7 +57,7 @@ class ReconfigureRunConfigAction : AnAction() {
 
         showNotification(
             project,
-            "Run configuration updated:\n• Plugin: ${pluginInfo.groupId}:${pluginInfo.modName}\n• JAR: ${pluginInfo.jarPath}",
+            "Run configuration updated:\n- Plugin: ${pluginInfo.groupId}:${pluginInfo.modName}\n- JAR: ${pluginInfo.jarPath}",
             NotificationType.INFORMATION
         )
 
