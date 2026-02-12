@@ -2,6 +2,36 @@
 
 ## [Unreleased]
 
+## [1.5.0] - 2026-02-12
+
+### Added
+
+- **Maven Build Goal Support in Run Configuration**:
+  - Build task dropdown now shows Maven goals for Maven projects
+  - Added support for multi-goal entry (e.g., `clean package`)
+  - Added one-time migration prompt for existing Maven projects using Gradle-only tasks
+
+### Fixed
+
+- **Maven projects failing to build from Run Configuration**:
+  - Replaced Gradle-only defaults with Maven-aware defaults (`package` for Maven projects)
+  - Added Maven goal normalization when old Gradle task names are present
+- **Hot Reload did not support Maven projects**:
+  - Hot Reload build step now supports Maven wrapper/global Maven in addition to Gradle
+  - JAR resolution now checks both `build/libs` and `target`
+- **Project detection missed Maven-only setups**:
+  - Startup run configuration setup now detects Hytale Maven dependencies from `pom.xml`
+- **Reconfigure action message outdated**:
+  - Updated detection guidance to include `pom.xml`
+
+### Changed
+
+- **Maven project template deployment behavior**:
+  - Removed generated `maven-resources-plugin` copy-to-mods step from `pom.xml`
+  - Plugin deployment is now handled only by the IntelliJ plugin run/deploy flow
+- **plugin.xml text normalization**:
+  - Replaced non-ASCII separators/arrows with ASCII-safe text to avoid encoding artifacts
+
 ## [1.4.2] - 2026-02-06
 
 ### Fixed
@@ -219,7 +249,8 @@
 - Supports IntelliJ IDEA 2024.3+
 - Requires Java 25 for Hytale development
 
-[Unreleased]: https://github.com/HytaleDocs/hytale-intellij-plugin/compare/v1.4.2...HEAD
+[Unreleased]: https://github.com/HytaleDocs/hytale-intellij-plugin/compare/v1.5.0...HEAD
+[1.5.0]: https://github.com/HytaleDocs/hytale-intellij-plugin/compare/v1.4.2...v1.5.0
 [1.4.2]: https://github.com/HytaleDocs/hytale-intellij-plugin/compare/v1.4.1...v1.4.2
 [1.4.1]: https://github.com/HytaleDocs/hytale-intellij-plugin/compare/v1.4.0...v1.4.1
 [1.4.0]: https://github.com/HytaleDocs/hytale-intellij-plugin/compare/v1.3.9...v1.4.0
