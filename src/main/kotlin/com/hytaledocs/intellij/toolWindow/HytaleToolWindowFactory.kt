@@ -695,6 +695,7 @@ class HytaleToolWindowPanel(
         // Contributors list
         val contributors = listOf(
             Triple("maartenpeels", "Mac & Linux support", "https://github.com/maartenpeels")
+            Triple("chums122", "Fix Maven support", "https://github.com/chums122")
         )
 
         contributors.forEach { (name, contribution, url) ->
