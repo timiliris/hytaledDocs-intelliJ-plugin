@@ -88,12 +88,17 @@ class HytaleRunConfigurationSetup : ProjectActivity {
 
         val hasIndicator = indicators.any { it.exists() }
 
-        // Also check for Hytale dependency in build.gradle
+        // Also check for Hytale dependency in build files
         val buildGradle = File(basePath, "build.gradle")
         val buildGradleKts = File(basePath, "build.gradle.kts")
+        val pomXml = File(basePath, "pom.xml")
         val hasHytaleDep = when {
             buildGradle.exists() -> buildGradle.readText().contains("HytaleServer")
             buildGradleKts.exists() -> buildGradleKts.readText().contains("HytaleServer")
+            pomXml.exists() -> {
+                val pomContent = pomXml.readText()
+                pomContent.contains("com.hypixel.hytale") && pomContent.contains("<artifactId>Server</artifactId>")
+            }
             else -> false
         }
 
