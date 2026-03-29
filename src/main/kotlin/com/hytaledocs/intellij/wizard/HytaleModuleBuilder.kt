@@ -698,85 +698,85 @@ class HytaleModuleBuilder : ModuleBuilder() {
 
     private fun generateBuildGradle(basePath: String) {
         val isKotlin = language == "Kotlin"
-        val kotlinPlugin = if (isKotlin) "\n    id 'org.jetbrains.kotlin.jvm' version '2.3.0'" else ""
-        val kotlinDeps = if (isKotlin) "\n            implementation 'org.jetbrains.kotlin:kotlin-stdlib'" else ""
-        val compileTask = if (isKotlin) "compileKotlin" else "compileJava"
+        val kotlinPlugin = if (isKotlin) "\n                kotlin(\"jvm\") version\"2.3.0\"" else ""
+        val kotlinDeps = if (isKotlin) "\n                implementation(\"org.jetbrains.kotlin:kotlin-stdlib\")" else ""
 
-        File(basePath, "build.gradle").writeText("""
+        File(basePath, "build.gradle.kts").writeText("""
             plugins {
-                id 'java'$kotlinPlugin
-                id 'com.gradleup.shadow' version '8.3.0'
+                id("java")
+                id("com.gradleup.shadow") version "8.3.0"$kotlinPlugin
             }
 
-            group = '$packageName'
-            version = '$version'
+            group = "$packageName"
+            version = "$version"
 
             repositories {
                 mavenCentral()
                 // Official Hytale Maven repository
                 maven {
-                    name = 'hytale-release'
-                    url = 'https://maven.hytale.com/release'
+                    name = "hytale-release"
+                    url = uri("https://maven.hytale.com/release")
                 }
                 maven {
-                    name = 'hytale-pre-release'
-                    url = 'https://maven.hytale.com/pre-release'
+                    name = "hytale-pre-release"
+                    url = uri("https://maven.hytale.com/pre-release")
                 }
             }
 
             dependencies {
                 // Hytale Server API from official Maven repository
-                compileOnly 'com.hypixel.hytale:Server:2026.01.24-6e2d4fc36'
+                // + notes the latest compatible version
+                compileOnly("com.hypixel.hytale:Server:+")
                 // JSR305 annotations (@Nonnull, @Nullable)
-                compileOnly 'com.google.code.findbugs:jsr305:3.0.2'
-                implementation 'com.google.code.gson:gson:2.10.1'$kotlinDeps
+                compileOnly("com.google.code.findbugs:jsr305:3.0.2")
+                implementation("com.google.code.gson:gson:2.10.1")$kotlinDeps
             }
 
             java {
                 toolchain {
-                    languageVersion = JavaLanguageVersion.of(25)
+                    languageVersion.set(JavaLanguageVersion.of(25))
                 }
             }
 
-            shadowJar {
-                archiveClassifier.set('')
+            tasks.shadowJar {
+                archiveClassifier.set("")
                 // Exclude server classes from the final JAR
                 dependencies {
-                    exclude(dependency { it.moduleGroup == 'com.hypixel' })
+                    exclude(dependency("com.hypixel:.*:.*"))
                 }
             }
 
             // Disable the default jar task to avoid conflicts with shadowJar
-            tasks.named('jar') {
+            tasks.named("jar") {
                 enabled = false
             }
 
-            tasks.named('build') {
-                dependsOn shadowJar
+            tasks.named("build") {
+                dependsOn(tasks.shadowJar)
             }
 
             // Deploy plugin JAR to server mods folder
-            tasks.register('deployToServer', Copy) {
+            tasks.register<Copy>("deployToServer") {
                 // Using 'from shadowJar' automatically adds task dependency and proper input tracking
-                from shadowJar
-                into 'server/mods'
+                from(tasks.shadowJar)
+                into("server/mods")
                 doLast {
-                    println "Deployed to server/mods/"
+                    println("Deployed to server/mods/")
                 }
             }
 
             // Watch for changes and auto-rebuild (useful during development)
-            tasks.register('watch') {
+            tasks.register("watch") {
                 doLast {
-                    println "Watching for changes... Press Ctrl+C to stop."
-                    println "Run 'gradle build --continuous' for auto-rebuild on file changes."
+                    println("Watching for changes... Press Ctrl+C to stop.")
+                    println("Run 'gradle build --continuous' for auto-rebuild on file changes.")
                 }
             }
         """.trimIndent())
     }
 
     private fun generateSettingsGradle(basePath: String) {
-        File(basePath, "settings.gradle").writeText("rootProject.name = '$modId'")
+        File(basePath, "settings.gradle.kts").writeText("rootProject.name = \"$modId\"")
     }
 
     private fun generateManifestEmpty(basePath: String) {
