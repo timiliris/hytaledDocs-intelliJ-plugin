@@ -1,7 +1,9 @@
 package com.hytaledocs.intellij.run
 
+import com.hytaledocs.intellij.hotReload.HotReloadListener
 import com.hytaledocs.intellij.services.JavaInstallService
 import com.hytaledocs.intellij.services.ServerLaunchService
+import com.intellij.codeInsight.codeVision.CodeVisionState.NotReady.result
 import com.intellij.execution.DefaultExecutionResult
 import com.intellij.execution.ExecutionResult
 import com.intellij.execution.Executor
@@ -16,12 +18,19 @@ import com.intellij.execution.runners.ProgramRunner
 import com.intellij.execution.ui.ConsoleView
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.vfs.VirtualFileManager
+import com.intellij.openapi.vfs.newvfs.BulkFileListener
+import com.intellij.openapi.vfs.newvfs.events.VFileEvent
 import java.io.OutputStream
 import java.net.ServerSocket
 import java.nio.file.Files
 import java.nio.file.Path
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.TimeUnit
+import kotlin.io.path.Path
+import kotlin.io.path.copyTo
+import kotlin.io.path.moveTo
+
 
 /**
  * Execution state for Hytale Server run configuration.
@@ -102,6 +111,7 @@ class HytaleServerProcessHandler(
     }
 
     private val launchService = ServerLaunchService.getInstance(project)
+
     @Volatile
     private var isTerminating = false
 
@@ -128,6 +138,16 @@ class HytaleServerProcessHandler(
 
         val serverAlreadyRunning = launchService.isServerRunning()
         val useHotReload = config.hotReloadEnabled && serverAlreadyRunning
+
+        if (config.hotReloadEnabled) {
+            printInfo("HotReload enabled")
+
+            project.getMessageBus().connect().subscribe(
+                topic = VirtualFileManager.VFS_CHANGES,
+                handler = HotReloadListener(project)
+            )
+
+        }
 
         if (useHotReload) {
             printInfo("=== Hot Reload Mode ===")
@@ -205,18 +225,22 @@ class HytaleServerProcessHandler(
                 printInfo("Using Gradle wrapper: ${config.buildTask}")
                 listOf(gradleWrapper, config.buildTask, "--no-daemon") to projectBasePath
             }
+
             mavenWrapper != null -> {
                 printInfo("Using Maven wrapper: ${config.buildTask}")
                 listOf(mavenWrapper, config.buildTask) to projectBasePath
             }
+
             globalGradle != null && hasGradleBuildFile(projectBasePath) -> {
                 printInfo("Using global Gradle: ${config.buildTask}")
                 listOf(globalGradle, config.buildTask, "--no-daemon") to projectBasePath
             }
+
             globalMaven != null && hasMavenBuildFile(projectBasePath) -> {
                 printInfo("Using global Maven: ${config.buildTask}")
                 listOf(globalMaven, config.buildTask) to projectBasePath
             }
+
             else -> {
                 printError("No Gradle or Maven found (wrapper or global)")
                 printInfo("Tip: Add gradlew.bat/gradlew to your project or install Gradle globally")
@@ -641,16 +665,19 @@ class HytaleServerProcessHandler(
                             printInfo("Debugger can connect on port $debugPort")
                         }
                     }
+
                     ServerLaunchService.ServerStatus.STOPPED -> {
                         if (!isTerminating) {
                             notifyProcessTerminated(0)
                         }
                     }
+
                     ServerLaunchService.ServerStatus.ERROR -> {
                         if (!isTerminating) {
                             notifyProcessTerminated(1)
                         }
                     }
+
                     else -> {}
                 }
             }
@@ -713,13 +740,13 @@ class HytaleServerProcessHandler(
                 notifyProcessTerminated(1)
                 false
             }.orTimeout(45, TimeUnit.SECONDS)
-            .exceptionally { e ->
-                // Timeout occurred - force kill and notify
-                LOG.warn("Stop server timed out, forcing termination", e)
-                printError("Server stop timed out - forcing shutdown")
-                notifyProcessTerminated(1)
-                false
-            }
+                .exceptionally { e ->
+                    // Timeout occurred - force kill and notify
+                    LOG.warn("Stop server timed out, forcing termination", e)
+                    printError("Server stop timed out - forcing shutdown")
+                    notifyProcessTerminated(1)
+                    false
+                }
         } else {
             notifyProcessTerminated(0)
         }
