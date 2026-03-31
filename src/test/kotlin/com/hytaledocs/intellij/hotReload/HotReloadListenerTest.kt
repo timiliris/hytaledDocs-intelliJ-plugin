@@ -1,6 +1,5 @@
-package hotReload
+package com.hytaledocs.intellij.hotReload
 
-import com.hytaledocs.intellij.hotReload.HotReloadListener
 import com.intellij.openapi.vfs.VirtualFileManager
 import com.intellij.testFramework.VfsTestUtil
 import com.intellij.testFramework.fixtures.BasePlatformTestCase
