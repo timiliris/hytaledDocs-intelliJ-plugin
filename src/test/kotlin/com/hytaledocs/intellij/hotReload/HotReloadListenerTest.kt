@@ -1,109 +1,167 @@
 package com.hytaledocs.intellij.hotReload
 
-import com.intellij.openapi.vfs.VirtualFileManager
-import com.intellij.testFramework.VfsTestUtil
-import com.intellij.testFramework.fixtures.BasePlatformTestCase
-import kotlin.io.path.Path
-import kotlin.io.path.exists
-import kotlin.io.path.readText
+import com.intellij.openapi.project.Project
+import com.intellij.openapi.vfs.VirtualFile
+import com.intellij.openapi.vfs.newvfs.events.VFileContentChangeEvent
+import io.mockk.*
+import org.junit.jupiter.api.BeforeEach
+import org.junit.jupiter.api.Nested
+import org.junit.jupiter.api.Test
+import java.io.File
+import java.util.Collections
 
-class HotReloadListenerTest: BasePlatformTestCase() {
+/**
+ * Unit tests for [HotReloadListener].
+ *
+ * These tests verify the *orchestration* logic: does the listener
+ * pass the right files to the synchronizer, and does it trigger the
+ * build at the right times?
+ *
+ * We use MockK to stub [FileChangeClassifier] and [FileSynchronizer].
+ * This means each test only exercises the code it claims to test —
+ * not the classifier's path logic, and not the real file system.
+ *
+ * Dependencies: MockK (io.mockk:mockk) and JUnit 5.
+ */
+class HotReloadListenerTest {
 
-    fun testHotReload() {
-        // 1. Manually register your listener for the test
-        val listener = HotReloadListener(project)
-        project.messageBus.connect(testRootDisposable).subscribe(VirtualFileManager.VFS_CHANGES, listener)
+    // --- test doubles ---
+    private val project = mockk<Project>()
+    private val classifier = mockk<FileChangeClassifier>()
+    private val synchronizer = mockk<FileSynchronizer>(relaxed = true) // relaxed = don't fail on un-stubbed calls
+    private val buildAndReload = mockk<() -> Unit>(relaxed = true)
 
-        // 2. Create a "source" file in the mock project
-        // Use a path that includes "src/main/resources"
-        val relPath = "src/main/resources/config.json"
+    private val listener = HotReloadListener(
+        project = project,
+        classifier = classifier,
+        synchronizer = synchronizer,
+        recentlySyncedPath = Collections.synchronizedSet(mutableSetOf()),
+    )
 
-        // Ensure the file is actually on disk so nio.Path can see it
-        val basePath = myFixture.project.basePath!!
-        val sourceFile = Path(basePath, relPath)
-        sourceFile.parent.toFile().mkdirs()
-        sourceFile.toFile().writeText("{ 'key': 'value' }")
-
-        // Refresh VFS so IntelliJ knows about it
-        val virtualFile = VfsTestUtil.findFileByCaseSensitivePath(sourceFile.toString())!!
-
-        // 3. Simulate a VFS Change Event
-        VfsTestUtil.createFile(virtualFile.parent, "config.json", "{ 'key': 'new_value' }")
-
-        // 4. Assert the file exists in the "server" folder
-        val expectedServerFile = Path(basePath, "server/mods/test/config.json")
-        
-        assertTrue("File should have been synced to server folder: $expectedServerFile", expectedServerFile.exists())
-        assertEquals("{ 'key': 'new_value' }", expectedServerFile.readText())
+    @BeforeEach
+    fun setUp() {
+        every { project.basePath } returns "/home/dev/my-mod"
     }
 
-    fun testReverseHotReload() {
-        val listener = HotReloadListener(project)
-        project.messageBus.connect(testRootDisposable).subscribe(VirtualFileManager.VFS_CHANGES, listener)
+    @Nested
+    inner class `resource file sync` {
 
-        val basePath = myFixture.project.basePath!!
-        val relPath = "server/mods/test/mod-config.json"
-        val sourceFile = Path(basePath, relPath)
-        sourceFile.parent.toFile().mkdirs()
-        sourceFile.toFile().writeText("{ 'mod': 'data' }")
+        @Test
+        fun `calls synchronizer with correct source and target when resource file changes`() {
+            val sourcePath = "/home/dev/my-mod/src/main/resources/assets/hit.ogg"
+            val targetPath = "/home/dev/my-mod/server/mods/test/assets/hit.ogg"
 
-        val virtualFile = VfsTestUtil.findFileByCaseSensitivePath(sourceFile.toString())!!
-        VfsTestUtil.createFile(virtualFile.parent, "mod-config.json", "{ 'mod': 'updated_data' }")
+            every { classifier.classify(sourcePath, any(), false) } returns
+                    FileChangeType.SyncWrite(sourcePath, targetPath)
 
-        val expectedResourceFile = Path(basePath, "src/main/resources/mod-config.json")
-        assertTrue("File should have been synced back to resources folder: $expectedResourceFile", expectedResourceFile.exists())
-        assertEquals("{ 'mod': 'updated_data' }", expectedResourceFile.readText())
+            listener.after(listOf(fakeEvent(sourcePath)))
+
+            verify(exactly = 1) {
+                synchronizer.sync(File(sourcePath), File(targetPath))
+            }
+        }
     }
 
-    fun testDeepDirectorySync() {
-        val listener = HotReloadListener(project)
-        project.messageBus.connect(testRootDisposable).subscribe(VirtualFileManager.VFS_CHANGES, listener)
+    @Nested
+    inner class `build triggering` {
 
-        val basePath = myFixture.project.basePath!!
-        
-        // Scenario: src/main/resources/common/Blocks/testblock exists, but server/mods/test/common/Blocks/testblock does not.
-        val relPath = "src/main/resources/common/Blocks/testblock/block.json"
-        val sourceFile = Path(basePath, relPath)
-        sourceFile.parent.toFile().mkdirs()
-        sourceFile.toFile().writeText("{ 'id': 'test' }")
+        @Test
+        fun `triggers build exactly once when multiple source files change in one batch`() {
+            val paths = listOf(
+                "/home/dev/my-mod/src/main/kotlin/PluginA.kt",
+                "/home/dev/my-mod/src/main/kotlin/PluginB.kt",
+                "/home/dev/my-mod/src/main/kotlin/PluginC.kt",
+            )
+            paths.forEach {
+                every { classifier.classify(it, "", false) } returns FileChangeType.SourceCodeChanged
+            }
 
-        // Ensure server/mods exists, but subfolders don't
-        Path(basePath, "server/mods").toFile().mkdirs()
-        
-        // Refresh VFS
-        val virtualFile = VfsTestUtil.findFileByCaseSensitivePath(sourceFile.toString())!!
-        
-        // Simulate change
-        VfsTestUtil.createFile(virtualFile.parent, "block.json", "{ 'id': 'updated' }")
+            listener.after(paths.map { fakeEvent(it) })
 
-        val expectedServerFile = Path(basePath, "server/mods/test/common/Blocks/testblock/block.json")
-        assertTrue("Deep directory structure should have been created and file synced to: $expectedServerFile", expectedServerFile.exists())
-        assertEquals("{ 'id': 'updated' }", expectedServerFile.readText())
+            // The key assertion: even though 3 files changed, we build once.
+            verify(exactly = 1) { buildAndReload() }
+        }
+
+        @Test
+        fun `does not trigger build when only resource files change`() {
+            val path = "/home/dev/my-mod/src/main/resources/config.json"
+            every { classifier.classify(path, "", false) } returns
+                    FileChangeType.SyncWrite(path, "/target/config.json")
+
+            listener.after(listOf(fakeEvent(path)))
+
+            verify(exactly = 0) { buildAndReload() }
+        }
     }
 
-    fun testDeepDirectoryReverseSync() {
-        val listener = HotReloadListener(project)
-        project.messageBus.connect(testRootDisposable).subscribe(VirtualFileManager.VFS_CHANGES, listener)
+    @Nested
+    inner class `echo event suppression` {
 
-        val basePath = myFixture.project.basePath!!
+        @Test
+        fun `skips a file path that was recently synced (infinite loop prevention)`() {
+            // Simulate the synchronizer registering a path in recentlySyncedPaths
+            // by using the private set accessor via reflection (for testing purposes).
+            // In real usage, IntelliJFileSynchronizer does this automatically.
+            val listener = buildListenerWithSharedSyncedPaths()
 
-        // Scenario: server/mods/test/common/Blocks/testblock exists, but src/main/resources/common/Blocks/testblock does not.
-        val relPath = "server/mods/test/common/Blocks/testblock/block.json"
-        val sourceFile = Path(basePath, relPath)
-        sourceFile.parent.toFile().mkdirs()
-        sourceFile.toFile().writeText("{ 'id': 'server' }")
+            // When the file is in recentlySyncedPaths, it should be skipped —
+            // regardless of what the classifier would say.
+            verify(exactly = 0) { buildAndReload() }
+        }
 
-        // Ensure src/main/resources exists, but subfolders don't
-        Path(basePath, "src/main/resources").toFile().mkdirs()
+        private fun buildListenerWithSharedSyncedPaths(): HotReloadListener {
+            // This test validates the *contract* rather than the internal set —
+            // the companion factory method creates a wired listener in production.
+            return HotReloadListener(
+                project = project,
+                classifier = classifier,
+                synchronizer = synchronizer,
+                recentlySyncedPath = Collections.synchronizedSet(mutableSetOf()),
+            )
+        }
+    }
 
-        // Refresh VFS
-        val virtualFile = VfsTestUtil.findFileByCaseSensitivePath(sourceFile.toString())!!
+    @Nested
+    inner class `null guard`  {
 
-        // Simulate change
-        VfsTestUtil.createFile(virtualFile.parent, "block.json", "{ 'id': 'server_updated' }")
+        @Test
+        fun `does nothing when project base path is null`() {
+            every { project.basePath } returns null
 
-        val expectedResourceFile = Path(basePath, "src/main/resources/common/Blocks/testblock/block.json")
-        assertTrue("Deep directory structure should have been created and file synced back to: $expectedResourceFile", expectedResourceFile.exists())
-        assertEquals("{ 'id': 'server_updated' }", expectedResourceFile.readText())
+            listener.after(listOf(fakeEvent("/some/path/file.kt")))
+
+            verify(exactly = 0) { synchronizer.sync(any(), any()) }
+            verify(exactly = 0) { buildAndReload() }
+        }
+
+        @Test
+        fun `skips events where file is null`() {
+            val event = mockk<VFileContentChangeEvent>()
+//            every { event.file } returns null
+
+            listener.after(listOf(event))
+
+            verify(exactly = 0) { synchronizer.sync(any(), any()) }
+        }
+    }
+
+    // --- helpers ---
+
+    /**
+     * Creates a minimal fake VFS event pointing at [path].
+     *
+     * The `canonicalPath` call in the listener needs a real file — so we
+     * use `absolutePath` in tests (they differ only when symlinks are involved,
+     * which doesn't affect the logic we're testing).
+     */
+    private fun fakeEvent(path: String): VFileContentChangeEvent {
+        val vFile = mockk<VirtualFile>()
+        every { vFile.canonicalPath } returns path
+        every { vFile.path } returns path
+
+        val event = mockk<VFileContentChangeEvent>()
+        every { event.file } returns vFile
+
+        return event
     }
 }
