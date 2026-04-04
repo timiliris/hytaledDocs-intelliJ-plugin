@@ -11,6 +11,7 @@ class HotReloadListener(
     private val classifier: FileChangeClassifier,
     private val synchronizer: FileSynchronizer,
     private val recentlySyncedPath: MutableSet<String>,
+    private val updateJarPlugin: () -> Boolean
 ) : BulkFileListener {
 
 
@@ -41,7 +42,7 @@ class HotReloadListener(
         }
 
         if (sourceCodeChanges) {
-            println("update")
+            updateJarPlugin()
             sourceCodeChanges = false
         }
     }

@@ -123,7 +123,13 @@ class HytaleServerProcessHandler(
                 HytaleFileChangeClassifier(),
                 synchronizer = IntellijFileSynchronizer(recentlySyncedPath),
                 recentlySyncedPath
-            )
+            ) {
+                printInfo("HotReload Started!")
+                if(!buildService.executeBuild(projectBasePath)) printError("Build failed!")
+                if(!deploymentService.deployPlugin(projectBasePath)) printError("Deploying plugin failed!")
+                printInfo("HotReload Done")
+                launchService.sendCommand("/plugin reload com.example:MyHytaleMod")
+            }
 
             project.getMessageBus().connect().subscribe(
                 topic = VirtualFileManager.VFS_CHANGES,

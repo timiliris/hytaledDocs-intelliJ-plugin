@@ -356,13 +356,6 @@
         />
     </applicationListeners>
 
-<!--    <projectListeners>-->
-<!--        <listener-->
-<!--                class="com.hytaledocs.intellij.hotReload.HotReloadListener"-->
-<!--                topic="com.intellij.openapi.vfs.newvfs.BulkFileListener"-->
-<!--        />-->
-<!--    </projectListeners>-->
-
     <actions>
         <group id="HytaleDocs.NewGroup" text="Hytale" description="Hytale mod development">
             <add-to-group group-id="NewGroup" anchor="after" relative-to-action="NewGroup1"/>
