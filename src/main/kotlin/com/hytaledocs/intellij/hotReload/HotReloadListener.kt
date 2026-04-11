@@ -4,7 +4,10 @@ import com.intellij.openapi.project.Project
 import com.intellij.openapi.vfs.newvfs.BulkFileListener
 import com.intellij.openapi.vfs.newvfs.events.VFileDeleteEvent
 import com.intellij.openapi.vfs.newvfs.events.VFileEvent
+import com.intellij.util.concurrency.AppExecutorUtil
 import java.io.File
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicReference
 
 class HotReloadListener(
     private val project: Project,
@@ -14,6 +17,8 @@ class HotReloadListener(
     private val updateJarPlugin: () -> Boolean
 ) : BulkFileListener {
 
+    private val scheduler = AppExecutorUtil.getAppScheduledExecutorService()
+    private val updateJob = AtomicReference<java.util.concurrent.ScheduledFuture<*>?>(null)
 
     override fun after(events: List<VFileEvent>) {
         val basePath = project.basePath ?: return
@@ -42,9 +47,19 @@ class HotReloadListener(
         }
 
         if (sourceCodeChanges) {
-            updateJarPlugin()
+            scheduleUpdate()
             sourceCodeChanges = false
         }
+    }
+
+    private fun scheduleUpdate() {
+        val oldJob = updateJob.getAndSet(
+            scheduler.schedule({
+                updateJarPlugin()
+                updateJob.set(null)
+            }, 500, TimeUnit.MILLISECONDS)
+        )
+        oldJob?.cancel(false)
     }
 
 }

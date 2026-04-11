@@ -4,10 +4,14 @@ import com.hytaledocs.intellij.hotReload.HotReloadListener
 import com.hytaledocs.intellij.hotReload.HytaleFileChangeClassifier
 import com.hytaledocs.intellij.hotReload.IntellijFileSynchronizer
 import com.hytaledocs.intellij.services.ServerLaunchService
+import com.hytaledocs.intellij.util.PluginInfoDetector
 import com.intellij.execution.process.ProcessHandler
 import com.intellij.execution.process.ProcessOutputType
 import com.intellij.execution.ui.ConsoleView
 import com.intellij.openapi.diagnostic.Logger
+import com.intellij.openapi.progress.ProgressIndicator
+import com.intellij.openapi.progress.ProgressManager
+import com.intellij.openapi.progress.Task
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.vfs.VirtualFileManager
 import java.io.OutputStream
@@ -124,14 +128,28 @@ class HytaleServerProcessHandler(
                 synchronizer = IntellijFileSynchronizer(recentlySyncedPath),
                 recentlySyncedPath
             ) {
-                printInfo("HotReload Started!")
-                if(!buildService.executeBuild(projectBasePath)) printError("Build failed!")
-                if(!deploymentService.deployPlugin(projectBasePath)) printError("Deploying plugin failed!")
-                printInfo("HotReload Done")
-                launchService.sendCommand("/plugin reload com.example:MyHytaleMod")
+                ProgressManager.getInstance().run(object : Task.Backgroundable(project, "Hytale Hot Reload", false) {
+                    override fun run(indicator: ProgressIndicator) {
+                        printInfo("HotReload Started!")
+                        if (!buildService.executeBuild(projectBasePath)) printError("Build failed!")
+                        if (!deploymentService.deployPlugin(projectBasePath)) printError("Deploying plugin failed!")
+                        printInfo("HotReload Done")
+
+                        val pluginId = if (config.pluginName.isNotBlank()) {
+                            config.pluginName
+                        } else {
+                            val info = PluginInfoDetector.detect(projectBasePath, project.name)
+                            if (info != null) "${info.groupId}:${info.artifactId}" else "com.example:${project.name}"
+                        }
+
+                        launchService.sendCommand("default", "/plugin reload $pluginId")
+                        launchService.sendCommand("default", "/say reloaded $pluginId")
+                    }
+                })
+                true
             }
 
-            project.getMessageBus().connect().subscribe(
+            project.messageBus.connect().subscribe(
                 topic = VirtualFileManager.VFS_CHANGES,
                 handler = listener
             )
