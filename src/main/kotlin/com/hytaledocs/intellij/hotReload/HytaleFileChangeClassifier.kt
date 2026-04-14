@@ -58,10 +58,10 @@ class HytaleFileChangeClassifier : FileChangeClassifier {
     private fun String.containsSegment(segment: String): Boolean =
         contains("/$segment/") || contains("/$segment")
 
-
     private companion object {
         const val RESOURCES_SEGMENT = "src/main/resources"
-        const val SERVER_MODS_SEGMENT = "server/mods/test"
+        const val SERVER_MODS_SEGMENT =
+            "server/mods/developmentPlugin"  //TODO create better ways for configuration of the mod info (needs to change to a dynamic name) //TODO add auto install of the resources for first run
         val SOURCE_SEGMENTS = listOf("src/main/java", "src/main/kotlin")
     }
 }
