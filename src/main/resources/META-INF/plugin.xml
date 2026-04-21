@@ -247,7 +247,6 @@
                 implementation="com.hytaledocs.intellij.uifile.highlighter.UIColorSettingsPage"/>
 
 
-
         <!-- Live Templates -->
         <defaultLiveTemplates file="/liveTemplates/Hytale.xml"/>
         <liveTemplateContext
@@ -351,8 +350,10 @@
 
     <applicationListeners>
         <!-- Force early UILanguage init before stub indexing -->
-        <listener class="com.hytaledocs.intellij.uifile.UILanguagePreloader"
-                  topic="com.intellij.ide.AppLifecycleListener"/>
+        <listener
+                class="com.hytaledocs.intellij.uifile.UILanguagePreloader"
+                topic="com.intellij.ide.AppLifecycleListener"
+        />
     </applicationListeners>
 
     <actions>
